@@ -45,15 +45,23 @@ outlier-dominated and must be read winsorized/at ≥5 s buckets; no action-condi
 
 ## Layout
 
-- `models/` — the decoders: `nmh_decoder.py` (neural multivariate Hawkes), `gmh_decoder.py`
-  (gated Hawkes × s2p2), `ptp_s2p2_decoder.py` (per-type s2p2), **`lgm_decoder.py` (the
-  model)**; plus the modified framework files `volume_set_mtpp.py`, `train_bfnx.py`.
+- `models/` — the decoders (`nmh`, `gmh`, `ptp_s2p2`, **`lgm`**, `s2p2`) + the modified
+  framework files (`volume_set_mtpp.py`, `train_bfnx.py`). See `models/README.md`.
 - `analysis/` — stylized-facts battery (`tfow_stylized_facts.py`), exact-thinning baselines
   (`tfow_compound_hawkes.py`, `tfow_mt_hawkes.py`, `tfow_nmh_thinning.py`), genuine-event
   evaluation (`tfow_genuine_eval.py`), and the comparison-table builder.
-- `scripts/` — SGE run scripts for each model variant.
+- `scripts/` — SGE run scripts per model variant, plus `_template_run.sh` for new ones.
+- `tests/` — `smoke_decoder.py`, the standardized check every new decoder must pass.
+- `results/` — versioned numeric summaries (`comparison_table.json`).
 - `paper/` — conference-style draft (`LGM_paper_draft.pdf`) and the model-comparison deck.
-- `docs/` — model notes, full comparison results, code map / runbook, and next-model design.
+- `docs/` — `ARCHITECTURE.md` (interface contract), `ADDING_A_MODEL.md` (iteration recipe),
+  `RESULTS.md`, `RUNBOOK.md`, `ROADMAP.md`, `MODEL_NOTES.md`.
+
+## Adding a new model
+
+The repo is built to iterate: implement `models/<x>_decoder.py` to the interface contract
+(`docs/ARCHITECTURE.md`), wire the 5 touch-points, pass `tests/smoke_decoder.py`, copy
+`scripts/_template_run.sh`. Full checklist in `docs/ADDING_A_MODEL.md`.
 
 ## Relation to volume-set-mtpp
 
@@ -61,10 +69,10 @@ The decoders plug into the [`volume-set-mtpp`](https://github.com/honglinfu98/vo
 framework (data pipeline, base `PPModel`, training/eval harness). To run, drop the `models/`
 files into `src/volume_set_mtpp/models/` and `train_bfnx.py` into `training_evaluation/`,
 then use the `scripts/` (e.g. `qsub run_gmni_marks_lgm086.sh`). Reproduction details and the
-exact flags are in `docs/codemap_and_runbook.md`.
+exact flags are in `docs/RUNBOOK.md`.
 
 ## Status
 
-LGM is the current best model. Open directions (`docs/next_model_gmh.md`): action-conditioning
+LGM is the current best model. Open directions (`docs/ROADMAP.md`): action-conditioning
 for a true market-making world model; a one-sided volatility-feedback term for the tails;
 stateful/TBPTT training as an alternative to the rate-pin.
