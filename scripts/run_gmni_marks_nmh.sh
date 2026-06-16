@@ -42,7 +42,7 @@ CKPT="$BASE/${TAG}_train/best_model.pt"
 status=0
 
 log "TRAIN_START $(date) $TAG"
-/usr/bin/time -p python3 -u -m volume_set_mtpp.training_evaluation.train_bfnx \
+/usr/bin/time -p python3 -u -m volume_set_mtpp.training_evaluation.train \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --decoder-type nmh --nmh-timescales 4 \
   --channel-emb-size 64 --time-emb-size 128 --recurrent-hidden 128 \

@@ -31,7 +31,7 @@ If the decoder emits per-type intensities, extend the branch in
 `get_total_intensity_and_items` (add `or getattr(self.decoder, "is_<x>", False)`), or add a
 dedicated branch if the total intensity is computed specially (see the `is_lgm` branch).
 
-## 3. Training flags — `models/train_bfnx.py`
+## 3. Training flags — `models/train.py`
 
 Add `--<x>-...` args, add `'<x>'` to `--decoder-type` choices, and copy the args into the
 `config` dict. If the decoder exposes `project_subcritical`, reuse `--nmh-project-rho`
@@ -64,7 +64,7 @@ does: train -> rho report -> genuine-event eval -> stylized facts -> price facts
 ## Deploying to the runnable framework
 
 This repo is a curated mirror. To run on the cluster, copy `models/*.py` into
-`volume-set-mtpp/src/volume_set_mtpp/models/` and `train_bfnx.py` into
+`volume-set-mtpp/src/volume_set_mtpp/models/` and `train.py` into
 `.../training_evaluation/`, then `qsub scripts/run_..._<x>.sh`. Details in `RUNBOOK.md`.
 
 ## Design lessons baked in (don't relearn the hard way)

@@ -36,7 +36,7 @@ log "START $(date) HOST=$(hostname)"; nvidia-smi --query-gpu=name --format=csv,n
 CKPT="$BASE/${TAG}_train/best_model.pt"
 
 log "TRAIN_START $(date)"
-python3 -u -m volume_set_mtpp.training_evaluation.train_bfnx \
+python3 -u -m volume_set_mtpp.training_evaluation.train \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" $EXTRA \
   --channel-emb-size 64 --time-emb-size 128 --recurrent-hidden 128 \
   --batch-size 512 --epochs 40 --lr 2e-3 --weight-decay 1e-6 \

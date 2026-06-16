@@ -54,6 +54,6 @@ so λ is dominated in its own history by a linear Hawkes with kernel `G_sup·φ`
 ## Code status (as of 2026-06-15, cluster unreachable)
 - `src/volume_set_mtpp/models/gmh_decoder.py` — `GMHDecoder`, composes the count-scan backbone (own $\mu,A,\delta$, linear ≥0 readout) with an embedded `S2P2SetDecoder` gate; `type_intensities` = backbone × `gate_max*sigmoid(MLP(u))`; `closed_form_rho` (backbone), `branching_proxy`/`subcritical_penalty`/`project_subcritical` (effective, ×$G_{\max}$). **Smoke-tested locally** (shapes, positive λ, grads to backbone+gate, projection 17.9→0.8); init eff-ρ 0.90.
 - `volume_set_mtpp.py` — `is_gmh` branch in `get_total_intensity_and_items` (shared with `is_nmh`); factory `decoder_type=='gmh'`.
-- `train_bfnx.py` — `--decoder-type gmh`, `--gmh-gate-max`, config keys; reuses `--nmh-project-rho`.
+- `train.py` — `--decoder-type gmh`, `--gmh-gate-max`, config keys; reuses `--nmh-project-rho`.
 - `run_gmni_marks_gmh.sh` — train + ρ + genuine eval + stylized facts (categorical, projection 0.8, gate_max 3, s2p2 3 layers).
 - **TODO on deploy:** scp the 3 files, CPU smoke-test (build via factory + `compute_loss` backward), then qsub; then exact-thinning the trained checkpoint (`tfow_nmh_thinning.py` needs a small GMH variant since intensity = backbone×gate, not softplus(μ+AS)).

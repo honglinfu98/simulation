@@ -14,7 +14,7 @@
 - `s2p2_decoder.py` — `S2P2SetDecoder` (the other decoder; `readout_mode='output'` = paper-faithful LayerNorm readout, the single most effective s2p2 sim fix historically).
 
 ## Training (`src/volume_set_mtpp/training_evaluation/`)
-- `train_bfnx.py` — args incl. `--decoder-type nmh`, `--nmh-timescales 4`, `--nmh-project-rho 0.8` (hard projection applied AFTER `optimizer.step()` in `train_epoch`), `--mark-head categorical`, `--subcritical-weight/--subcritical-rho-max` (soft penalty, now superseded by projection).
+- `train.py` — args incl. `--decoder-type nmh`, `--nmh-timescales 4`, `--nmh-project-rho 0.8` (hard projection applied AFTER `optimizer.step()` in `train_epoch`), `--mark-head categorical`, `--subcritical-weight/--subcritical-rho-max` (soft penalty, now superseded by projection).
 - `bfnx_data_loader.py` — windowed loader (seq-length, stride, cold-start S=0 per window — THE cause of the sim mismatch). A stateful contiguous-stream variant is the next build.
 
 ## Analysis/sim scripts (repo root)
@@ -48,7 +48,7 @@ python3 build_comparison_table.py
 
 ## Local mirror
 Local edit mirror of the model files: `~/ucl-hpc-work/review_20260610/remote_code/pkg/`
-(flat: `nmh_decoder.py`, `volume_set_mtpp.py`, `train_bfnx.py`, plus the `tfow_*.py`
+(flat: `nmh_decoder.py`, `volume_set_mtpp.py`, `train.py`, plus the `tfow_*.py`
 and `run_*.sh` at `remote_code/`). Edit locally, `scp` to the cluster's
 `src/volume_set_mtpp/models/` or `training_evaluation/`. Diff against remote before
 overwriting.

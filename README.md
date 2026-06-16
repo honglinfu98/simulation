@@ -46,7 +46,7 @@ outlier-dominated and must be read winsorized/at ≥5 s buckets; no action-condi
 ## Layout
 
 - `models/` — the decoders (`nmh`, `gmh`, `ptp_s2p2`, **`lgm`**, `s2p2`) + the modified
-  framework files (`volume_set_mtpp.py`, `train_bfnx.py`). See `models/README.md`.
+  framework files (`volume_set_mtpp.py`, `train.py`). See `models/README.md`.
 - `analysis/` — stylized-facts battery (`tfow_stylized_facts.py`), exact-thinning baselines
   (`tfow_compound_hawkes.py`, `tfow_mt_hawkes.py`, `tfow_nmh_thinning.py`), genuine-event
   evaluation (`tfow_genuine_eval.py`), and the comparison-table builder.
@@ -67,7 +67,7 @@ The repo is built to iterate: implement `models/<x>_decoder.py` to the interface
 
 The decoders plug into the [`volume-set-mtpp`](https://github.com/honglinfu98/volume-set-mtpp)
 framework (data pipeline, base `PPModel`, training/eval harness). To run, drop the `models/`
-files into `src/volume_set_mtpp/models/` and `train_bfnx.py` into `training_evaluation/`,
+files into `src/volume_set_mtpp/models/` and `train.py` into `training_evaluation/`,
 then use the `scripts/` (e.g. `qsub run_gmni_marks_lgm086.sh`). Reproduction details and the
 exact flags are in `docs/RUNBOOK.md`.
 
