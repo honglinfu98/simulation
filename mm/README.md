@@ -42,6 +42,19 @@ inventory dominates on Sharpe (controls inventory) while naive/wide get run over
 This is the **agent-comparison framework** (RL vs A-S vs heuristics).
 `flow_fn` hook accepts the trained book-conditioned LGM for realistic adverse selection.
 
+## `rl_maker.py` — RL maker vs A-S (agent comparison)
+
+A Gaussian-MLP policy (obs=[inventory, recent mid move] -> action=[half-spread,
+inventory skew]) trained by REINFORCE-with-baseline in the action-conditional
+`WMEnv` (reward = d(equity) - inv_pen*q^2). The trained policy plugs into
+`world_model.compare()` via `make_rl_policy(net)`. Result: the RL maker **discovers
+the A-S strategy from reward alone** (widen spread + skew on inventory under adverse
+selection) and is competitive with the hand-designed A-S inventory baseline
+(higher total PnL, comparable inventory control, slightly lower Sharpe). Run:
+`PYTHONPATH=mm python3 mm/rl_maker.py`. This is the RL-vs-A-S-vs-heuristic comparison.
+Note: undertrained / weak inventory-penalty RL underperforms A-S — tuning
+(episodes, inv_pen) matters; PPO would be the next step.
+
 ## Plugging in LGM flow (next)
 Generate `(dt, aggr, size)` from a trained LGM rollout (map event types → aggressor
 sign via the stylized-facts `build_sign_vectors`, sizes from the volume head), then
