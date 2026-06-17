@@ -26,6 +26,22 @@ channel, so incoming MOs selectively pick off mis-priced quotes). Then markout
 becomes realistic and the harness — unchanged — yields trustworthy metrics and an
 RL-trainable world model. See `../docs/ROADMAP.md`.
 
+## Stage-2: `world_model.py` (action-conditional)
+
+The exogenous flow CONDITIONS on the maker's quotes (informed flow picks off
+mispriced quotes), so **markout / adverse selection becomes real (negative)** —
+impossible in Stage-1. Verified: informed_frac=0 -> markout~0 (recovers Stage-1);
+informed_frac>0 -> markout<0, and inventory control becomes decisive.
+
+**Pluggable maker policies** (`policy(mid, q) -> (bid, ask)`): `make_as_inventory`
+(Avellaneda-Stoikov + inventory skew), `make_naive`, `make_fixed_wide`, and
+`make_rl_stub(policy_net)` for a trained RL policy. `compare({...})` runs them in
+the SAME world (same seed) and tabulates the maker battery (PnL attribution,
+markout, Sharpe, inventory). Example result under adverse-selection flow: A-S
+inventory dominates on Sharpe (controls inventory) while naive/wide get run over.
+This is the **agent-comparison framework** (RL vs A-S vs heuristics).
+`flow_fn` hook accepts the trained book-conditioned LGM for realistic adverse selection.
+
 ## Plugging in LGM flow (next)
 Generate `(dt, aggr, size)` from a trained LGM rollout (map event types → aggressor
 sign via the stylized-facts `build_sign_vectors`, sizes from the volume head), then
