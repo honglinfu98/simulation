@@ -51,6 +51,7 @@ class LGMDecoder(nn.Module):
         target_rate: float = 1.8,
         vol_feedback: bool = False,
         vol_gamma: float = 1.0,
+        cond_dim: int = 0,
         max_dt: float = 1e4,
     ):
         super().__init__()
@@ -82,6 +83,14 @@ class LGMDecoder(nn.Module):
         self.mark = PerTypeS2P2Decoder(
             channel_embedding=channel_embedding, num_channels=self.num_channels,
             per_type_dim=per_type_dim, min_decay=min_decay, max_dt=max_dt)
+
+        # Stage-2 book/action conditioning of the marks (rate-neutral). cond_dim>0
+        # enables a per-type logit shift from book features; zero-init = neutral start.
+        self.cond_dim = int(cond_dim)
+        if self.cond_dim > 0:
+            self.feat_norm = nn.LayerNorm(self.cond_dim)
+            self.feat_to_logits = nn.Linear(self.cond_dim, self.num_channels)
+            nn.init.zeros_(self.feat_to_logits.weight); nn.init.zeros_(self.feat_to_logits.bias)
 
         self.ground_dim = M + (1 if self.vol_feedback else 0)         # last channel = R
         self.mark_dim = self.mark.recurrent_hidden_size
@@ -115,9 +124,19 @@ class LGMDecoder(nn.Module):
             lam = lam + F.softplus(self.log_b) * (r2 - self.vol_c0) # mean-zero -> pin preserved
         return lam.clamp_min(1e-4)                                 # positivity
 
-    def mark_score(self, hm: torch.Tensor) -> torch.Tensor:
-        """hm [..., K*d] -> per-type mark logits z_k [..., K] (softmax over k)."""
-        return self.mark.per_type_score(hm)
+    def mark_score(self, hm: torch.Tensor, feats: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """hm [..., K*d] -> per-type mark logits z_k [..., K] (softmax over k).
+
+        Stage-2 conditioning: if book/action features `feats` [..., cond_dim] are
+        given, add a per-type logit shift W.feats (zero-init -> starts neutral,
+        conditioning learned). This lives in the MARK simplex only -> rate-neutral,
+        so the exact-mean rate pin and the gauge-free branching certificate are
+        untouched. This is where book imbalance / agent-quote state biases WHICH
+        event fires next (the seat of adverse selection)."""
+        z = self.mark.per_type_score(hm)
+        if feats is not None and getattr(self, "feat_to_logits", None) is not None:
+            z = z + self.feat_to_logits(self.feat_norm(feats.float()))
+        return z
 
     def _decay_g(self, dt: torch.Tensor) -> torch.Tensor:
         dt = dt.clamp(min=0.0, max=self.max_dt)

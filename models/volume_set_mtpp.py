@@ -263,7 +263,9 @@ class VolumeSetMTPP(PPModel):
             hg = h_t[..., :self.decoder.ground_dim]
             hm = h_t[..., self.decoder.ground_dim:]
             Lam = self.decoder.ground_intensity(hg).unsqueeze(-1)      # [B,N,1]
-            z = self.decoder.mark_score(hm)                           # [B,N,K] mark logits
+            # Stage-2: book/action features (if provided) condition the mark logits
+            # only -> rate-neutral, so Lam (calibration + certificate) is untouched.
+            z = self.decoder.mark_score(hm, state_features)           # [B,N,K] mark logits
             p = torch.softmax(z, dim=-1)
             return {
                 "total_intensity": Lam,
@@ -872,6 +874,7 @@ def create_volume_set_mtpp(
             num_timescales=config.get('nmh_timescales', 4),
             target_rate=config.get('lgm_target_rate', 1.8),
             vol_feedback=config.get('lgm_vol_feedback', False),
+            cond_dim=(config.get('lob_state_dim', 6) if config.get('lob_state_input', False) else 0),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(
