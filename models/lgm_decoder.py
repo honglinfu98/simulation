@@ -88,9 +88,19 @@ class LGMDecoder(nn.Module):
         # enables a per-type logit shift from book features; zero-init = neutral start.
         self.cond_dim = int(cond_dim)
         if self.cond_dim > 0:
-            self.feat_norm = nn.LayerNorm(self.cond_dim)
-            self.feat_to_logits = nn.Linear(self.cond_dim, self.num_channels)
-            nn.init.zeros_(self.feat_to_logits.weight); nn.init.zeros_(self.feat_to_logits.bias)
+            # PER-FEATURE running standardization (each feature normalised by its
+            # own running mean/std) -- NOT cross-feature LayerNorm, which mixed the
+            # 6 features and washed out the absolute imbalance level.
+            self.register_buffer("feat_mean", torch.zeros(self.cond_dim))
+            self.register_buffer("feat_var", torch.ones(self.cond_dim))
+            self.feat_mom = 0.01
+            # deeper/wider MLP feature head; last layer zero-init -> neutral start.
+            hid = 64
+            self.feat_to_logits = nn.Sequential(
+                nn.Linear(self.cond_dim, hid), nn.GELU(),
+                nn.Linear(hid, hid), nn.GELU(),
+                nn.Linear(hid, self.num_channels))
+            nn.init.zeros_(self.feat_to_logits[-1].weight); nn.init.zeros_(self.feat_to_logits[-1].bias)
 
         self.ground_dim = M + (1 if self.vol_feedback else 0)         # last channel = R
         self.mark_dim = self.mark.recurrent_hidden_size
@@ -135,8 +145,18 @@ class LGMDecoder(nn.Module):
         event fires next (the seat of adverse selection)."""
         z = self.mark.per_type_score(hm)
         if feats is not None and getattr(self, "feat_to_logits", None) is not None:
-            z = z + self.feat_to_logits(self.feat_norm(feats.float()))
+            z = z + self.feat_to_logits(self._standardize(feats))
         return z
+
+    def _standardize(self, feats: torch.Tensor) -> torch.Tensor:
+        """Per-feature standardization with running stats (updated in training)."""
+        f = feats.float()
+        if self.training:
+            with torch.no_grad():
+                dims = tuple(range(f.dim() - 1))
+                self.feat_mean.mul_(1 - self.feat_mom).add_(self.feat_mom * f.mean(dim=dims))
+                self.feat_var.mul_(1 - self.feat_mom).add_(self.feat_mom * f.var(dim=dims, unbiased=False))
+        return (f - self.feat_mean) / torch.sqrt(self.feat_var + 1e-5)
 
     def _decay_g(self, dt: torch.Tensor) -> torch.Tensor:
         dt = dt.clamp(min=0.0, max=self.max_dt)
