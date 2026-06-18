@@ -1,0 +1,106 @@
+\documentclass[11pt]{article}
+
+% --- packages -------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\graphicspath{{figures/}}
+
+% --- metadata -------------------------------------------------------------
+\title{LGM: A Calibrated, Certifiable Factorized Neural Hawkes Process\\
+       for Limit-Order-Book Simulation}
+\author{Honglin Fu}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Neural marked temporal point processes (MTPPs) predict the next limit-order-book
+(LOB) event well but \emph{simulate} order flow poorly: in free roll-out they
+over-disperse or explode, and their stability cannot be honestly certified. We
+introduce \textbf{LGM} (Linear Ground $\times$ soft-max Marks), which factorizes the
+per-type intensity into a \emph{linear} scalar ground rate and a \emph{deep} soft-max
+mark head. Because the marks live on the probability simplex they are rate-neutral, so
+the total rate remains a pure linear Hawkes process regardless of mark-net nonlinearity.
+This preserves the exact stationary-mean formula, which we \emph{pin} analytically to
+solve the train/simulate calibration mismatch, and yields a gauge-free branching ratio
+as a closed-form stability certificate. On Gemini ETH--USD data (62 event types), LGM is
+simultaneously calibrated (free-roll rate within ${\sim}7\%$ of real), a competitive
+predictor, clustered (correct Fano profile), and certifiable --- the first model in our
+study to achieve all of these together.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+% Why simulation (not just prediction) is the goal; the two failure modes
+% (calibration mismatch + gauge pathology). Cite the world-model motivation.
+Order-book simulation underpins market-making research, backtesting, and reinforcement
+learning of execution policies. \citep{avellaneda2008high}
+
+\section{The LGM factorization}
+\label{sec:model}
+The per-type intensity factorizes into a timing rate and a mark distribution,
+\begin{equation}
+  \lambda_k(t) = \Lambda(t)\, p(k \mid t),
+  \qquad \sum_k \lambda_k(t) = \Lambda(t),
+  \label{eq:factorization}
+\end{equation}
+where the ground rate is a multi-timescale \emph{linear} Hawkes process and the marks
+are a deep soft-max:
+\begin{equation}
+  \Lambda(t) = \mu_0 + \sum_{m} a_m\, s_m(t),
+  \qquad
+  p(\cdot \mid t) = \mathrm{softmax}\big(z_\theta(t)\big).
+  \label{eq:ground}
+\end{equation}
+Since the soft-max lies on the simplex, $\sum_k p_k = 1$, the marks are
+\emph{rate-neutral}: the total rate $\Lambda$ is unaffected by mark-net nonlinearity.
+The stationary mean therefore survives in closed form,
+\begin{equation}
+  \bar{\Lambda} = \frac{\mu_0}{1 - n}, \qquad n = \sum_m \frac{a_m}{\beta_m},
+  \label{eq:mean}
+\end{equation}
+and we \textbf{pin} it by setting $\mu_0 = R_{\text{target}}(1-n)$, so $\bar{\Lambda} =
+R_{\text{target}}$ by construction. The branching ratio $n$ is gauge-free and serves as a
+stability certificate, with $\mathrm{Fano}(\infty) = 1/(1-n)^2$.
+
+\section{Results}
+\label{sec:results}
+Table~\ref{tab:headline} reports the headline comparison on Gemini ETH--USD
+(62 event types, real rate ${\approx}2.38$ ev/s).
+
+\begin{table}[t]
+  \centering
+  \caption{Headline comparison. LGM is uniquely calibrated \emph{and} a competitive
+           predictor \emph{and} clustered \emph{and} certifiable.}
+  \label{tab:headline}
+  \begin{tabular}{lccccl}
+    \toprule
+    Model & GenAcc & Fano(1s) & branching $\rho$ & free-roll rate & sim status \\
+    \midrule
+    Compound Hawkes        & 0.18 & 8.8  & 0.64 (exact)   & ${\sim}2$   & stable, no long-memory \\
+    s2p2 (best predictor)  & \textbf{0.32} & 41 & gauge-broken & ---       & over-disperses \\
+    NMH / GMH (windowed)   & 0.26 & explode & 1300 / 0.8  & 52--100/s   & explode / Poisson \\
+    \textbf{LGM} ($n{=}0.86$) & \textbf{0.29} & \textbf{6.0} & \textbf{0.86 (honest)} & \textbf{2.22/s} & \textbf{calibrated} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Discussion}
+\label{sec:discussion}
+% Honest caveats: tails ~2x light; mildly over-reflexive; raw 1s kurtosis/skew
+% outlier-dominated (read winsorized / >=5s buckets); no action-conditioning yet.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

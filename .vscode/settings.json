@@ -1,0 +1,44 @@
+{
+  // ---- LaTeX Workshop: Overleaf-like local workflow ----------------------
+  // Compile automatically on save (like Overleaf's auto-recompile).
+  "latex-workshop.latex.autoBuild.run": "onSave",
+
+  // Open the compiled PDF in a side tab with SyncTeX (ctrl/cmd-click to jump
+  // between source and PDF, both directions).
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.synctex.afterBuild.enabled": true,
+
+  // Keep all build artifacts in paper/build/ so the source tree stays clean.
+  "latex-workshop.latex.outDir": "%DIR%/build",
+
+  // Build recipe: latexmk (picks up paper/.latexmkrc -> pdflatex + bibtex).
+  "latex-workshop.latex.recipe.default": "latexmk",
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk",
+      "tools": ["latexmk"]
+    }
+  ],
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-pdf",
+        "-outdir=%OUTDIR%",
+        "%DOC%"
+      ],
+      "env": {}
+    }
+  ],
+
+  // Auto-clean intermediate files (.aux/.log/...) but keep the PDF.
+  "latex-workshop.latex.autoClean.run": "onBuilt",
+  "latex-workshop.latex.clean.subfolder.enabled": true,
+
+  // The root file LaTeX Workshop should compile.
+  "latex-workshop.latex.rootFile.useSubFile": false
+}
