@@ -1,7 +1,7 @@
 # Adding a new model (iteration checklist)
 
 A repeatable recipe so each new decoder is fast, correct, and comparable. Read
-`ARCHITECTURE.md` first for the interface contract.
+`../models/ARCHITECTURE.md` first for the interface contract.
 
 ## 1. Write the decoder — `models/<x>_decoder.py`
 

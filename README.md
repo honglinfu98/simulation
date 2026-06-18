@@ -45,8 +45,10 @@ outlier-dominated and must be read winsorized/at ≥5 s buckets; no action-condi
 
 ## Layout
 
-- `models/` — the decoders (`nmh`, `gmh`, `ptp_s2p2`, **`lgm`**, `s2p2`) + the modified
-  framework files (`volume_set_mtpp.py`, `train.py`). See `models/README.md`.
+- `models/` — **the model.** The decoders (`nmh`, `gmh`, `ptp_s2p2`, **`lgm`**, `s2p2`) + the
+  modified framework files (`volume_set_mtpp.py`, `train.py`), plus the full architecture
+  write-up (`models/ARCHITECTURE.md`) and the interface contract. Start here to understand
+  the model. See `models/README.md`.
 - `analysis/` — stylized-facts battery (`tfow_stylized_facts.py`), exact-thinning baselines
   (`tfow_compound_hawkes.py`, `tfow_mt_hawkes.py`, `tfow_nmh_thinning.py`), genuine-event
   evaluation (`tfow_genuine_eval.py`), and the comparison-table builder.
@@ -54,13 +56,13 @@ outlier-dominated and must be read winsorized/at ≥5 s buckets; no action-condi
 - `tests/` — `smoke_decoder.py`, the standardized check every new decoder must pass.
 - `results/` — versioned numeric summaries (`comparison_table.json`).
 - `paper/` — conference-style draft (`LGM_paper_draft.pdf`) and the model-comparison deck.
-- `docs/` — `ARCHITECTURE.md` (interface contract), `ADDING_A_MODEL.md` (iteration recipe),
-  `RESULTS.md`, `RUNBOOK.md`, `ROADMAP.md`, `MODEL_NOTES.md`.
+- `docs/` — `ADDING_A_MODEL.md` (iteration recipe), `RESULTS.md`, `RUNBOOK.md`, `ROADMAP.md`,
+  `MODEL_NOTES.md`. (The architecture/interface contract lives in `models/ARCHITECTURE.md`.)
 
 ## Adding a new model
 
 The repo is built to iterate: implement `models/<x>_decoder.py` to the interface contract
-(`docs/ARCHITECTURE.md`), wire the 5 touch-points, pass `tests/smoke_decoder.py`, copy
+(`models/ARCHITECTURE.md`), wire the 5 touch-points, pass `tests/smoke_decoder.py`, copy
 `scripts/_template_run.sh`. Full checklist in `docs/ADDING_A_MODEL.md`.
 
 ## Relation to volume-set-mtpp

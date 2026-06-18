@@ -1,7 +1,13 @@
-# models/
+# models/ — the model (architecture hub)
 
-Decoders (our contributions) plus the modified framework files. All go into
-`volume-set-mtpp/src/volume_set_mtpp/models/` to run (see `../docs/RUNBOOK.md`).
+**This is the one folder to read to understand the model.** It holds the decoders
+(our contributions), the modified framework files, and the full architecture write-up.
+
+📐 **[`ARCHITECTURE.md`](ARCHITECTURE.md)** — the factorization, the LGM design, the
+decoder comparison table, and the interface contract every decoder satisfies. Read it first.
+
+The `.py` files all go into `volume-set-mtpp/src/volume_set_mtpp/models/` to run
+(see `../docs/RUNBOOK.md`).
 
 | file | role | flag |
 |---|---|---|
@@ -19,4 +25,4 @@ they also import framework files not included here (`ppmodel_original`, `decoder
 (`nmh/ptp/gmh/lgm/s2p2`) need only PyTorch and each other, and are covered by
 `../tests/smoke_decoder.py`.
 
-Interface contract for new decoders: see `../docs/ARCHITECTURE.md`.
+Interface contract for new decoders: see [`ARCHITECTURE.md`](ARCHITECTURE.md) (in this folder).
