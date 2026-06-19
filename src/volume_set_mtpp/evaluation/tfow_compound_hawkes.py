@@ -25,10 +25,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from volume_set_mtpp.training_evaluation.bfnx_data_loader import _fixed_bfnx_event_names
-from tfow_world_model_diagnostics import save_json
-from tfow_price_facts_v2 import parse_v2_file
-from tfow_stylized_facts import bucketize, all_facts, build_sign_vectors
+from volume_set_mtpp.training.bfnx_data_loader import _fixed_bfnx_event_names
+from .tfow_world_model_diagnostics import save_json
+from .tfow_price_facts_v2 import parse_v2_file
+from .tfow_stylized_facts import bucketize, all_facts, build_sign_vectors
 
 
 def load_events(files, name_to_idx, k, max_per_file):

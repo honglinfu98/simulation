@@ -1,9 +1,9 @@
 # Adding a new model (iteration checklist)
 
 A repeatable recipe so each new decoder is fast, correct, and comparable. Read
-`../models/ARCHITECTURE.md` first for the interface contract.
+`../src/volume_set_mtpp/models/ARCHITECTURE.md` first for the interface contract.
 
-## 1. Write the decoder — `models/<x>_decoder.py`
+## 1. Write the decoder — `src/volume_set_mtpp/models/<x>_decoder.py`
 
 Mirror `lgm_decoder.py` / `nmh_decoder.py`. Minimum:
 - class attribute `is_<x> = True` and `intensity_activation = "<x>"`;
@@ -14,7 +14,7 @@ Mirror `lgm_decoder.py` / `nmh_decoder.py`. Minimum:
   nonlinearity in the **mark simplex** (rate-neutral) by default.
 - recommended: `closed_form_rho`, `branching_proxy`, `project_subcritical`.
 
-## 2. Wire into the model — `models/volume_set_mtpp.py`
+## 2. Wire into the model — `src/volume_set_mtpp/models/volume_set_mtpp.py`
 
 ```python
 try:
@@ -31,7 +31,7 @@ If the decoder emits per-type intensities, extend the branch in
 `get_total_intensity_and_items` (add `or getattr(self.decoder, "is_<x>", False)`), or add a
 dedicated branch if the total intensity is computed specially (see the `is_lgm` branch).
 
-## 3. Training flags — `models/train.py`
+## 3. Training flags — `src/volume_set_mtpp/training/train.py`
 
 Add `--<x>-...` args, add `'<x>'` to `--decoder-type` choices, and copy the args into the
 `config` dict. If the decoder exposes `project_subcritical`, reuse `--nmh-project-rho`
@@ -41,7 +41,7 @@ Add `--<x>-...` args, add `'<x>'` to `--decoder-type` choices, and copy the args
 
 Register the decoder in the `DECODERS` list. Run:
 ```bash
-cd lob-world-model && PYTHONPATH=. python3 tests/smoke_decoder.py
+pip install -e .  &&  pytest tests/smoke_decoder.py     # or: python3 tests/smoke_decoder.py
 ```
 It checks (synthetic data, no cluster needed): state shapes, the anti-leakage rule
 (`left[:,0]==0`), intensity positivity + finiteness, gradient flow to all params, and the
@@ -54,18 +54,19 @@ does: train -> rho report -> genuine-event eval -> stylized facts -> price facts
 
 ## 6. Evaluate & compare
 
-- Genuine accuracy/perplexity: `analysis/tfow_genuine_eval.py`.
-- Free-rollout stylized facts: `analysis/tfow_stylized_facts.py` (neural harness) or
-  `analysis/tfow_nmh_thinning.py` (exact thinning, for Hawkes-form decoders).
-- Add the result row: `analysis/build_comparison_table.py` -> `results/comparison_table.json`.
+- Genuine accuracy/perplexity: `python -m volume_set_mtpp.evaluation.tfow_genuine_eval`.
+- Free-rollout stylized facts: `… tfow_stylized_facts` (neural harness) or
+  `… tfow_nmh_thinning` (exact thinning, for Hawkes-form decoders).
+- Add the result row: `… build_comparison_table` -> `results/comparison_table.json`.
 - **Report robust stats**: raw 1 s kurtosis/skew are outlier-dominated (median bucket count
   is 0). Use winsorized or >=5 s buckets (see `RESULTS.md`).
 
-## Deploying to the runnable framework
+## Deploying to the cluster
 
-This repo is a curated mirror. To run on the cluster, copy `models/*.py` into
-`volume-set-mtpp/src/volume_set_mtpp/models/` and `train.py` into
-`.../training_evaluation/`, then `qsub scripts/run_..._<x>.sh`. Details in `RUNBOOK.md`.
+This repo **is** the framework — no copying files around. `git pull` it into
+`$HPC_RUN_HOME` on the cluster, `pip install -e .` (or `export PYTHONPATH=$PWD/src`),
+then `qsub scripts/run_..._<x>.sh` (or `bash scripts/submit_run.sh --tag <x> --decoder <x> …`).
+Details in `RUNBOOK.md`.
 
 ## Design lessons baked in (don't relearn the hard way)
 

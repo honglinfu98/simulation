@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- User-level launchd agent (NO admin) to keep the experiment watcher running.
+     Install:
+       1) bash scripts/hpc-common.sh open          # seed the SSH master once
+       2) edit the two ABSOLUTE paths below to your checkout
+       3) cp scripts/com.honglifu.hpcwatch.plist.example \
+             ~/Library/LaunchAgents/com.honglifu.hpcwatch.plist
+       4) launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.honglifu.hpcwatch.plist
+     Stop:  launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.honglifu.hpcwatch.plist
+     Notes: caffeinate -i keeps the Mac awake while watching; if the Mac sleeps the
+     password ControlMaster dies and you must re-run `hpc-common.sh open`. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>            <string>com.honglifu.hpcwatch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>/bin/bash</string>
+    <string>/ABSOLUTE/PATH/TO/simulation/scripts/watch_runs.sh</string>
+  </array>
+  <key>WorkingDirectory</key> <string>/ABSOLUTE/PATH/TO/simulation</string>
+  <key>RunAtLoad</key>        <true/>
+  <key>KeepAlive</key>        <true/>
+  <key>ThrottleInterval</key> <integer>30</integer>
+  <key>StandardOutPath</key>  <string>/ABSOLUTE/PATH/TO/simulation/.runs/watch.log</string>
+  <key>StandardErrorPath</key><string>/ABSOLUTE/PATH/TO/simulation/.runs/watch.log</string>
+</dict>
+</plist>

@@ -16,8 +16,18 @@ data/
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg-link
+build/
+dist/
 .venv/
 venv/
+
+# secrets + experiment automation (never commit)
+.env
+.ssh-control/
+.runs/
+jobs/gen/
+outputs/runs/
 
 # os / editor
 .DS_Store

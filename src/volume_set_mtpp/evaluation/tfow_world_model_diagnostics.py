@@ -39,7 +39,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from volume_set_mtpp.training_evaluation.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
 from volume_set_mtpp.models.volume_set_mtpp import create_volume_set_mtpp
 
 

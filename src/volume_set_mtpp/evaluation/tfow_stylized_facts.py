@@ -43,9 +43,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from volume_set_mtpp.training_evaluation.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
 from volume_set_mtpp.models.volume_set_mtpp import create_volume_set_mtpp
-from tfow_world_model_diagnostics import (
+from .tfow_world_model_diagnostics import (
     get_device, move_batch, limit_batches, save_json, style_ax, savefig,
     _distribution_at_dts, _survival_quadrature,
 )
@@ -131,7 +131,7 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
     # maintains a replayed Book whose features feed the model every step.
     state_loop = bool(getattr(model, "lob_state_enabled", False)) and vocab is not None and depth_profile is not None
     if state_loop:
-        from book_replay import Book
+        from .book_replay import Book
         books = [Book(list(depth_profile), list(depth_profile), list(depth_profile)) for _ in range(n)]
     pot_loop = bool(getattr(model, "potential_head_enabled", False))
     pa = torch.zeros(n, device=device)
@@ -492,9 +492,9 @@ def main():
     sf_bps = 1.0
     if getattr(model, "lob_state_enabled", False):
         import glob as _glob
-        from book_replay import parse_vocab
-        from volume_set_mtpp.training_evaluation.bfnx_data_loader import _fixed_bfnx_event_names
-        from tfow_price_facts_v2 import parse_v2_file
+        from .book_replay import parse_vocab
+        from volume_set_mtpp.training.bfnx_data_loader import _fixed_bfnx_event_names
+        from .tfow_price_facts_v2 import parse_v2_file
         _names = _fixed_bfnx_event_names()
         sf_vocab = parse_vocab({str(i): n for i, n in enumerate(_names)}, len(_names))
         _fp = sorted(_glob.glob(str(Path(args.data_dir) / "*.jsonl.gz")))[0]
