@@ -19,7 +19,7 @@ This separation is the design principle: put nonlinearity where it cannot pertur
 
 ## The decoder interface (contract every decoder must satisfy)
 
-A decoder plugs into `VolumeSetMTPP` (in `models/volume_set_mtpp.py`). It must provide:
+A decoder plugs into `VolumeSetMTPP` (in `volume_set_mtpp.py`, this folder). It must provide:
 
 | member | signature | meaning |
 |---|---|---|
@@ -54,15 +54,15 @@ read from `left`; the post-event impulse only enters `right`. Verified by the sm
 | `is_lgm` | `lgm_decoder.py` | **`Lambda(t)·softmax(z)`** — linear ground × deep marks | ground `n = sr(a/beta)`, gauge-free | **the model**: exact mean, rate-pinned, calibrated |
 
 `s2p2_decoder.py` (stacked latent linear Hawkes) is a dependency of GMH and the original
-state-space point process baseline. `volume_set_mtpp.py` / `train.py` are the modified
-framework files (the factory + the `is_*` branches + training flags).
+state-space point process baseline. `volume_set_mtpp.py` (here) and `../training/train.py`
+are the framework files (the factory + the `is_*` branches + training flags).
 
 ## Where a new decoder wires in (5 touch-points)
 
-1. `models/<x>_decoder.py` — implement the contract above.
-2. `volume_set_mtpp.py` — import it; add `elif decoder_type == '<x>'` in `create_volume_set_mtpp`.
-3. `volume_set_mtpp.py` — if per-type, add `is_<x>` to the `get_total_intensity_and_items` branch.
-4. `train.py` — add the CLI arg + config key.
+1. `src/volume_set_mtpp/models/<x>_decoder.py` — implement the contract above.
+2. `models/volume_set_mtpp.py` — import it; add `elif decoder_type == '<x>'` in `create_volume_set_mtpp`.
+3. `models/volume_set_mtpp.py` — if per-type, add `is_<x>` to the `get_total_intensity_and_items` branch.
+4. `training/train.py` — add the CLI arg + config key.
 5. `tests/smoke_decoder.py` — register it; it must pass. Then add `scripts/run_..._<x>.sh`.
 
 See `ADDING_A_MODEL.md` for the step-by-step.
