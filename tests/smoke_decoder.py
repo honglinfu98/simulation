@@ -4,7 +4,8 @@ Synthetic data only (no cluster / no real data needed). Checks the interface con
 state shapes, the anti-leakage rule, intensity positivity + finiteness, gradient flow to
 all parameters, and the branching certificate (if exposed).
 
-    pip install -e .  &&  pytest tests/smoke_decoder.py        # or: python3 tests/smoke_decoder.py
+    ./setup_repo.sh  &&  . venv/bin/activate  &&  pytest tests/smoke_decoder.py
+    # or, without the venv:  PYTHONPATH=. python3 tests/smoke_decoder.py
 """
 import sys
 import torch

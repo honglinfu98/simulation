@@ -1,4 +1,4 @@
-# src/volume_set_mtpp/process/process_all_events_chunked.py
+# volume_set_mtpp/process/process_all_events_chunked.py
 #!/usr/bin/env python3
 """
 Process all your order book and trade data to create events - CHUNKED HPC VERSION.

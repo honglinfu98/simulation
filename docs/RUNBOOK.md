@@ -1,18 +1,18 @@
 # Code map & runbook
 
-The repository **is** the framework: `pip install -e .` and the package
-`volume_set_mtpp` is importable both locally and on the cluster. There is no
-separate code tree to vendor anymore.
+The repository **is** the framework: the package `volume_set_mtpp/` sits at the repo
+root, importable once the root is on `PYTHONPATH` (run `./setup_repo.sh` locally, or
+`export PYTHONPATH=$PWD`). There is no separate code tree to vendor anymore.
 
 ## Cluster access
 - Host: `<user>@peacock.cs.ucl.ac.uk` (UCL CS HPC, SGE scheduler). Login node has NO GPU. ProxyJump via the CS gateway (set in `.env`).
-- Deploy: `git pull` this repo into `$HPC_RUN_HOME` (e.g. `/home/<user>/volume-set-mtpp`), then `pip install -e .` **or** `export PYTHONPATH="$PWD/src"`.
+- Deploy: `git pull` this repo into `$HPC_RUN_HOME` (e.g. `/home/<user>/volume-set-mtpp`), then `export PYTHONPATH="$PWD"` (or `./setup_repo.sh`).
 - Env: `source /share/apps/source_files/python/python-3.11.9.source; source venv/bin/activate`.
 - Data: `/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks` (nodes matching `hoots*` lack the SAN mount — the run scripts detect this and exit `SAN_NOT_VISIBLE`).
 - **GPU note:** `gpu_type=h100` / `a100_80` are GATED for this account (project `fca`) — jobs queue forever. Use plain `-l gpu=true`. `submit_run.sh` strips any `gpu_type=` line automatically.
 - SSH multiplexing from the Mac uses a single ControlMaster (`scripts/hpc-common.sh open`). Never run 2+ heavy concurrent SSH sessions over it.
 
-## Package map (`src/volume_set_mtpp/`)
+## Package map (`volume_set_mtpp/`)
 - `models/` — `nmh_decoder.py` (`NMHDecoder`: `get_states_and_event_left_states`, `get_hidden_h`, `type_intensities`, `branching_proxy`, `project_subcritical`, `closed_form_rho`), `lgm_decoder.py` (the model), `gmh/ptp_s2p2/s2p2` decoders, and the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, plus `ppmodel_original`, `decoder_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
 - `training/` — `train.py` (`--decoder-type`, `--nmh-timescales`, `--nmh-project-rho` applied after `optimizer.step()`, `--mark-head`, `--lgm-target-rate`), `bfnx_data_loader.py` (windowed, cold-start S=0 per window — the sim-mismatch cause).
 - `process/` — `event_construction_chunked.py`, `process_all_events_chunked.py`.
@@ -28,7 +28,7 @@ python -m volume_set_mtpp.evaluation.tfow_nmh_thinning   --checkpoint <ckpt> --v
 python -m volume_set_mtpp.evaluation.tfow_mt_hawkes      --v2-dir <data> --rho-max 0.8 ...
 python -m volume_set_mtpp.evaluation.build_comparison_table
 ```
-Console-script aliases (`vsmtpp-train`, `tfow-genuine-eval`, …) are installed by `pip install -e .`.
+Entry-point CLIs live in `scripts/` (e.g. `python scripts/train.py`, `python scripts/evaluate.py`).
 
 ## Run scripts (`scripts/`, `qsub run_*.sh`)
 - `_template_run.sh` — train → `closed_form_rho` → `tfow_genuine_eval` → `tfow_stylized_facts`; the canonical template. Copy for a new variant.

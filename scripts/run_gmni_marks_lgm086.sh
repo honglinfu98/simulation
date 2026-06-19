@@ -20,7 +20,7 @@ set -o pipefail
 cd "$HOME/volume-set-mtpp"
 source /share/apps/source_files/python/python-3.11.9.source 2>/dev/null || true
 source venv/bin/activate 2>/dev/null || true
-export PYTHONPATH="$PWD/src"
+export PYTHONPATH="$PWD"
 export PYTHONUNBUFFERED=1 TQDM_DISABLE=1 OMP_NUM_THREADS=4 MKL_NUM_THREADS=4
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 unset BFNX_CACHE_FILE

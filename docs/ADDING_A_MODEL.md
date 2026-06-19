@@ -1,9 +1,9 @@
 # Adding a new model (iteration checklist)
 
 A repeatable recipe so each new decoder is fast, correct, and comparable. Read
-`../src/volume_set_mtpp/models/ARCHITECTURE.md` first for the interface contract.
+`../volume_set_mtpp/models/ARCHITECTURE.md` first for the interface contract.
 
-## 1. Write the decoder — `src/volume_set_mtpp/models/<x>_decoder.py`
+## 1. Write the decoder — `volume_set_mtpp/models/<x>_decoder.py`
 
 Mirror `lgm_decoder.py` / `nmh_decoder.py`. Minimum:
 - class attribute `is_<x> = True` and `intensity_activation = "<x>"`;
@@ -14,7 +14,7 @@ Mirror `lgm_decoder.py` / `nmh_decoder.py`. Minimum:
   nonlinearity in the **mark simplex** (rate-neutral) by default.
 - recommended: `closed_form_rho`, `branching_proxy`, `project_subcritical`.
 
-## 2. Wire into the model — `src/volume_set_mtpp/models/volume_set_mtpp.py`
+## 2. Wire into the model — `volume_set_mtpp/models/volume_set_mtpp.py`
 
 ```python
 try:
@@ -31,7 +31,7 @@ If the decoder emits per-type intensities, extend the branch in
 `get_total_intensity_and_items` (add `or getattr(self.decoder, "is_<x>", False)`), or add a
 dedicated branch if the total intensity is computed specially (see the `is_lgm` branch).
 
-## 3. Training flags — `src/volume_set_mtpp/training/train.py`
+## 3. Training flags — `volume_set_mtpp/training/train.py`
 
 Add `--<x>-...` args, add `'<x>'` to `--decoder-type` choices, and copy the args into the
 `config` dict. If the decoder exposes `project_subcritical`, reuse `--nmh-project-rho`
@@ -41,7 +41,7 @@ Add `--<x>-...` args, add `'<x>'` to `--decoder-type` choices, and copy the args
 
 Register the decoder in the `DECODERS` list. Run:
 ```bash
-pip install -e .  &&  pytest tests/smoke_decoder.py     # or: python3 tests/smoke_decoder.py
+./setup_repo.sh && . venv/bin/activate && pytest tests/smoke_decoder.py  # or: PYTHONPATH=. python3 tests/smoke_decoder.py
 ```
 It checks (synthetic data, no cluster needed): state shapes, the anti-leakage rule
 (`left[:,0]==0`), intensity positivity + finiteness, gradient flow to all params, and the
@@ -64,7 +64,7 @@ does: train -> rho report -> genuine-event eval -> stylized facts -> price facts
 ## Deploying to the cluster
 
 This repo **is** the framework — no copying files around. `git pull` it into
-`$HPC_RUN_HOME` on the cluster, `pip install -e .` (or `export PYTHONPATH=$PWD/src`),
+`$HPC_RUN_HOME` on the cluster, `export PYTHONPATH=$PWD` (or `./setup_repo.sh`),
 then `qsub scripts/run_..._<x>.sh` (or `bash scripts/submit_run.sh --tag <x> --decoder <x> …`).
 Details in `RUNBOOK.md`.
 
