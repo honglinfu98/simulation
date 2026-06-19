@@ -1,31 +1,115 @@
-# LOB World Model — Factorized Neural Hawkes for Order-Book Simulation
+# LGM: A Calibrated, Certifiable Factorized Neural Hawkes Process for Limit-Order-Book Simulation
 
-Research code for **LGM**, a factorized neural marked temporal point process (MTPP) for
-limit-order-book (LOB) event streams that is **calibrated, stable, certifiable, and a
-competitive predictor at the same time** — the first model in our study to achieve all of
-these together.
+This repository contains the artifacts for the paper *LGM: A Calibrated, Certifiable
+Factorized Neural Hawkes Process for Limit-Order-Book Simulation* (preprint, in preparation).
+LGM is a factorized neural marked temporal point process (MTPP) for limit-order-book (LOB)
+event streams that is **calibrated, stable, certifiable, and a competitive predictor at the
+same time** — the first model in our study to achieve all of these together.
 
-> **Core idea.** Factor the per-type intensity into a *linear* scalar ground rate and a
-> *deep* soft-max mark head:
->
-> `λ_k(t) = Λ(t) · p(k | t)`,  with  `Λ(t) = μ₀ + Σ_m a_m s_m(t)`  and  `p(·|t) = softmax(deep net)`.
->
-> Because the soft-max lives on the probability simplex it is **rate-neutral**, so the total
-> rate `Σ_k λ_k = Λ` is a pure linear Hawkes regardless of how nonlinear the mark net is. The
-> exact stationary-mean formula `Λ̄ = μ₀/(1−n)` therefore survives, and we **pin** it by
-> setting `μ₀ = R_target·(1−n)` — calibration solved analytically, with an honest gauge-free
-> branching ratio `n = Σ_m a_m/β_m` as the stability certificate.
-
-## Why it matters
+## **Overview**
 
 Neural MTPPs predict the next LOB event well but **simulate** it poorly: in free roll-out
 they over-disperse or explode, and their stability cannot be honestly certified. We trace
 this to (i) a train/simulate mismatch — windowed cold-start training mis-calibrates the
-rate, so free roll-out runs away (we observe 20–40× over-firing) — and (ii) a gauge
-pathology — a LayerNorm read-out makes the branching ratio scale-invariant, so it can't be
-measured from weights. LGM removes both by construction.
+rate, so free roll-out runs away (20–40× over-firing) — and (ii) a gauge pathology — a
+LayerNorm read-out makes the branching ratio scale-invariant, so it cannot be measured from
+weights. **LGM** removes both by construction: it factors the per-type intensity into a
+*linear* scalar ground rate and a *deep* soft-max mark head, `λ_k(t) = Λ(t)·p(k|t)`. Because
+the soft-max lives on the probability simplex it is **rate-neutral**, so the total rate
+`Σ_k λ_k = Λ` stays a pure linear Hawkes process no matter how nonlinear the mark net is —
+the exact stationary mean survives and we **pin** it (`μ₀ = R(1−n) ⇒ Λ̄ = R`), with a
+gauge-free branching ratio `n` as a closed-form stability certificate.
 
-## Headline results (Gemini ETH-USD, 62 event types; real rate ≈ 2.38 ev/s)
+<p align="center">
+  <img src="diagram/architecture.png" width="750">
+</p>
+
+The whole study is one installable package with a stage-by-stage pipeline — from raw-data
+extraction through event construction, the model zoo, training, and the evaluation battery
+(genuine-event accuracy, stylized facts, and a market-making world model).
+
+<p align="center">
+  <img src="diagram/pipeline.png" width="850">
+</p>
+
+## **Repository Structure**
+- `volume_set_mtpp/`: the core package — `extract/` (raw LOB/trade download), `process/`
+  (event construction), `models/` (decoders **lgm**/nmh/gmh/ptp_s2p2/s2p2 + framework +
+  `ARCHITECTURE.md`), `training/` (train + data loader), `evaluation/` (stylized facts,
+  genuine eval, baselines, `market_making/`).
+- `scripts/`: command-line entry points (`fetch_data.py`, `build_events.py`, `train.py`,
+  `evaluate.py`) plus the SGE run scripts and the **automated HPC runner + email watcher**
+  (`submit_run.sh`, `watch_runs.sh`, `notify_email.py`, `hpc-common.sh`).
+- `diagram/`: figures used in the README and paper (regenerate with `make_diagrams.py`).
+- `paper/`: LaTeX source-of-truth (`main.tex`) and the committed render (`main.pdf`).
+- `docs/`: `RUNBOOK.md`, `ADDING_A_MODEL.md`, `RESULTS.md`, `ROADMAP.md`, `MODEL_NOTES.md`.
+- `tests/`: `smoke_decoder.py` (interface-contract check); `results/`: numeric summaries.
+
+## **Quick Start**
+
+### 1. Set up the environment
+
+- Clone the repository
+```
+git clone https://github.com/honglinfu98/simulation.git
+cd simulation
+```
+- Give execute permission to the setup script and run it
+```
+chmod +x setup_repo.sh
+./setup_repo.sh
+. venv/bin/activate
+```
+- Configure environment variables: rename `.env.example` to `.env` and fill in your UCL HPC
+  connection and (for the watcher) Gmail SMTP app password:
+```
+HPC_USER = "..."
+HPC_RUN_HOME = "/home/<user>/volume-set-mtpp"
+SMTP_USER = "..."
+SMTP_PASS = "..."        # Gmail App Password
+```
+
+### 2. Build the dataset
+
+Extraction runs on the UCL HPC cluster (needs Kaiko/GCS credentials; see
+`volume_set_mtpp/extract/README.md`), then event construction:
+```
+python scripts/fetch_data.py orderbook --crypto eth --parallel 4
+python scripts/fetch_data.py trades    --crypto eth --parallel 4
+python scripts/build_events.py
+```
+
+### 3. Train a model
+```
+python scripts/train.py \
+    --decoder-type lgm \
+    --data-dir <events_dir> \
+    --lgm-target-rate 2.381 --nmh-project-rho 0.86 \
+    --mark-head categorical --epochs 40
+```
+
+### 4. Evaluate
+```
+python scripts/evaluate.py genuine --checkpoint <ckpt> --data-dir <events_dir>   # accuracy + perplexity
+python scripts/evaluate.py facts   --checkpoint <ckpt> --data-dir <events_dir>   # stylized facts (free rollout)
+python scripts/evaluate.py table                                                  # rebuild comparison table
+```
+
+### 5. (Optional) Automated HPC runs with email on completion
+
+Submit to the cluster and walk away — the watcher emails you when each run finishes:
+```
+bash scripts/hpc-common.sh open        # seed the SSH ControlMaster (one password prompt)
+bash scripts/submit_run.sh --tag lgm086 --decoder lgm \
+    --extra "--decoder-type lgm --lgm-target-rate 2.381 --nmh-project-rho 0.86 --mark-head categorical"
+set -a; source .env; set +a
+bash scripts/watch_runs.sh             # emails: [sim] lgm086 DONE rho=.. genacc=.. Fano=..
+```
+See `docs/RUNBOOK.md` for the unattended (launchd) setup.
+
+## **Results**
+
+Gemini ETH-USD, 62 event types; real rate ≈ 2.38 ev/s.
 
 | Model | GenAcc | Fano(1s) | branching ρ | free-roll rate | sim status |
 |---|---|---|---|---|---|
@@ -35,85 +119,21 @@ measured from weights. LGM removes both by construction.
 | **LGM (n=0.86)** | **0.29** | **6.0** | **0.86 (honest)** | **2.22/s** | **calibrated ✓** |
 
 LGM uniquely is calibrated (rate within ~7% of real) **and** a competitive predictor **and**
-clustered (Fano) **and** has the correct (positive) return-skew sign **and** carries a
-closed-form stability certificate. The branching ratio is a single interpretable knob that
-sets the Fano-vs-scale curve via `1/(1−ρ)²`.
+clustered (Fano) **and** carries a closed-form stability certificate; the branching ratio is
+a single interpretable knob setting the Fano-vs-scale curve via `1/(1−ρ)²`. *Honest caveats
+(see `docs/`):* return tails ~2× lighter than the robust empirical target; mildly
+over-reflexive; raw 1 s kurtosis/skew are outlier-dominated (read winsorized / at ≥5 s buckets).
 
-**Honest caveats** (see `docs/`): return tails are ~2× lighter than the robust empirical
-target; LGM is mildly over-reflexive (return-ACF ~2× high); raw kurtosis/skew at 1 s are
-outlier-dominated and must be read winsorized/at ≥5 s buckets; no action-conditioning yet.
+## **License**
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
-## Layout
+## **Citation**
 
-The whole pipeline is one installable package, `src/volume_set_mtpp/`, with one subpackage
-per stage:
-
-- `src/volume_set_mtpp/extract/` — raw LOB/trade download (cluster-only; needs Kaiko/GCS
-  credentials — see `extract/README.md`).
-- `src/volume_set_mtpp/process/` — event construction from raw data into 62-channel JSONL
-  (`event_construction_chunked.py`, `process_all_events_chunked.py`).
-- `src/volume_set_mtpp/models/` — **the model.** The decoders (`nmh`, `gmh`, `ptp_s2p2`,
-  **`lgm`**, `s2p2`) + the framework (`volume_set_mtpp.py` and deps), plus the architecture
-  write-up (`models/ARCHITECTURE.md`). Start here to understand the model.
-- `src/volume_set_mtpp/training/` — `train.py` + the windowed `bfnx_data_loader.py`.
-- `src/volume_set_mtpp/evaluation/` — stylized-facts battery (`tfow_stylized_facts.py`),
-  exact-thinning baselines (`tfow_compound_hawkes.py`, `tfow_mt_hawkes.py`,
-  `tfow_nmh_thinning.py`), genuine-event eval (`tfow_genuine_eval.py`), price facts, the
-  comparison-table builder, and `market_making/` (Stage-1/2 maker world model + RL maker).
-- `scripts/` — SGE run scripts per variant (`_template_run.sh`) **plus the automated runner**
-  (`submit_run.sh`, `watch_runs.sh`, `notify_email.py`, `hpc-common.sh`).
-- `tests/smoke_decoder.py` — the standardized check every new decoder must pass.
-- `paper/` — LaTeX source-of-truth (`main.tex`) and the committed render (`main.pdf`);
-  legacy artifacts in `paper/legacy/`.
-- `results/comparison_table.json`, `docs/` (`RUNBOOK.md`, `ADDING_A_MODEL.md`, `RESULTS.md`,
-  `ROADMAP.md`, `MODEL_NOTES.md`).
-
-## Install
-
-```bash
-pip install -e .            # editable install; torch is unpinned (see pyproject.toml)
-pytest tests/smoke_decoder.py
 ```
-
-This is also the framework: there is no separate dependency to vendor. Console scripts
-(`vsmtpp-train`, `tfow-genuine-eval`, …) are installed, or run modules directly, e.g.
-`python -m volume_set_mtpp.evaluation.tfow_stylized_facts --help`.
-
-## Run on UCL HPC
-
-The repo deploys as-is. On the cluster: `git pull` into `$HPC_RUN_HOME` (e.g.
-`/home/<user>/volume-set-mtpp`), then `pip install -e .` (or `export PYTHONPATH=$PWD/src`),
-and `qsub scripts/run_gmni_marks_lgm086.sh`. Each run writes lifecycle markers to
-`master.log` and a `DONE … STATUS=… BASE=…` terminal line.
-
-### Automated runs + email on completion
-
-So you don't have to sit at the machine (see `docs/RUNBOOK.md` for the full setup):
-
-```bash
-cp .env.example .env            # fill in HPC_* and SMTP_* (Gmail app password)
-bash scripts/hpc-common.sh open # seed the SSH ControlMaster once (one password prompt)
-bash scripts/submit_run.sh --tag lgm086 --decoder lgm --extra "--decoder-type lgm …"
-bash scripts/watch_runs.sh      # polls; emails [sim] <tag> DONE rho=… genacc=… Fano=… on completion
+@article{fu2026lgm,
+  title  = {LGM: A Calibrated, Certifiable Factorized Neural Hawkes Process for Limit-Order-Book Simulation},
+  author = {Fu, Honglin},
+  year   = {2026},
+  note   = {Preprint, in preparation}
+}
 ```
-
-The watcher uses a single multiplexed SSH connection, detects DONE/FAILED/CRASHED, pulls
-results back, and emails once per run. Run it unattended via the user-level launchd agent
-(`scripts/com.honglifu.hpcwatch.plist.example`, no admin).
-
-## Adding a new model
-
-Implement `src/volume_set_mtpp/models/<x>_decoder.py` to the interface contract
-(`src/volume_set_mtpp/models/ARCHITECTURE.md`), wire the 5 touch-points, pass
-`tests/smoke_decoder.py`, copy `scripts/_template_run.sh`. Full checklist in
-`docs/ADDING_A_MODEL.md`.
-
-## Status
-
-LGM is the current best model. Open directions (`docs/ROADMAP.md`): action-conditioning
-for a true market-making world model; a one-sided volatility-feedback term for the tails;
-stateful/TBPTT training as an alternative to the rate-pin.
-
-## License
-
-MIT — see [`LICENSE`](LICENSE).

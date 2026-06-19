@@ -25,5 +25,5 @@ def require_credentials() -> str:
         "extract: no data-provider credentials found.\n"
         "Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json "
         "(GCS) or KAIKO_API_KEY=<key> (Kaiko), then re-run on a host with the "
-        "extractor available. See src/volume_set_mtpp/extract/README.md."
+        "extractor available. See volume_set_mtpp/extract/README.md."
     )
