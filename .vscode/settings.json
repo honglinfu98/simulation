@@ -31,7 +31,12 @@
         "-outdir=%OUTDIR%",
         "%DOC%"
       ],
-      "env": {}
+      // Pin TinyTeX onto PATH so the build works even when VS Code is launched
+      // from the Dock/Finder (GUI apps do NOT read ~/.zshrc). latexmk needs its
+      // child pdflatex/bibtex on PATH too, hence the full PATH here.
+      "env": {
+        "PATH": "/Users/Ryan/Library/TinyTeX/bin/universal-darwin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
     }
   ],
 
