@@ -133,7 +133,7 @@ if __name__ == "__main__":
     learned = PolicyNet.to_action(net.mean(net.body(torch.zeros(2))).detach())
     print(f"learned quoting at flat inventory: half_spread={float(learned[0]):.2f} ticks, skew={float(learned[1]):.3f} ticks/unit")
 
-    import world_model as wm
+    import volume_set_mtpp.evaluation.market_making.world_model as wm
     pols = {
         "naive":         wm.make_naive(spread_ticks=2.0),
         "A-S inventory": wm.make_as_inventory(spread_ticks=2.0, inv_skew_ticks=0.3),

@@ -21,7 +21,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from volume_set_mtpp.training_evaluation.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
 from volume_set_mtpp.models.volume_set_mtpp import create_volume_set_mtpp
 
 

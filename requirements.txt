@@ -1,0 +1,12 @@
+# Runtime dependencies (mirrors pyproject.toml [project.dependencies]).
+# torch is left unpinned on purpose so installing on the UCL HPC cluster does
+# not fight the CUDA-matched torch wheel already in the venv.
+torch
+numpy
+tqdm
+matplotlib
+pandas
+
+# Optional:
+#   tensorboard   # training-time logging (train.py guards the import)
+#   pytest        # running tests/

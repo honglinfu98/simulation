@@ -41,7 +41,7 @@ CKPT="$BASE/${TAG}_train/best_model.pt"
 status=0
 
 log "TRAIN_START $(date) $TAG"
-/usr/bin/time -p python3 -u -m volume_set_mtpp.training_evaluation.train \
+/usr/bin/time -p python3 -u -m volume_set_mtpp.training.train \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --decoder-type nmh --nmh-timescales 4 \
   --channel-emb-size 64 --time-emb-size 128 --recurrent-hidden 128 \
@@ -70,14 +70,14 @@ PY
 log "RHO_END $(date)"
 
 log "GENUINE_EVAL_START $(date)"
-python3 -u tfow_genuine_eval.py \
+python3 -u -m volume_set_mtpp.evaluation.tfow_genuine_eval \
   --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --seq-length 400 --stride 100 --batch-size 512 --device cuda \
   --label nmh --output "$BASE/genuine_nmh.json" > "$BASE/${TAG}.genuine.log" 2>&1
 rc=$?; log "GENUINE_EVAL_END $(date) RC=$rc"; cat "$BASE/genuine_nmh.json" 2>/dev/null | tee -a "$MASTER"
 
 log "SF_START $(date) $TAG"
-python3 -u tfow_stylized_facts.py \
+python3 -u -m volume_set_mtpp.evaluation.tfow_stylized_facts \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/stylized_facts" --device cuda \
   --seq-length 400 --stride 100 --batch-size 512 \
@@ -86,7 +86,7 @@ python3 -u tfow_stylized_facts.py \
 log "SF_END $(date) $TAG RC=$?"
 
 log "PV2_START $(date) $TAG"
-python3 -u tfow_price_facts_v2.py \
+python3 -u -m volume_set_mtpp.evaluation.tfow_price_facts_v2 \
   --v2-dir "$DATA" --pattern "events_gmni_ethusdt_*.jsonl.gz" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/price_v2" --device cuda \
   --max-events-per-file 150000 \

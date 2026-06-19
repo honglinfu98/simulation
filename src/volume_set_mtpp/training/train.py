@@ -25,11 +25,8 @@ except ImportError:
     TENSORBOARD_AVAILABLE = False
     SummaryWriter = None
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from volume_set_mtpp.models.volume_set_mtpp import VolumeSetMTPP, create_volume_set_mtpp
-from volume_set_mtpp.training_evaluation.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
 
 
 def get_device(device_type: str = 'auto') -> torch.device:

@@ -21,7 +21,7 @@ Reuses the metric reporting from mm_backtest.
 """
 from __future__ import annotations
 import numpy as np
-from mm_backtest import quotes, _fmt
+from .mm_backtest import quotes, _fmt
 
 
 # ---------------------------------------------------------------------------

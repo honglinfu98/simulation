@@ -4,16 +4,16 @@ Synthetic data only (no cluster / no real data needed). Checks the interface con
 state shapes, the anti-leakage rule, intensity positivity + finiteness, gradient flow to
 all parameters, and the branching certificate (if exposed).
 
-    cd lob-world-model && PYTHONPATH=. python3 tests/smoke_decoder.py
+    pip install -e .  &&  pytest tests/smoke_decoder.py        # or: python3 tests/smoke_decoder.py
 """
 import sys
 import torch
 import torch.nn as nn
 
-from models.nmh_decoder import NMHDecoder
-from models.ptp_s2p2_decoder import PerTypeS2P2Decoder
-from models.lgm_decoder import LGMDecoder
-from models.gmh_decoder import GMHDecoder
+from volume_set_mtpp.models.nmh_decoder import NMHDecoder
+from volume_set_mtpp.models.ptp_s2p2_decoder import PerTypeS2P2Decoder
+from volume_set_mtpp.models.lgm_decoder import LGMDecoder
+from volume_set_mtpp.models.gmh_decoder import GMHDecoder
 
 K, B, N = 62, 4, 50
 

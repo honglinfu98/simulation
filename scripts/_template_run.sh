@@ -36,7 +36,7 @@ log "START $(date) HOST=$(hostname)"; nvidia-smi --query-gpu=name --format=csv,n
 CKPT="$BASE/${TAG}_train/best_model.pt"
 
 log "TRAIN_START $(date)"
-python3 -u -m volume_set_mtpp.training_evaluation.train \
+python3 -u -m volume_set_mtpp.training.train \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" $EXTRA \
   --channel-emb-size 64 --time-emb-size 128 --recurrent-hidden 128 \
   --batch-size 512 --epochs 40 --lr 2e-3 --weight-decay 1e-6 \
@@ -56,11 +56,11 @@ print("RHO closed_form_rho=%.4f" % m.decoder.closed_form_rho()) if hasattr(m.dec
 PY
 
 log "GENUINE $(date)"
-python3 -u tfow_genuine_eval.py --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
+python3 -u -m volume_set_mtpp.evaluation.tfow_genuine_eval --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --seq-length 50 --stride 32 --batch-size 512 --device cuda --label "$TAG" --output "$BASE/genuine_${TAG}.json" 2>&1 | tee -a "$M"
 
 log "SF $(date)"
-python3 -u tfow_stylized_facts.py --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
+python3 -u -m volume_set_mtpp.evaluation.tfow_stylized_facts --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/stylized_facts" --device cuda \
   --seq-length 50 --stride 32 --batch-size 512 --rollout-duration 600 --rollout-sequences 32 \
   --rollout-seed "$SEED" --bucket-seconds 1.0 --max-real-windows 4096 > "$BASE/${TAG}.sf.log" 2>&1
