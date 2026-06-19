@@ -26,7 +26,7 @@ except ImportError:
     SummaryWriter = None
 
 from volume_set_mtpp.models.volume_set_mtpp import VolumeSetMTPP, create_volume_set_mtpp
-from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.data_loader import create_bfnx_dataloaders
 
 
 def get_device(device_type: str = 'auto') -> torch.device:

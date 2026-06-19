@@ -4,7 +4,7 @@ done in Compound Hawkes's (stationary, exactly-fit) protocol.
 This isolates NMH's one genuine innovation over Jain's Compound Hawkes -- a bank
 of M decay timescales instead of a single beta -- from the windowed cold-start
 training that made the neural NMH explode in free rollout.  Everything else
-mirrors tfow_compound_hawkes.py: linear excitatory intensity (no softplus, so
+mirrors compound_hawkes.py: linear excitatory intensity (no softplus, so
 the classical branching ratio governs stationarity exactly), exact-likelihood
 MLE on the whole event stream, Ogata thinning, same stylized-facts battery.
 
@@ -21,10 +21,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from volume_set_mtpp.training.bfnx_data_loader import _fixed_bfnx_event_names
-from .tfow_world_model_diagnostics import save_json
-from .tfow_price_facts_v2 import parse_v2_file
-from .tfow_stylized_facts import bucketize, all_facts, build_sign_vectors
+from volume_set_mtpp.training.data_loader import _fixed_bfnx_event_names
+from .world_model_diagnostics import save_json
+from .price_facts_v2 import parse_v2_file
+from .stylized_facts import bucketize, all_facts, build_sign_vectors
 
 BETAS = [50.0, 5.0, 0.5, 0.1]   # decade-spread timescales (1/beta: 0.02s .. 10s)
 

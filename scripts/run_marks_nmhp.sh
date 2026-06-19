@@ -2,7 +2,7 @@
 #$ -S /bin/bash
 #$ -cwd
 #$ -j y
-#$ -N gmni_nmhwp
+#$ -N gmni_nmhp
 #$ -l h_rt=8:00:00
 #$ -l tmem=24G
 #$ -l gpu=true
@@ -26,14 +26,14 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 unset BFNX_CACHE_FILE
 
 DATA=/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks
-CACHE=$DATA/.tensor_cache_seq400_stride100
+CACHE=$DATA/.tensor_cache_seq50_stride32
 SEED=1
-TAG=nmhwp
-BASE="experiments/gmni_marks_nmhwp_$(date +%Y%m%d_%H%M%S)"
+TAG=nmhp
+BASE="experiments/gmni_marks_nmhp_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BASE"
 MASTER="$BASE/master.log"
 log() { echo "$@" | tee -a "$MASTER"; }
-log "RUN_KIND=gmni_marks_nmhwp START $(date) HOST=$(hostname) CVD=$CUDA_VISIBLE_DEVICES"
+log "RUN_KIND=gmni_marks_nmhp START $(date) HOST=$(hostname) CVD=$CUDA_VISIBLE_DEVICES"
 nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tee -a "$MASTER"
 [ -z "$(ls "$DATA"/*.jsonl.gz 2>/dev/null | head -1)" ] && { log "SAN_NOT_VISIBLE $(hostname)"; exit 1; }
 
@@ -46,7 +46,7 @@ log "TRAIN_START $(date) $TAG"
   --decoder-type nmh --nmh-timescales 4 \
   --channel-emb-size 64 --time-emb-size 128 --recurrent-hidden 128 \
   --batch-size 512 --epochs 40 --lr 2e-3 --weight-decay 1e-6 \
-  --seq-length 400 --stride 100 --num-workers 0 --save-every 40 \
+  --seq-length 50 --stride 32 --num-workers 0 --save-every 40 \
   --set-loss-reduction sum --set-loss-weight 1.0 --time-loss-weight 1.0 \
   --no-volume-input-scaling --mark-head categorical --nmh-project-rho 0.8 \
   --allow-tf32 --seed "$SEED" \
@@ -70,23 +70,23 @@ PY
 log "RHO_END $(date)"
 
 log "GENUINE_EVAL_START $(date)"
-python3 -u -m volume_set_mtpp.evaluation.tfow_genuine_eval \
+python3 -u -m volume_set_mtpp.evaluation.genuine_eval \
   --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
-  --seq-length 400 --stride 100 --batch-size 512 --device cuda \
+  --seq-length 50 --stride 32 --batch-size 512 --device cuda \
   --label nmh --output "$BASE/genuine_nmh.json" > "$BASE/${TAG}.genuine.log" 2>&1
 rc=$?; log "GENUINE_EVAL_END $(date) RC=$rc"; cat "$BASE/genuine_nmh.json" 2>/dev/null | tee -a "$MASTER"
 
 log "SF_START $(date) $TAG"
-python3 -u -m volume_set_mtpp.evaluation.tfow_stylized_facts \
+python3 -u -m volume_set_mtpp.evaluation.stylized_facts \
   --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/stylized_facts" --device cuda \
-  --seq-length 400 --stride 100 --batch-size 512 \
+  --seq-length 50 --stride 32 --batch-size 512 \
   --rollout-duration 600 --rollout-sequences 32 --rollout-seed "$SEED" \
   --bucket-seconds 1.0 --max-real-windows 4096 > "$BASE/${TAG}.sf.log" 2>&1
 log "SF_END $(date) $TAG RC=$?"
 
 log "PV2_START $(date) $TAG"
-python3 -u -m volume_set_mtpp.evaluation.tfow_price_facts_v2 \
+python3 -u -m volume_set_mtpp.evaluation.price_facts_v2 \
   --v2-dir "$DATA" --pattern "events_gmni_ethusdt_*.jsonl.gz" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/price_v2" --device cuda \
   --max-events-per-file 150000 \
@@ -94,5 +94,5 @@ python3 -u -m volume_set_mtpp.evaluation.tfow_price_facts_v2 \
 log "PV2_END $(date) $TAG RC=$?"
 
 log "DONE $(date) STATUS=$status BASE=$BASE"
-echo "$BASE" > "$HOME/volume-set-mtpp/.last_nmhwp_base"
+echo "$BASE" > "$HOME/volume-set-mtpp/.last_nmhp_base"
 exit $status

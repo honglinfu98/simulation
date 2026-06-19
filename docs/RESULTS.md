@@ -3,7 +3,7 @@
 Real rate ≈ **1.8 events/s**. Genuine accuracy/perplexity on non-empty targets
 (head-agnostic). Fano(1s) is F5 at the 1s bucket. ρ = closed-form branching ratio
 where defined. All sims are free-rollout; baselines/s2p2/NMH via the neural harness
-(`tfow_stylized_facts.py`), Compound Hawkes / MT-Hawkes / NMH-thinning via exact
+(`stylized_facts.py`), Compound Hawkes / MT-Hawkes / NMH-thinning via exact
 Ogata thinning.
 
 ## Main table

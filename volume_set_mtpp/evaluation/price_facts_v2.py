@@ -35,11 +35,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from volume_set_mtpp.training.bfnx_data_loader import _fixed_bfnx_event_names
+from volume_set_mtpp.training.data_loader import _fixed_bfnx_event_names
 from volume_set_mtpp.models.volume_set_mtpp import create_volume_set_mtpp
-from .tfow_world_model_diagnostics import get_device, save_json, style_ax, savefig
-from .tfow_stylized_facts import all_facts
-from .tfow_price_facts import simulate_with_volumes
+from .world_model_diagnostics import get_device, save_json, style_ax, savefig
+from .stylized_facts import all_facts
+from .price_facts import simulate_with_volumes
 from .book_replay import Book, parse_vocab
 
 

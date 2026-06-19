@@ -12,9 +12,9 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 _TASKS = {
-    "genuine": "volume_set_mtpp.evaluation.tfow_genuine_eval",
-    "facts": "volume_set_mtpp.evaluation.tfow_stylized_facts",
-    "thinning": "volume_set_mtpp.evaluation.tfow_nmh_thinning",
+    "genuine": "volume_set_mtpp.evaluation.genuine_eval",
+    "facts": "volume_set_mtpp.evaluation.stylized_facts",
+    "thinning": "volume_set_mtpp.evaluation.nmh_thinning",
     "table": "volume_set_mtpp.evaluation.build_comparison_table",
 }
 

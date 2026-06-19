@@ -27,13 +27,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from volume_set_mtpp.training.bfnx_data_loader import create_bfnx_dataloaders
+from volume_set_mtpp.training.data_loader import create_bfnx_dataloaders
 from volume_set_mtpp.models.volume_set_mtpp import create_volume_set_mtpp
-from .tfow_world_model_diagnostics import (
+from .world_model_diagnostics import (
     get_device, move_batch, save_json, style_ax, savefig,
     _distribution_at_dts, _survival_quadrature,
 )
-from .tfow_stylized_facts import all_facts, acf
+from .stylized_facts import all_facts, acf
 from .book_replay import replay, estimate_depth_profile, parse_vocab, Book
 
 

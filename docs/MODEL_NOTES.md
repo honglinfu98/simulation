@@ -28,11 +28,11 @@ hard.** Every model here is judged on BOTH.
 
 - **Genuine-event accuracy / perplexity** (prediction): top-1 next-mark accuracy +
   perplexity on non-empty targets, head-agnostic (softmax of intensity logits, CE).
-  See `tfow_genuine_eval.py`.
+  See `genuine_eval.py`.
 - **Stylized facts** (simulation): free-rollout the model, bucketize events into
   1s bins, compute Cont's 11 stylized facts. The headline is the **Fano factor**
   F5 = Var(N)/E[N] at the 1s bucket (intermittency/clustering). Real Gemini ETH
-  Fano(1s) ≈ 8-10 and RISES across scales to ~60 at 50s. See `tfow_stylized_facts.py`
+  Fano(1s) ≈ 8-10 and RISES across scales to ~60 at 50s. See `stylized_facts.py`
   (`all_facts`, `fano`). Long-memory facts: F6 (|return| autocorrelation), F8
   (power-law decay exponent).
 

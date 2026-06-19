@@ -56,11 +56,11 @@ print("RHO closed_form_rho=%.4f" % m.decoder.closed_form_rho()) if hasattr(m.dec
 PY
 
 log "GENUINE $(date)"
-python3 -u -m volume_set_mtpp.evaluation.tfow_genuine_eval --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
+python3 -u -m volume_set_mtpp.evaluation.genuine_eval --checkpoint "$CKPT" --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --seq-length 50 --stride 32 --batch-size 512 --device cuda --label "$TAG" --output "$BASE/genuine_${TAG}.json" 2>&1 | tee -a "$M"
 
 log "SF $(date)"
-python3 -u -m volume_set_mtpp.evaluation.tfow_stylized_facts --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
+python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files 7 --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$BASE/stylized_facts" --device cuda \
   --seq-length 50 --stride 32 --batch-size 512 --rollout-duration 600 --rollout-sequences 32 \
   --rollout-seed "$SEED" --bucket-seconds 1.0 --max-real-windows 4096 > "$BASE/${TAG}.sf.log" 2>&1

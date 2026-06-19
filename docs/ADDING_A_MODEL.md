@@ -54,9 +54,9 @@ does: train -> rho report -> genuine-event eval -> stylized facts -> price facts
 
 ## 6. Evaluate & compare
 
-- Genuine accuracy/perplexity: `python -m volume_set_mtpp.evaluation.tfow_genuine_eval`.
-- Free-rollout stylized facts: `… tfow_stylized_facts` (neural harness) or
-  `… tfow_nmh_thinning` (exact thinning, for Hawkes-form decoders).
+- Genuine accuracy/perplexity: `python -m volume_set_mtpp.evaluation.genuine_eval`.
+- Free-rollout stylized facts: `… stylized_facts` (neural harness) or
+  `… nmh_thinning` (exact thinning, for Hawkes-form decoders).
 - Add the result row: `… build_comparison_table` -> `results/comparison_table.json`.
 - **Report robust stats**: raw 1 s kurtosis/skew are outlier-dominated (median bucket count
   is 0). Use winsorized or >=5 s buckets (see `RESULTS.md`).
