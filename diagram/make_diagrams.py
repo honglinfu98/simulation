@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render the README/paper diagrams (reproducible).
 
-    python diagram/make_diagrams.py     # writes {architecture,pipeline}.{png,pdf,svg}
+    python diagram/make_diagrams.py     # writes {architecture,pipeline}.{pdf,svg}
 """
 import pathlib
 
@@ -33,9 +33,9 @@ def _arrow(ax, x0, y0, x1, y1):
 
 
 def _save(fig, name):
-    """Export each figure as PNG (README), PDF (paper/print), and SVG (web/edit)."""
-    for ext in ("png", "pdf", "svg"):
-        fig.savefig(HERE / f"{name}.{ext}", dpi=150, bbox_inches="tight")
+    """Export each figure as PDF (paper/print) and SVG (README/web/edit) — vector only."""
+    for ext in ("pdf", "svg"):
+        fig.savefig(HERE / f"{name}.{ext}", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -75,4 +75,4 @@ def pipeline():
 
 if __name__ == "__main__":
     architecture(); pipeline()
-    print("wrote architecture.{png,pdf,svg} and pipeline.{png,pdf,svg} to", HERE)
+    print("wrote architecture.{pdf,svg} and pipeline.{pdf,svg} to", HERE)

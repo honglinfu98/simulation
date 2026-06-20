@@ -21,7 +21,7 @@ the exact stationary mean survives and we **pin** it (`μ₀ = R(1−n) ⇒ Λ̄
 gauge-free branching ratio `n` as a closed-form stability certificate.
 
 <p align="center">
-  <img src="diagram/architecture.png" width="750">
+  <img src="diagram/architecture.svg" width="750">
 </p>
 
 The whole study is one installable package with a stage-by-stage pipeline — from raw-data
@@ -29,7 +29,7 @@ extraction through event construction, the model zoo, training, and the evaluati
 (genuine-event accuracy, stylized facts, and a market-making world model).
 
 <p align="center">
-  <img src="diagram/pipeline.png" width="850">
+  <img src="diagram/pipeline.svg" width="850">
 </p>
 
 ## **Repository Structure**
