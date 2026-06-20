@@ -1,31 +1,5 @@
-\section{Introduction}
-\label{intro}
-The majority of crypto trading occurs on \acp{cex}, with \acp{dex} accounting for only about 10–25\% of spot trading volumes, making \ac{cex} the primary venues where market manipulations such as pump-and-dump and wash trading take place. 
-
-In crypto \acp{cex}, transactions are facilitated through a limit order book, which continuously maintains two sorted queues of quoted prices and quantities—bids for purchase orders and asks for sell orders~\cite{Hagele2024CentralizedReview}. To influence market dynamics, \textit{manipulators} strategically inject orders into the limit order book, distorting the natural order flows and jeopardizing the integrity of the crypto market. As a result of these malicious orders, the order flow becomes distorted, leading to inefficient price discovery or artificially inflated trading volumes.
-
-Previous studies have made efforts to detect such manipulations from various macro perspectives. For instance, Xu~\cite{Xu2019TheScheme} investigates \textbf{pump-and-dump} schemes and demonstrate the feasibility of predicting coordinated price surges in advance. However, their framework remains token-level and does not identify which specific orders or trading actions drive these movements. Likewise, Cong~\cite{Cong2023CryptoTrading} analyze \textbf{wash trading} using aggregate statistical techniques, providing insights at the exchange or token level. Yet, this coarse granularity overlooks the microstructural dynamics within the limit order book, where manipulative behaviors are actually executed. Understanding manipulation at this granular level---where order submissions, cancellations, and executions interact---is crucial for uncovering how artificial flows distort market.
-
-This study presents \ac{tfow}, a system for unveiling manipulative behaviors within \ac{cex} limit order books. \ac{tfow} jointly detects anomalous order flows, order motifs, and individual orders under a single framework. We collect trade and Level-2 order book data, which capture aggregated market depth without individual order IDs, and reconstruct atomic order events. Building on this representation, \ac{tfow} employs sum-of-squared-spacings statistics and \ac{setmtpp}-based anomaly queries to identify deviations from normal market dynamics.
-
-To evaluate \ac{tfow}, 
-
-Our work makes the following contributions to the modeling and detection of anomalies in high-frequency limit order book (LOB) data:
-
-\begin{enumerate}
-    \item \textbf{Volume-Set MTPP for LOB Dynamics.}  
-    We introduce the first volume-set marked temporal point process (volume-set MTPP) for modeling order book event dynamics. Unlike prior approaches that either discard simultaneous events or collapse them into a single representative, our formulation preserves the full event set with associated volumes, achieving a state-of-the-art generative model of microstructural dynamics. 
-
-    \item \textbf{Anomaly Detection via 3S and Query Localization.}  
-    We are the first to apply sum-of-squared-spacings (3S) statistics to rescaled sequences to detect anomalous subsequences. To further localize anomalies, we design volume-set MTPP--based probabilistic queries that surfaces rare temporal motifs underlying manipulative behaviors.
-
-    \item \textbf{Order-Level Granularity for Regulatory Auditing.}  
-    !!!!!!!our findings
-    Our detector operates directly at the order and trade level. By indexing every atomic event, we can identify which specific orders deviate from the model distribution. This provides regulators and centralized exchanges with a practical screening tool for auditing of orderbooks, enabling detection of manipulative activities such as spoofing and crowd-pumps with actionable granularity.
-
-    \item \textbf{Generalizable Anomaly Detection Framework.}  
-    Beyond order book anomaly detection, our framework extends naturally to detecting anomalies in general continuous-time event data, where events can be indexed, modeled using the \ac{setmtpp}, and evaluated to reveal statistically irregular or unexpected temporal patterns.
-\end{enumerate}
+Intention, for market making, it is essential to have a stable simulation model. If we can predict well, we can also use the model in prediction to better capture the fill probability and adversary events
+2. s2p2 has achieved state of art in per event total log-likelihood, RMSE of the next event time prediction, and next mark classificcation accuracy. But no stability, 
 
 
 
@@ -33,6 +7,3 @@ Our work makes the following contributions to the modeling and detection of anom
 
 
 
-% 3. systemic investigation
-
- 
