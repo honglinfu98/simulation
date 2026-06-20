@@ -81,6 +81,8 @@ JOBID=$(printf '%s' "$OUT" | grep -oE 'Your job [0-9]+' | grep -oE '[0-9]+' | he
 
 _lock
 [[ -f "$REG" ]] || printf 'run_id\ttag\tjobid\tdecoder\tsubmit_epoch\texpected_base_glob\tresolved_base\tstate\trc\tnotified\tmetrics_json\n' > "$REG"
-printf '%s\t%s\t%s\t%s\t%s\t%s\t\tactive\t\t0\t\n' "${TAG}_${NOW}" "$TAG" "$JOBID" "$DECODER" "$NOW" "$EXPECT_GLOB" >> "$REG"
+# Use "-" for empty fields (resolved_base, rc, metrics): a tab is IFS-whitespace,
+# so consecutive tabs would collapse in `read` and misalign every column.
+printf '%s\t%s\t%s\t%s\t%s\t%s\t-\tactive\t-\t0\t-\n' "${TAG}_${NOW}" "$TAG" "$JOBID" "$DECODER" "$NOW" "$EXPECT_GLOB" >> "$REG"
 _unlock
 echo "registered run ${TAG}_${NOW} (job $JOBID). Start/keep the watcher running: bash scripts/watch_runs.sh"

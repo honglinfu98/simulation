@@ -6,6 +6,7 @@ numpy
 tqdm
 matplotlib
 pandas
+certifi   # CA bundle for the watcher's SMTP TLS (some macOS Pythons lack root certs)
 
 # Optional:
 #   tensorboard   # training-time logging (train.py guards the import)

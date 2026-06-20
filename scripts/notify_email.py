@@ -58,7 +58,13 @@ def main() -> int:
         return 3
 
     try:
-        ctx = ssl.create_default_context()
+        # Use certifi's CA bundle if present — some macOS Pythons ship without
+        # root certificates, which otherwise fails TLS with CERTIFICATE_VERIFY_FAILED.
+        try:
+            import certifi
+            ctx = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            ctx = ssl.create_default_context()
         if port == 465:
             with __import__("smtplib").SMTP_SSL(host, port, context=ctx, timeout=30) as s:
                 s.login(user, pw)

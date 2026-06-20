@@ -11,6 +11,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./hpc-common.sh
 source "$SCRIPT_DIR/hpc-common.sh"
+set +e   # hpc-common.sh turns on `set -e`; the watcher must NOT die on a non-zero
+         # command (a failed ssh/grep is handled per-cycle, never fatal to the loop).
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REG="$ROOT_DIR/.runs/registry.tsv"
 OUTROOT="$ROOT_DIR/outputs/runs"; mkdir -p "$OUTROOT"
@@ -42,7 +44,10 @@ probe(){ # one ssh: qstat + per-run base/master tail. echoes blob; returns ssh r
     [[ "$state" == "active" ]] || continue
     cmd+="echo '@@RUN $rid $tag $jobid';"
     cmd+="b=\$(cat '$HPC_RUN_HOME/.last_${tag}_base' 2>/dev/null);"
-    cmd+="[ -z \"\$b\" ] && b=\$(ls -1dt $HPC_RUN_HOME/experiments/gmni_marks_${tag}_*/ 2>/dev/null | head -1);"
+    # .last_<tag>_base holds a path RELATIVE to HPC_RUN_HOME; make it absolute.
+    cmd+="case \"\$b\" in /*) ;; ?*) b='$HPC_RUN_HOME/'\$b;; esac;"
+    # if still not a real dir, fall back to the newest matching experiment dir (absolute).
+    cmd+="[ -d \"\$b\" ] || b=\$(ls -1dt $HPC_RUN_HOME/experiments/gmni_marks_${tag}_*/ 2>/dev/null | head -1);"
     cmd+="echo \"@@BASE \$b\"; echo '@@MASTER'; tail -n 60 \"\$b/master.log\" 2>/dev/null; echo '@@END';"
   done < <(tail -n +2 "$REG" 2>/dev/null)
   remote_ssh "$cmd"
@@ -86,9 +91,10 @@ cycle(){
       rsync -az -e "$SSH_CMD" "$SSH_TARGET:$base/stylized_facts/" "$od/stylized_facts/" 2>/dev/null || true
     fi
     local summary; summary=$(python3 "$SCRIPT_DIR/_parse_metrics.py" "$od" "$tag" "$outcome" 2>/dev/null || echo "outcome=$outcome")
-    set_field "$rid" 7 "$base"; set_field "$rid" 8 "$outcome"
+    set_field "$rid" 7 "${base:--}"; set_field "$rid" 8 "$outcome"
     if [[ "$notif" != "1" ]]; then
-      local subj="[sim] $tag ${outcome^^} ($summary)"
+      local OUTCOME; OUTCOME=$(printf '%s' "$outcome" | tr '[:lower:]' '[:upper:]')  # bash 3.2 has no ${x^^}
+      local subj="[sim] $tag $OUTCOME ($summary)"
       if printf '%s\nrun_id=%s job=%s base=%s\n\n--- master.log tail ---\n%s\n' \
             "$summary" "$rid" "$jobid" "$base" "$mlog" | email "$subj"; then
         set_field "$rid" 10 1
