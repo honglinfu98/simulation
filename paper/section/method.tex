@@ -1,6 +1,105 @@
 \section{Method}
 \label{sec:method}
 
-% TODO: the Volume-Set MTPP formulation (set-valued marks + continuous volume),
-% the S2P2 / neural-TPP intensity, and the rate-pin / branching-ratio stability
-% argument carried over from the simulation track.
+\subsection{Stationary-Mean Calibration for Set-Valued Hawkes Ground Intensity}
+\label{subsec:hawkes_mean_calibration}
+
+We model order-book event streams as a sequence of set-valued continuous-time events
+\[
+\mathcal{H}_T=\{(t_i,x_i)\}_{i=1}^{N_T},
+\qquad
+x_i \in \mathcal{X}:=\mathcal{P}(\{1,\ldots,K\}),
+\]
+where $x_i$ denotes the subset of event types that occur simultaneously at time $t_i$.
+Following the set-valued temporal point process formulation of Chang, Boyd, and
+Smyth~\cite{chang2024probabilistic}, we separate the temporal arrival process from the
+conditional set distribution. Specifically, the set-specific intensity is written as
+\[
+\lambda_x^*(t)=\lambda^*(t)\,p^*(x\mid t),
+\qquad x\in\mathcal{X},
+\]
+where $\lambda^*(t)$ is the ground intensity of set-event arrivals and $p^*(x\mid t)$ is a
+normalized distribution over subsets. Thus,
+\[
+\sum_{x\in\mathcal{X}}\lambda_x^*(t)
+=\lambda^*(t)\sum_{x\in\mathcal{X}}p^*(x\mid t)
+=\lambda^*(t).
+\]
+The set head is therefore rate-neutral: it redistributes probability mass across possible
+simultaneous event sets but does not change the total arrival rate.
+
+In the Dynamic Bernoulli version of Chang et al.'s set model, the conditional distribution
+over subsets is factorized as
+\[
+p_\omega(x\mid t,h_\theta(t))
+=\prod_{k=1}^{K}
+\rho_k(t)^{\mathbf{1}(k\in x)}
+\bigl(1-\rho_k(t)\bigr)^{\mathbf{1}(k\notin x)},
+\]
+where
+\[
+\rho_k(t)=\sigma\!\left(v_k^\top n(h_\theta(t))+b_k\right).
+\]
+Here, $h_\theta(t)$ summarizes the history before time $t$, $n(\cdot)$ is a feed-forward
+network, and $\rho_k(t)$ is the conditional probability that item $k$ appears in the next
+set. When set embeddings are required as recurrent inputs, Chang et al.\ represent a
+non-empty set by the average of its item embeddings:
+\[
+e(x)=\frac{1}{|x|}\sum_{k\in x}w_k,
+\qquad x\neq\emptyset,
+\]
+and set $e(\emptyset)=0$. This construction allows us to model simultaneous order-book
+events without expanding the mark space into $2^K$ independent labels.
+
+We now calibrate the ground intensity $\lambda^*(t)$, denoted below by $\Lambda(t)$, using a
+linear Hawkes process with an exponential-mixture kernel:
+\[
+\Lambda(t)=\mu_0+\int_0^t \varphi(t-u)\,dN(u),
+\qquad
+\varphi(\tau)=\sum_{m=1}^{M}a_m e^{-\delta_m \tau}.
+\]
+Here, $N(t)$ counts set-event arrivals, i.e., $dN(t)$ increments once when a subset $x_i$
+occurs, regardless of its cardinality. Equivalently, defining the decayed trace
+\[
+s_m(t)=\sum_{t_i<t} e^{-\delta_m(t-t_i)},
+\]
+the ground intensity can be written as $\Lambda(t)=\mu_0+\sum_{m=1}^{M}a_m s_m(t)$.
+
+Let $\bar{\Lambda}=\mathbb{E}[\Lambda(t)]$ denote the stationary mean ground rate. Under
+stationarity, $\mathbb{E}[dN(u)]=\bar{\Lambda}\,du$. Taking expectations in the Hawkes
+intensity equation gives the fixed-point relation
+\[
+\bar{\Lambda}
+=\mu_0+\int_0^\infty \varphi(\tau)\,\bar{\Lambda}\,d\tau
+=\mu_0+\bar{\Lambda}\,n,
+\]
+where
+\[
+n:=\int_0^\infty \varphi(\tau)\,d\tau
+=\sum_{m=1}^{M}a_m\int_0^\infty e^{-\delta_m\tau}\,d\tau
+=\sum_{m=1}^{M}\frac{a_m}{\delta_m}
+\]
+is the branching ratio. Solving the fixed-point equation yields
+\[
+\bar{\Lambda}=\frac{\mu_0}{1-n},\qquad n<1.
+\]
+Therefore, if we set $\mu_0=R_{\mathrm{target}}(1-n)$, then
+\[
+\bar{\Lambda}=\frac{R_{\mathrm{target}}(1-n)}{1-n}=R_{\mathrm{target}}.
+\]
+The stationary mean ground rate is therefore pinned exactly to the target rate
+$R_{\mathrm{target}}$, provided the process remains subcritical.
+
+In implementation, the excitation parameters are constrained to be non-negative, e.g.,
+$a_m=\operatorname{softplus}(\tilde{a}_m)$, and the branching ratio is computed on each
+forward pass as
+\[
+n=\sum_{m=1}^{M}\frac{\operatorname{softplus}(\tilde{a}_m)}{\delta_m}.
+\]
+We then set $\mu_0=R_{\mathrm{target}}(1-n)$ after projecting or clipping $n$ below one.
+This makes the base rate a deterministic function of the excitation mass rather than an
+independently learned parameter. Consequently, the optimizer can learn the temporal
+clustering shape through $a_m/\delta_m$, but it cannot inflate the long-run mean event
+rate. Since the Chang-style conditional set distribution is normalized over subsets, the
+set head changes only the composition of simultaneous events and leaves the scalar Hawkes
+mean calibration unchanged.
