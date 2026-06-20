@@ -1,4 +1,4 @@
-%File: main.tex
+%File: main.tex  (AAAI-2026 anonymous submission)
 \documentclass[letterpaper]{article} % DO NOT CHANGE THIS
 \usepackage[submission]{aaai2026}  % DO NOT CHANGE THIS
 \usepackage{times}  % DO NOT CHANGE THIS
@@ -14,10 +14,9 @@
 \setlength{\pdfpagewidth}{8.5in} % DO NOT CHANGE THIS
 \setlength{\pdfpageheight}{11in} % DO NOT CHANGE THIS
 
-% Allowed math packages (not on the AAAI disallowed list).
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{booktabs}
+% Project packages / macros / acronyms (AAAI-safe; no hyperref/float/geometry).
+\input{header}
+\input{generated/numbers} % auto-generated result macros (tools/make_assets.py)
 
 \pdfinfo{
 /TemplateVersion (2026.1)
@@ -25,8 +24,8 @@
 
 \setcounter{secnumdepth}{0} % no section numbers (AAAI default)
 
-% Title must be in Title Case.
-\title{LGM: A Calibrated, Certifiable Factorized Neural Hawkes Process for Limit-Order-Book Simulation}
+% Title in Title Case.
+\title{TFOW: Detecting Anomalous Order Flow in Crypto Limit Order Books}
 \author{Anonymous Submission}
 \affiliations{}
 
@@ -34,107 +33,19 @@
 
 \maketitle
 
-\begin{abstract}
-Neural marked temporal point processes (MTPPs) predict the next limit-order-book
-(LOB) event well but \emph{simulate} order flow poorly: in free roll-out they
-over-disperse or explode, and their stability cannot be honestly certified. We
-introduce LGM (Linear Ground $\times$ soft-max Marks), which factorizes the
-per-type intensity into a \emph{linear} scalar ground rate and a \emph{deep}
-soft-max mark head. Because the marks live on the probability simplex they are
-rate-neutral, so the total rate remains a pure linear Hawkes process regardless of
-mark-net nonlinearity. This preserves the exact stationary-mean formula, which we
-\emph{pin} analytically to solve the train/simulate calibration mismatch, and
-yields a gauge-free branching ratio as a closed-form stability certificate. On
-Gemini ETH--USD data (62 event types), LGM is simultaneously calibrated (free-roll
-rate within ${\sim}7\%$ of real), a competitive predictor, clustered (correct Fano
-profile), and certifiable---the first model in our study to achieve all of these
-together.
-\end{abstract}
+\input{section/abstract}
 
-\section{Introduction}
-Order-book simulation underpins market-making research, backtesting, and the
-reinforcement learning of execution policies \citep{avellaneda2008high}. Self- and
-mutually-exciting Hawkes processes are the classical model of clustered order flow
-\citep{hawkes1971spectra,bacry2015hawkes}, and neural MTPPs extend them with
-expressive state \citep{mei2017neural}. Yet a model that predicts the next event
-accurately can still fail as a \emph{simulator}: under free roll-out the event rate
-runs away or collapses, and the stability of the recurrent dynamics cannot be read
-off the trained weights. We trace this to two causes---a train/simulate calibration
-mismatch and a gauge pathology in the rate read-out---and remove both by
-construction.
+\input{section/intro}
+\input{section/background}
+\input{section/method}
+\input{section/empirical_analysis}
+\input{section/system_design}
+\input{section/evaluation}
+\input{section/ablation}
+\input{section/related}
+\input{section/discussion_conclusion}
+\input{section/Acknowledgment}
 
-\section{The LGM Factorization}
-The per-type intensity factorizes into a timing rate and a mark distribution,
-\begin{equation}
-  \lambda_k(t) = \Lambda(t)\, p(k \mid t),
-  \qquad \sum_k \lambda_k(t) = \Lambda(t),
-  \label{eq:factorization}
-\end{equation}
-where the ground rate is a multi-timescale \emph{linear} Hawkes process and the
-marks are a deep soft-max,
-\begin{equation}
-  \Lambda(t) = \mu_0 + \sum_{m} a_m\, s_m(t),
-  \qquad
-  p(\cdot \mid t) = \mathrm{softmax}\big(z_\theta(t)\big).
-  \label{eq:ground}
-\end{equation}
-Since the soft-max lies on the simplex, $\sum_k p_k = 1$, the marks are
-\emph{rate-neutral}: the total rate $\Lambda$ is unaffected by the mark-net
-nonlinearity. The stationary mean therefore survives in closed form,
-\begin{equation}
-  \bar{\Lambda} = \frac{\mu_0}{1 - n}, \qquad n = \sum_m \frac{a_m}{\beta_m},
-  \label{eq:mean}
-\end{equation}
-and we \emph{pin} it by setting $\mu_0 = R_{\mathrm{target}}(1-n)$, so
-$\bar{\Lambda} = R_{\mathrm{target}}$ by construction. The branching ratio $n$ is
-gauge-free and serves as a stability certificate, with
-$\mathrm{Fano}(\infty) = 1/(1-n)^2$.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.95\columnwidth]{../diagram/architecture.pdf}
-\caption{LGM factorizes the per-type intensity into a linear, rate-pinned ground
-rate $\Lambda(t)$ and a deep, rate-neutral soft-max over the 62 event types
-$p(k\mid t)$. Nonlinearity is confined to the simplex, where it cannot perturb the
-calibrated rate or the branching-ratio certificate.}
-\label{fig:arch}
-\end{figure}
-
-\section{Results}
-Table~\ref{tab:headline} reports the headline comparison on Gemini ETH--USD
-(62 event types, real rate ${\approx}2.38$ ev/s). LGM is uniquely calibrated
-\emph{and} a competitive predictor \emph{and} clustered \emph{and} certifiable; the
-branching ratio is a single interpretable knob that sets the Fano-vs-scale curve via
-$1/(1-\rho)^2$.
-
-\begin{table}[t]
-  \centering
-  \caption{Headline comparison on Gemini ETH--USD (62 event types; real rate
-           ${\approx}2.38$ ev/s). GenAcc: genuine next-event accuracy.}
-  \label{tab:headline}
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{lccccl}
-    \toprule
-    Model & GenAcc & Fano(1s) & $\rho$ & roll rate & sim status \\
-    \midrule
-    Compound Hawkes  & 0.18 & 8.8  & 0.64 & ${\sim}2$ & stable, no mem. \\
-    s2p2 (predictor) & \textbf{0.32} & 41 & --- & --- & over-disperses \\
-    NMH / GMH        & 0.26 & expl. & 1300/0.8 & 52--100 & explode / Pois. \\
-    \textbf{LGM} ($n{=}0.86$) & \textbf{0.29} & \textbf{6.0} & \textbf{0.86} & \textbf{2.22} & \textbf{calibrated} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\section{Discussion}
-LGM removes the two failure modes of neural LOB simulators by construction: the
-analytic rate-pin (Eq.~\ref{eq:mean}) fixes the train/simulate calibration mismatch
-without a stateful loader, and the direct linear ground read-out keeps the branching
-ratio gauge-free and measurable from weights. Honest caveats remain: return tails are
-${\sim}2\times$ lighter than the robust empirical target, the model is mildly
-over-reflexive, and raw $1\,$s kurtosis/skew are outlier-dominated and should be read
-winsorized or at ${\geq}5\,$s buckets. Action-conditioning toward a market-making
-world model is the natural next step.
-
-\bibliography{references}
+\bibliography{orderbook_references,references}
 
 \end{document}

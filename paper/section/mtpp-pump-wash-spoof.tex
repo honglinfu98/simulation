@@ -1,0 +1,118 @@
+
+\subsection{Anomaly Detection set mtpp}
+We evaluate the proposed set-valued MTPP model for \emph{unsupervised} anomaly detection in high-frequency limit order book data, where each event corresponds to a set of simultaneous order book updates across four event types—cancellation (CO), limit order (LO), market order (MO), and in-spread limit order (IS)—on bid/ask sides and the top-10 price levels ($K = 80$ items in total). The model is trained only on historical event sequences without any anomaly labels, learning a generative distribution of normal market dynamics.
+
+For each event time $t_i$, anomaly scores are computed by decomposing the log-likelihood into temporal and set components (Eq.~(2)). \textbf{Temporal anomalies} are captured via
+\begin{equation}
+S_{\mathrm{time},i} = -\log \lambda^*(t_i \mid h(t_i)) + \int_{t_{i-1}}^{t_i} \lambda^*(s \mid h(s))\,ds,
+\end{equation}
+where $\lambda^*(t)$ is the predicted total intensity and $h(t_i)$ is the history embedding. \textbf{Set anomalies} are measured as the negative log-probability of the observed item set $x_i$ under the Dynamic Bernoulli model (Eq.~(8)):
+\begin{equation}
+S_{\mathrm{set},i} = -\sum_{k \in x_i} \log \rho_k(t_i) - \sum_{k \notin x_i} \log \big( 1 - \rho_k(t_i) \big),
+\end{equation}
+where $\rho_k(t_i) = p^*(k \mid t_i)$ is the predicted marginal inclusion probability of item $k$. The overall anomaly score is defined as
+\begin{equation}
+S_i = \alpha \, S_{\mathrm{time},i} + \beta \, S_{\mathrm{set},i},
+\end{equation}
+with $\alpha,\beta$ tuned on validation data.
+
+To detect distributional shifts in the learned embeddings, we also compute the Mahalanobis distance of $h(t_i)$ from a baseline distribution estimated on a clean training set. Anomalies are flagged when $S_i$ exceeds a dynamic threshold determined using extreme value theory (EVT) over a rolling window. Since no anomaly labels are used during training, this approach operates entirely in an unsupervised setting, detecting events that deviate significantly from the learned normal behaviour.
+
+
+\subsection{Pump Motif Detection via Volume-Set-MTPP}
+\label{subsec:pump-mtpp}
+
+
+% \subsection{Pump-and-dump Detection via Volume-Set-MTPP}
+% \label{subsec:pump-mtpp}
+1. learned vs real
+2. Use the real to infer motif
+3. Use the motif to construct the crowd-pump likelihood.
+4. show the likelihood of real data vs crowd-pump data
+
+
+Pump-and-dump manipulation begins with a coordinated ``pump'' phase, in which conspirators create the illusion of surging demand and upward momentum. Unlike spoofing, where large orders are posted and canceled without execution, the pump phase leaves a distinct footprint in order submissions, cancellations, and aggressive trades. We model this footprint in the \emph{volume-set-MTPP} framework to capture the joint temporal--volume dynamics that precede abnormal price escalation.
+
+\paragraph{Best-Bid Reinforcement.}
+Pumpers systematically strengthen the bid side by submitting a burst of limit-buy orders at the best bid or inside the spread, tightening the order book and signaling apparent demand. We encode a categorical mark $b \in \{\text{touch}, \text{inside}, \text{far}\}$ for limit orders, and track the joint likelihood $p_\theta(b, v_t \mid \mathcal{H}_t)$. Under normal markets, large aggressive bid placements are rare; systematic overrepresentation of $b=\text{touch/inside}$ with elevated volumes provides an anomaly signature.
+
+\paragraph{Bid-Side Cancellations.}
+During pumping, the visible depth at the best bid is actively managed: once initial support has created the illusion of demand, conspirators cancel their earlier limit orders, causing queues to vanish abruptly. We introduce a cancellation mark $c \in \{\text{queue-sustain}, \text{queue-vanish}\}$ for best-bid orders. In clean data, cancellations at the touch occur gradually; anomalously high rates of \emph{queue-vanish} following large bid submissions signal manipulation.
+
+\paragraph{Aggressive Market Buys.}
+The pump culminates in waves of buy market orders, driving immediate upward price pressure. We extend the mark space with a \emph{trade-aggressiveness indicator} $m \in \{\text{buy}, \text{sell}\}$ and corresponding volume $v$. Within a short horizon, clustering of high-volume buy MOs after bid reinforcements and cancellations yields a sharp drop in the set likelihood $\ell_{\text{set}}$ relative to baseline, identifying pump-like bursts.
+
+\paragraph{Joint Pump Motif.}
+We formalize the canonical pump motif as the 3-event set
+\[
+\mathcal{S}_{\text{pump}} = \{\text{LO}_{\text{bid,touch}}, \text{CO}_{\text{bid,vanish}}, \text{MO}_{\text{buy}}\},
+\]
+occurring within a constrained temporal window. The volume-set-MTPP likelihood $p_\theta(\mathcal{S}_{\text{pump}} \mid \mathcal{H}_t)$, trained on regulated markets, assigns low probability to such tightly coupled sequences. Negative log-likelihood spikes therefore provide a principled anomaly score.
+
+\paragraph{Unified Pump Anomaly Score.}
+We define a composite detector:
+\[
+S_{\text{pump}}(\mathcal{W}) = w_1 A_{\text{bid-reinforce}} + w_2 A_{\text{cancel-vanish}} + w_3 A_{\text{buy-burst}} + w_4 A_{\text{motif}},
+\]
+where each $A_i$ measures the likelihood deviation for its respective mark dimension. Persistent elevation of $S_{\text{pump}}$ over rolling windows indicates the presence of orchestrated pump activity, independent of the subsequent dumping phase.
+
+\noindent By embedding the structural bid-support, cancel-vanish, and buy-burst motifs into the generative process of volume-set-MTPP, we provide a unified probabilistic framework to identify the tell-tale microstructural patterns of pump phases in manipulation campaigns.
+
+
+\subsection{Wash Trading Detection via Volume-Set-MTPP}
+\label{subsec:wash-mtpp}
+
+Wash trading---the practice of simultaneously buying and selling the same asset to inflate trading activity---is pervasive on unregulated cryptocurrency exchanges, with estimates suggesting over 70\% of reported volumes being fabricated \cite{Cong2022}. Existing detection methodologies rely on robust statistical and behavioral regularities in authentic markets, including Benford’s law, round-number clustering, and Pareto–Lévy tails. We extend these principles by embedding them into our \emph{volume-set-MTPP} framework, which models the joint distribution of event type, timestamp, and traded volume. This provides a principled likelihood-based approach for anomaly detection.
+
+\paragraph{Benford Likelihood Test.} 
+Authentic trade sizes follow Benford’s law for first significant digits. We augment each event with a categorical mark $d \in \{1,\dots,9\}$ representing the leading digit of its volume. The model is trained on regulated (clean) exchanges such that the marginal distribution $\bar{p}_\theta(d)$ aligns with Benford’s prior $p_{B}(d)=\log_{10}(1+1/d)$. During detection, we compute the likelihood ratio
+\[
+\Lambda_{\text{Benford}} = \frac{\prod_{t \in \mathcal{W}} p_\theta(d_t \mid \mathcal{H}_t)}{\prod_{t \in \mathcal{W}} p_{B}(d_t)},
+\]
+where persistent deviations signal systematic wash trading.
+
+\paragraph{Roundness as an Additional Mark.}
+Behavioral evidence indicates that human traders prefer round trade sizes, while wash trades generated by bots appear unrounded. We encode a discrete \emph{roundness level} $r$ (e.g., integer, $10\times$, $100\times$, fractional) as a categorical mark. Authentic data display strong clustering of $r$, whereas wash trades flatten this distribution. We therefore monitor both the likelihood of roundness marks under $p_\theta(r\mid \mathcal{H}_t)$ and the \emph{roundness ratio}---the proportion of unrounded to rounded volume relative to regulated benchmarks \cite{Cong2022}.
+
+\paragraph{Tail Exponent Consistency.}
+Regulated exchanges exhibit Pareto–Lévy tails in trade-size distributions, with exponents in the range $1 < \alpha < 2$. For each window $\mathcal{W}$, we estimate an empirical exponent $\hat{\alpha}_{\text{emp}}$ from observed volumes and compare it with the exponent $\hat{\alpha}_\theta$ derived from samples generated by the trained volume-set-MTPP. Significant divergence $\Delta_\alpha = |\hat{\alpha}_{\text{emp}} - \hat{\alpha}_\theta|$ indicates anomalous fabrication.
+
+\paragraph{Joint Temporal--Volume Motifs.}
+Wash trading often manifests in rapid alternations of limit and market orders of matched sizes, leaving aggregate inventory unchanged. To capture such motifs, we extend the mark space with short-horizon pattern indicators (e.g., \{LO@p, MO@p\} pairs with similar volume). The set-MTPP likelihood naturally incorporates these co-occurrences; abnormal drops in per-set log-likelihood $\ell_{\text{set}}$ for wash-like motifs provide a principled anomaly score.
+
+\paragraph{Unified Anomaly Score.}
+We define an aggregated anomaly metric on a rolling window $\mathcal{W}$:
+\[
+S(\mathcal{W}) = w_1A_1 + w_2A_2 + w_3A_3 + w_4A_4,
+\]
+where $A_1$ is the Benford deviation, $A_2$ the benchmark-adjusted roundness ratio, $A_3$ the tail exponent gap, and $A_4$ the negative set log-likelihood. Thresholding $S$ relative to clean baselines provides interpretable and statistically robust detection of wash trading.
+
+\noindent By embedding forensic statistical laws directly into the generative structure of volume-set-MTPP, we obtain a hybrid detection tool that is both probabilistic and interpretable, aligning forensic finance benchmarks with modern temporal point process modeling.
+
+
+\subsection{Spoofing Detection via Volume-Set-MTPP}
+\label{subsec:spoof-mtpp}
+
+Spoofing---the practice of placing large, non-bona fide limit orders with the intent to cancel them before execution---creates artificial supply and demand imbalances in order books, misleading other traders and moving prices in the spoofer’s favor \cite{Lee2013,Tao2022}. Unlike wash trading, spoofing manifests not in matched trade volumes but in characteristic \emph{temporal--volume motifs} of order placement and cancellation. We embed these motifs into our \emph{volume-set-MTPP} framework to provide a likelihood-based detector.
+
+\paragraph{Large Far-from-Touch Orders.}
+Empirical evidence shows that spoofing orders are typically at least twice the average order size and placed far from the prevailing best quotes (often more than 6--10 ticks away), rendering execution probability negligible \cite{Lee2013}. We extend the mark space to include a categorical indicator $f$ for \emph{distance-to-touch bins} (e.g., $\leq 2$, $3$--$5$, $6$--$10$, $>10$ ticks). Under normal data, large volumes are concentrated near the touch; spoofing inflates likelihoods in distant bins. Deviations in the conditional likelihood $p_\theta(f \mid \mathcal{H}_t, v_t)$ signal suspicious order placement.
+
+\paragraph{Cancellation Motifs.}
+A spoofing order is almost always followed by a cancellation rather than execution. We encode a \emph{cancel-following mark} $c \in \{\text{executed}, \text{canceled}\}$ attached to each large far-from-touch LO. The model trained on clean data expects a low cancel rate for large orders; systematic likelihood drops in $p_\theta(c = \text{canceled} \mid \mathcal{H}_t)$ indicate spoof-like patterns.
+
+\paragraph{Opposite-Side Trade Coupling.}
+A hallmark of spoofing is the sequence \{large LO (fake), opposite-side MO (real), cancel (fake LO)\}. We represent this as a set $\mathcal{S}=\{\text{LO}_{\text{big,far}}, \text{MO}_{\text{opp}}, \text{CO}_{\text{big,far}}\}$ within a short temporal window. Our set-MTPP likelihood naturally models such co-occurrences. Abnormally low log-likelihood $\ell_{\text{set}}(\mathcal{S})$ relative to baseline suggests manipulation.
+
+\paragraph{Imbalance Shifts.}
+Spoofing temporarily distorts the order-book imbalance $I_t = \frac{V_{\text{bid}}}{V_{\text{bid}} + V_{\text{ask}}}$ \cite{Tao2022}. We extend the mark space with an imbalance delta $\Delta I_t$ tied to each event. Under clean baselines, imbalance changes are gradual; spoofing injects sharp spikes before cancelation and reversal. Discrepancies between predicted $\hat{\Delta I}_t$ and observed values yield an anomaly measure.
+
+\paragraph{Unified Spoofing Anomaly Score.}
+We aggregate these indicators over a rolling window $\mathcal{W}$ into a composite score:
+\[
+S_{\text{spoof}}(\mathcal{W}) = w_1 A_{\text{far}} + w_2 A_{\text{cancel}} + w_3 A_{\text{motif}} + w_4 A_{\Delta I},
+\]
+where $A_{\text{far}}$ captures far-from-touch order deviations, $A_{\text{cancel}}$ the excess cancellation likelihood, $A_{\text{motif}}$ the negative set-likelihood of spoof motifs, and $A_{\Delta I}$ the imbalance gap. Thresholding $S_{\text{spoof}}$ against regulated baselines provides a statistically principled spoofing detector.
+
+\noindent By embedding spoofing motifs directly into the generative structure of volume-set-MTPP, we unify microstructural insights---large deceptive orders, cancel dominance, and imbalance distortions---into an interpretable, probabilistic detection framework.
+

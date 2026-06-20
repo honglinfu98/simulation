@@ -1,0 +1,265 @@
+%% Numbers in this section come from generated/numbers.tex and
+%% generated/table_*.tex (built by tools/make_assets.py from the fetched
+%% experiment artifacts). Do not type results here by hand.
+\section{Evaluation}
+\label{eval}
+
+We evaluate the volume-set MTPP on three axes that mirror its intended
+role in TFOW: (i)~one-step predictive quality of the next event set, its
+timing, and its type, against adapted neural and non-parametric baselines
+(Sec.~\ref{sec:eval-set}--\ref{sec:eval-timetype}); (ii)~closed-loop
+stability of the learned dynamics and generative realism of free-running
+simulations under the stylized facts of high-frequency order flow
+(Sec.~\ref{sec:eval-stylized}); and (iii)~price-level realism of
+simulated books against recorded ground truth
+(Sec.~\ref{sec:eval-price}).  Together these establish the model as a
+faithful generative model of LOB microstructure---the property the 3S
+detection and query-localization stages rely on.
+
+\subsection{Evaluation Setup}\label{sec:eval-setup}
+
+\paragraph{Data.}
+We use Level-2 order book and trade data for BTC/USDT, ETH/USDT and
+SOL/USDT on Binance (Kaiko feed), reconstructed into atomic events by
+the event constructor of Section~3 (MO/CO/LO/IS $\times$ side $\times$
+top $K{=}10$ levels; 62 fixed event types).  The corpus covers seven
+consecutive trading days (1--7 January 2026) for each of the three
+pairs (21 daily files).  Sliding windows of 50 events (stride 32) are
+split chronologically \emph{within each asset} 70/15/15 into
+train/validation/test, with a one-window gap at each boundary to
+prevent leakage.  Timestamps are exchange-stamped on a $0.1$\,s grid;
+the mean target set contains \dataTrueSetSize{} of 62 types,
+confirming that simultaneous events are pervasive.
+
+\paragraph{Models.}
+We train the volume-set MTPP with three interchangeable continuous-time
+decoders: a Neural-Hawkes cell~\cite{Mei2017TheProcess}
+(\textsc{vsm-hawkes}), an RMTPP-style recurrent
+decoder~\cite{du2016recurrent} (\textsc{vsm-rmtpp}), and a structured
+state-space decoder (\textsc{vsm-s2p2}).  Baselines follow the
+borrowed-backbone protocol of Shi and
+Cartlidge~\cite{Shi2022StateSimulation}: an LSTM, a causal Transformer
+(SAHP-style~\cite{zhang2020self}), a decayed-cell recurrent network
+(CT-LSTM-style~\cite{Mei2017TheProcess}), and a per-type parallel
+recurrent network (PCT-LSTM-style~\cite{Shi2022StateSimulation}), each
+fitted with identical set/volume/time heads, multi-hot event-set
+histories, and the same training budget (30 epochs, batch 512, AdamW,
+$10^{-3}$).  Our models carry an explicit per-channel volume head
+(log-volume Normal) whose negative log-likelihood over active channels
+enters the joint objective.\footnote{These are \emph{adapted} backbones
+under a shared set-decoding protocol, not paper-faithful
+continuous-time likelihood implementations; comparisons are against the
+architectures' inductive biases, not the original systems.}  A
+non-parametric empirical transition baseline (\textsc{EmpTrans};
+next-set frequencies conditioned on the last event set) anchors the
+tables.  Results are from a single seed; a three-seed extension is in
+progress.
+
+\paragraph{Protocol.}
+All headline metrics are \emph{target-free}: no model receives the
+ground-truth next-event time.  For the volume-set MTPP, the predictive
+distribution over the next arrival is obtained from the learned ground
+intensity by trapezoid quadrature of the compensator
+$\Lambda(t)=\int_0^{t}\lambda(s)\,ds$ on a log-spaced grid; point
+predictions read out the decision-theoretically matched statistic
+(predictive median for MAE, predictive mean for RMSE), and event-set
+probabilities are evaluated at the model-predicted time.  Set decoding
+uses either a global threshold calibrated for validation
+F\textsubscript{1} (shared with all baselines) or a per-sample
+expected-F\textsubscript{1} rule, $k^{*}=\arg\max_k 2\sum_{i\le
+k}p_{(i)}/(k+\sum_j p_j)$~\cite{ye2012optimizing}.  As a control we
+also report the time-conditioned (``known-time'') variant; the
+model's advantage does not derive from timing information.
+
+\subsection{Event-Set Prediction}\label{sec:eval-set}
+
+Table~\ref{tab:set} compares set-valued next-event prediction across
+all models under both decodes.  The state-space variant
+(\textsc{vsm-s2p2} with expected-F\textsubscript{1} decoding) leads
+every model on both per-sample Jaccard (\resSspJaccardEf{}, an $8\%$
+relative improvement over the strongest adapted baseline) and
+F\textsubscript{1} (\resSspFoneEf), at roughly half the predicted set
+size of the neural baselines; the non-parametric \textsc{EmpTrans}
+trails all learned models on set metrics.  It also attains the best
+event NLL (\resSspNll{} vs.\ $\geq$\resHawkesNll{} for the other
+variants and $\approx$3.10 for the baselines) and is the first learned
+model in this comparison to reach the empirical transition table's
+single-type accuracy (\resSspTypeAcc{} vs.\ \resEmptransTypeAcc).
+
+\begin{table}[t]
+\caption{Event-set prediction on the test set (single seed; true mean
+set size \dataTrueSetSize).  Threshold decode is shared by all models
+($\tau$ calibrated on validation); EF\textsubscript{1} is the
+per-sample expected-F\textsubscript{1} decode.  Best in \textbf{bold}.}
+\label{tab:set}
+\small
+\input{generated/table_set}
+\end{table}
+
+\subsection{Next-Event Time, Type, and Volume}\label{sec:eval-timetype}
+
+Table~\ref{tab:timetype} reports target-free next-event timing, the
+single-next-event adaptation of Shi and
+Cartlidge~\cite{Shi2022StateSimulation} (primary label $=$ a
+deterministic representative of the target set; event-type NLL from
+normalized channel intensities), and per-channel volume MAE (log1p
+space, true channels) from the joint volume head.
+\textsc{vsm-rmtpp} is the best-calibrated timer of all models: its
+target-free predictive median ($0.098$\,s) essentially coincides with
+the true median inter-arrival ($0.100$\,s) and its MAE
+(\resRmtppTimeMae) matches the best baseline.  The
+\textsc{hawkes} and \textsc{s2p2} decoders are systematically
+\emph{mis}-calibrated between events (predicted intensity
+$\approx$3$\times$ the true rate; Sec.~\ref{sec:eval-discussion}),
+while volume MAE is statistically tied across our variants and the
+best dedicated baseline head.
+One honest caveat: the inter-arrival distribution is nearly degenerate
+(the $0.1$\,s exchange grid concentrates much of the mass at exactly
+$0.100$), so absolute timing differences are small.
+
+\begin{table}[t]
+\caption{Target-free next-event time, Shi-style single-event metrics,
+and volume MAE (single seed).  Our models read out the predictive
+median for MAE and predictive mean for RMSE.  \textsc{EmpTrans} NLL is
+omitted (non-comparable score family).}
+\label{tab:timetype}
+\footnotesize
+\setlength{\tabcolsep}{3.2pt}
+\input{generated/table_timetype}
+\end{table}
+
+%% TODO(tsne): planned t-SNE of the 62 learned type embeddings (4 types
+%% highlighted) -- not yet produced.
+
+\subsection{Stylized Facts of Simulated Order Flow}\label{sec:eval-stylized}
+
+A generative model is only a \emph{simulator} if it remains
+on-distribution when its own outputs are fed back as history.  We
+evaluate this in closed loop: event sets, inter-arrival times, and
+per-channel volumes are sampled from the model (times by inversion of
+the compensator, sets from the conditional set distribution, volumes
+from the log-volume head) and appended to the conditioning history,
+for a fixed simulated \emph{duration} (600\,s) so that decoders with
+different event rates are compared over equal market time.  Rollouts
+neither explode nor die out: simulated inter-arrival and set-size
+marginals remain at a constant distance from the real marginals across
+the full horizon.
+
+Following the realism-evaluation practice of market
+simulators~\cite{vyetrenko2020getreal}, we aggregate real and simulated
+streams into 1-second buckets and compute the eleven stylized facts of
+Cont~\cite{cont2001empirical} on a signed order-flow proxy for returns
+(price-moving events: market orders and best-level in-spread
+insertions) and an activity series (events per bucket).
+Figure~\ref{fig:stylized} shows the panel for \textsc{vsm-rmtpp}.
+The decoders separate sharply.  \textsc{vsm-rmtpp} is the best
+all-round simulator: near-zero return autocorrelation
+(\sfRmtppAcfAbsSim{} vs.\ \sfRmtppAcfAbsReal{} real), the closest
+tails (kurtosis \sfRmtppSkewReal-level), correct skew sign, a matching
+activity--volatility coupling (\sfRmtppActVolSim{} vs.\
+\sfRmtppActVolReal{} real), and the only non-degenerate volatility
+clustering signal (ACF$|r|$ \sfRmtppAcfAbsSim{} vs.\
+\sfRmtppAcfAbsReal{} real).  \textsc{vsm-hawkes} under joint volume
+training simulates almost no volatility memory
+(\sfHawkesAcfAbsSim); an ablation without the volume head restores
+its clustering to $0.051$ and its kurtosis to near-real ($1.89$ vs.\
+$1.93$), isolating a multi-task interference effect: the volume
+likelihood's gradients, flowing through the shared recurrent cell,
+dampen the \emph{variability} of the self-exciting intensity while
+leaving prediction metrics unchanged.  \textsc{vsm-s2p2} is
+degenerate in closed loop (return autocorrelation $0.89$: a
+near-deterministic drift), examined next.
+
+\begin{figure}[t]
+\centering
+\autofig{figs/stylized_facts_rmtpp.png}{\linewidth}
+\caption{Cont's eleven stylized facts, real vs.\ simulated order flow
+for \textsc{vsm-rmtpp} (single seed, 600\,s closed-loop rollouts).}
+\label{fig:stylized}
+\end{figure}
+
+\subsection{Price-Level Realism}\label{sec:eval-price}
+
+\paragraph{From events to prices.}
+Simulated streams are converted to prices by a deterministic
+book-replay engine that inverts the event constructor's semantics:
+market orders consume the touch and walk the ladder; cancellations
+that empty the best level move the quote away; in-spread insertions
+improve it by their tick distance.  Events within one timestamp are
+applied in matching-engine order (MO, IS, CO, LO).  The engine assumes
+a dense one-tick ladder at the top of book; following the
+tick-size-regime analysis of Jain et al.~\cite{Jain2025NoBooks}, this
+is accurate for large-tick regimes and an approximation for small-tick
+assets, so we convert ladder units to prices via recorded per-level
+gaps and restrict price-level claims to distributional statements.
+The engine contains no stochastic or fitted components: unlike prior
+work that attaches order prices and volumes to simulated events from
+separately fitted power laws with hand-tuned aggression
+percentages~\cite{Shi2022StateSimulation}, every stochastic
+quantity---type, side, book level, aggression, timing, volume---is
+produced by the model, and only deterministic mechanics are imposed.
+
+\paragraph{Recorded ground truth.}
+The real side of every comparison uses the \emph{recorded} book state
+emitted by our event constructor (mid-price and full ten-level ladders
+per event), not a reconstruction.  Simulated books are initialized
+from the recorded snapshot at the seed point.  Model events that are
+inconsistent with the simulated book (cancellations of empty levels,
+insertions into a one-tick spread) are skipped and \emph{counted}; we
+report this invalid-event rate as a measure of the model's structural
+coherence (\textsc{vsm-hawkes} \pvHawkesInvalid\%,
+\textsc{vsm-rmtpp} \pvRmtppInvalid\%, \textsc{vsm-s2p2}
+\pvSspInvalid\%).
+
+\paragraph{Results.}
+Against recorded reality (mean spread \pvHawkesSpreadRealMean\,bps),
+the simulated books separate sharply: \textsc{vsm-rmtpp} is the most
+faithful (\pvRmtppSpreadSimMean\,bps, with zero impossible in-spread
+insertions), \textsc{vsm-hawkes} is over-tight and over-calm
+(\pvHawkesSpreadSimMean\,bps), and \textsc{vsm-s2p2}'s book
+\emph{diverges} to \pvSspSpreadSimMean\,bps mean
+(\pvSspSpreadSimPnf\,bps at p95) --- $40\times$ reality.  Thus the
+decoder that wins every one-step prediction column produces the least
+viable market: one-step predictive quality does \emph{not} predict
+closed-loop viability, a compounding-error phenomenon familiar from
+model-based reinforcement learning that we propose as a first-class
+evaluation criterion --- \emph{closed-loop book stability} --- for
+LOB generative models.
+
+\begin{figure}[t]
+\centering
+\autofig{figs/price_v2_hawkes.png}{\linewidth}
+\caption{Price-level realism for \textsc{vsm-hawkes} against recorded
+book state: mid trajectories, return Q-Q, autocorrelations, volatility
+clustering, spread, signature plot, book shape, and touch-queue
+density.}
+\label{fig:pricev2}
+\end{figure}
+
+\subsection{Discussion}\label{sec:eval-discussion}
+
+Four findings shape how TFOW should be used.  (1)~\emph{Set-valued
+modeling is the source of predictive advantage}: the state-space
+variant beats every adapted baseline on set metrics and matches the
+frequency table on single-type accuracy --- multi-label structure,
+not next-type guessing, is where learnable signal lives.
+(2)~\emph{No decoder dominates; choose by task}: the state-space
+decoder for prediction and likelihood scoring, the constant-hazard
+recurrent decoder for timing and simulation --- its rigid hazard is
+simultaneously why it cannot win the prediction table and why it is
+the only decoder whose closed-loop market remains faithful.
+(3)~\emph{Joint volume modeling is prediction-neutral but dampens
+self-exciting dynamics}: volume accuracy matches dedicated baseline
+heads with no cost to set/type/timing metrics, yet its gradients,
+flowing through the shared recurrent state, suppress the Hawkes
+decoder's closed-loop volatility clustering (restored by a
+volume-head-free ablation); we report this multi-task interference as
+a finding, and a stop-gradient volume readout as the remedy.
+(4)~\emph{Known limitations}: the feed's $0.1$\,s grid makes
+continuous hazards mis-specified (the cause of both temporal PIT
+over-dispersion and the expressive decoders' between-event intensity
+inflation; a grid-aware discrete-time hazard is the principled fix),
+the conditionally independent set head caps within-tick co-occurrence
+structure, and the study covers a single venue, one week, and three
+symbols; scaling the corpus, a discrete-time temporal head, and a
+within-tick dependent set head are the subject of ongoing work.

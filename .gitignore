@@ -51,3 +51,6 @@ paper/build/
 # keep curated JSON summaries under results/
 !results/
 !results/*.json
+
+# AAAI single-file submission source (derived from main.tex via scripts/flatten_paper.sh)
+paper/main_flat.tex

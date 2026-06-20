@@ -1,0 +1,63 @@
+\section{Empirical - Into system design}
+
+
+
+\subsection{Data Selection}
+1. heatmap dynamic pump vs non pump
+
+
+
+We process the full orderbook data events but keep only the top 10 for orderbook modeling, which is the practice used in the industry~\cite{Shi2022StateSimulation}. 
+
+
+Memory issue when processing the orderbook construction
+
+
+
+Since USDT pairs are not available across all exchanges, when there is not USDT as the base commodity we choose the USD as the base, since the USDT is pegged to USD and the exchange rate stay 1 to 1 ratio normally. 
+
+The order book data from Kaiko are records of updates or snapshots per timestamps, but there are rare errors where duplicate timestamps exist--less than 0.1\% of the overall orderbook snapshots. In this case, we save the snapshots of both duplicate timestamps but skip the event generations 
+
+
+
+According to~\cite{Cong2023CryptoTrading}
+Coinbase, Gemini for regulated, normal
+Binance, Huobi for unregulated, normal
+Bitfinex, Kucoin for unregulated, abnormal
+
+BTC highest rejection
+XRP second highest rejection
+ETH lowest reject
+
+
+Most of the exchanges have multiple update per exchange, although Gemini has only one update per timestamp. 
+
+The Kaiko steam has "u" and "s" in the order book data steam, which stand for updates and snapshots. Most of the exchanges has dominate updates and a few snapshots. However, for Kucoin, all of its steams are snapshots.
+
+\begin{itemize}
+\item TOP MARKET CAP (6): BTC, ETH, SOL, XRP, TON, AVAX
+
+\item MAJOR L1/L2 BLOCKCHAINS (5): DOT, POL, INJ, XTZ, FET
+
+\item DEFI PROTOCOLS (8): AAVE, UNI, COMP, CRV, LDO, SNX, SUSHI, YFI
+
+\item MEME COINS (6): DOGE, SHIB, PEPE, FLOKI, BONK, WIF
+
+\item GAMING/METAVERSE (3): SAND, AXS, APE
+
+\item ORACLE/DATA INFRASTRUCTURE (4): LINK, GRT, FIL, AR
+
+\item PRIVACY/PAYMENTS (2): ZEC, LTC
+
+\item DEX/TRADING INFRASTRUCTURE (3): LRC, ZRX, SKY
+
+\item OTHER/UTILITY (2): AMP, CHZ
+\end{itemize}
+
+1. how the orderbook looks like in statistics and whats the abnormal 
+
+2. pump-and-dump period order frequency
+
+3. wash trading exchange level order amount
+
+4. spread big or small
