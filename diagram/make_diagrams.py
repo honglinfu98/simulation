@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Render the README/paper diagrams (reproducible).
 
-    python diagram/make_diagrams.py     # writes architecture.png + pipeline.png here
+    python diagram/make_diagrams.py     # writes {architecture,pipeline}.{png,pdf,svg}
 """
 import pathlib
 
 import matplotlib
 matplotlib.use("Agg")
+# Embed TrueType (Type 42), NOT Type 3 fonts — AAAI forbids Type 3 even in figures.
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["svg.fonttype"] = "none"   # keep text as selectable SVG text
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
@@ -28,6 +32,13 @@ def _arrow(ax, x0, y0, x1, y1):
                                  linewidth=1.6, color=NAVY))
 
 
+def _save(fig, name):
+    """Export each figure as PNG (README), PDF (paper/print), and SVG (web/edit)."""
+    for ext in ("png", "pdf", "svg"):
+        fig.savefig(HERE / f"{name}.{ext}", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
 def architecture():
     fig, ax = plt.subplots(figsize=(9.5, 4.2)); ax.set_xlim(0, 10); ax.set_ylim(0, 4.4); ax.axis("off")
     ax.text(5, 4.15, r"LGM:  $\lambda_k(t) = \Lambda(t)\,\cdot\,p(k\mid t)$", ha="center",
@@ -39,7 +50,7 @@ def architecture():
     _box(ax, 3.3, 0.15, 3.4, 0.95, "per-type intensity λ_k(t)",
          "calibrated • certifiable • clustered", fc="#fdf6ec", ec=GREY)
     _arrow(ax, 2.45, 1.5, 4.4, 1.1); _arrow(ax, 7.55, 1.5, 5.6, 1.1)
-    fig.tight_layout(); fig.savefig(HERE / "architecture.png", dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.tight_layout(); _save(fig, "architecture")
 
 
 def pipeline():
@@ -59,9 +70,9 @@ def pipeline():
             _arrow(ax, x + w, y + h / 2, x + w + gap, y + h / 2)
     ax.text(5.5, 0.18, "one installable package  ·  volume_set_mtpp/", ha="center",
             fontsize=9.5, style="italic", color=GREY)
-    fig.tight_layout(); fig.savefig(HERE / "pipeline.png", dpi=150, bbox_inches="tight"); plt.close(fig)
+    fig.tight_layout(); _save(fig, "pipeline")
 
 
 if __name__ == "__main__":
     architecture(); pipeline()
-    print("wrote", HERE / "architecture.png", "and", HERE / "pipeline.png")
+    print("wrote architecture.{png,pdf,svg} and pipeline.{png,pdf,svg} to", HERE)
