@@ -28,7 +28,11 @@ _lock(){ mkdir -p "$ROOT_DIR/.runs"; until mkdir "$LOCK" 2>/dev/null; do sleep 0
 _unlock(){ rmdir "$LOCK" 2>/dev/null || true; }
 
 email(){ # $1 subject ; body on stdin
-  ( set -a; source "$ROOT_DIR/.env"; set +a; python3 "$SCRIPT_DIR/notify_email.py" --subject "$1" ); }
+  # Point Python at certifi's CA bundle so SMTP TLS verifies even under launchd
+  # (where the default python3 may lack root certs). Harmless if already set.
+  ( set -a; source "$ROOT_DIR/.env"; set +a
+    export SSL_CERT_FILE="${SSL_CERT_FILE:-$(python3 -m certifi 2>/dev/null)}"
+    python3 "$SCRIPT_DIR/notify_email.py" --subject "$1" ); }
 
 set_field(){ # run_id field_index(1-based) value  -> rewrite registry row
   local rid="$1" idx="$2" val="$3"
