@@ -30,6 +30,7 @@ SYMBOL="${SYMBOL:-btcusdt}"
 OUTSET="${OUTSET:-${VENUE}_${SYMBOL}_v3}"
 CHUNKSIZE="${CHUNKSIZE:-20000}"
 KLEVELS="${KLEVELS:-10}"
+MAXROWS="${MAXROWS:-}"   # empty = full day; set (e.g. MAXROWS=120000) for a quick smoke test
 
 # Canonical code tree (flat layout: PYTHONPATH is the repo root, NOT repo/src).
 REPO="${REPO:-$HOME/simulation}"
@@ -60,11 +61,13 @@ fi
 echo "BUILD_START $(date) venue=$VENUE sym=$SYMBOL day=$DAY host=$(hostname) repo=$REPO"
 python3 - <<PY
 from volume_set_mtpp.process.event_construction_chunked import process_data_files_chunked
+_mr = "$MAXROWS"
 process_data_files_chunked(
     orderbook_file="$RAW",
     trades_file="$TRD",
     k_levels=$KLEVELS,
     chunksize=$CHUNKSIZE,
+    max_rows=(int(_mr) if _mr else None),
     output_file="$OUT",
     jsonl_format=True,
 )
