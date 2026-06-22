@@ -11,7 +11,7 @@ import sys
 import torch
 import torch.nn as nn
 
-from volume_set_mtpp.models.ptp_s2p2_decoder import PerTypeS2P2Decoder
+from volume_set_mtpp.models.lgm_decoder import PerTypeS2P2Decoder
 from volume_set_mtpp.models.lgm_decoder import LGMDecoder
 
 K, B, N = 62, 4, 50

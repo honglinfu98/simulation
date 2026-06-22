@@ -18,7 +18,7 @@ try:
 except Exception:  # keep old checkpoints importable if optional file is absent
     S2P2SetDecoder = None
 try:
-    from .ptp_s2p2_decoder import PerTypeS2P2Decoder
+    from .lgm_decoder import PerTypeS2P2Decoder  # folded into lgm_decoder (LGM's mark head)
 except Exception:
     PerTypeS2P2Decoder = None
 try:

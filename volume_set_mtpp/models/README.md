@@ -12,7 +12,7 @@ This is the `models` subpackage of the installable `volume_set_mtpp` package
 | file | role | flag |
 |---|---|---|
 | `lgm_decoder.py` | **The model.** Linear ground-rate × deep soft-max marks; exact mean, rate-pinned, gauge-free `rho`. | `is_lgm` |
-| `ptp_s2p2_decoder.py` | Per-type ("parallel over types") s2p2 with nonlinear LayerNorm read-out. **LGM composes this as its rate-neutral mark head.** | `is_ptp` |
+| `lgm_decoder.py` → `PerTypeS2P2Decoder` | Per-type ("parallel over types") s2p2 with nonlinear LayerNorm read-out. **Folded into `lgm_decoder.py` as LGM's rate-neutral mark head** (also usable standalone, `decoder_type 'pts2p2'`). | `is_ptp` |
 | `s2p2_decoder.py` | Stacked latent linear Hawkes (state-space PP). Literature **baseline**. | `is`-via-generic |
 | `decoder_original.py` | Classic **baselines**: `HawkesDecoder` (CT-LSTM neural Hawkes), `RMTPPDecoder` (Du et al. 2016). | — |
 | `volume_set_mtpp.py` | The framework: the `create_volume_set_mtpp` factory + the `is_*` intensity branches. | — |
