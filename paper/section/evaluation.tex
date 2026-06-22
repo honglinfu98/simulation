@@ -4,10 +4,10 @@
 \section{Evaluation}
 \label{eval}
 
-We evaluate the volume-set MTPP on three axes that mirror its intended
-role in TFOW: (i)~one-step predictive quality of the next event set, its
-timing, and its type, against adapted neural and non-parametric baselines
-(Sec.~\ref{sec:eval-set}--\ref{sec:eval-timetype}); (ii)~closed-loop
+We evaluate \textsc{lgm} on three axes that mirror its intended role in
+TFOW: (i)~one-step predictive quality of the next event's type and timing,
+against neural and non-parametric baselines
+(Sec.~\ref{sec:eval-set}); (ii)~closed-loop
 stability of the learned dynamics and generative realism of free-running
 simulations under the stylized facts of high-frequency order flow
 (Sec.~\ref{sec:eval-stylized}); and (iii)~price-level realism of
@@ -16,122 +16,107 @@ simulated books against recorded ground truth
 faithful generative model of LOB microstructure---the property the 3S
 detection and query-localization stages rely on.
 
+We model each arrival as a \emph{single} event type, i.e.\ the
+singleton restriction $|x|{=}1$ of the set-valued process of
+Sec.~\ref{subsec:mark_head_choice}; predictions and likelihoods are over
+the next event type, not over subsets.
+
 \subsection{Evaluation Setup}\label{sec:eval-setup}
 
 \paragraph{Data.}
-We use Level-2 order book and trade data for BTC/USDT, ETH/USDT and
-SOL/USDT on Binance (Kaiko feed), reconstructed into atomic events by
-the event constructor of Section~3 (MO/CO/LO/IS $\times$ side $\times$
-top $K{=}10$ levels; 62 fixed event types).  The corpus covers seven
-consecutive trading days (1--7 January 2026) for each of the three
-pairs (21 daily files).  Sliding windows of 50 events (stride 32) are
-split chronologically \emph{within each asset} 70/15/15 into
+We use Level-2 order book and trade data from two centralized crypto
+exchanges, \textbf{Gemini} and \textbf{Coinbase} (Kaiko feed),
+reconstructed into atomic events by the event constructor of Section~3
+(MO/CO/LO/IS $\times$ side $\times$ top $K{=}10$ levels; 62 fixed event
+types).  Sliding windows of 50 events (stride 32) are split
+chronologically \emph{within each (token, venue) pair} 70/15/15 into
 train/validation/test, with a one-window gap at each boundary to
-prevent leakage.  Timestamps are exchange-stamped on a $0.1$\,s grid;
-the mean target set contains \dataTrueSetSize{} of 62 types,
-confirming that simultaneous events are pervasive.
+prevent leakage.  Timestamps are exchange-stamped on a $0.1$\,s grid.
+Each arrival is reduced to a single event type (the singleton case of
+Sec.~\ref{subsec:mark_head_choice}).
 
 \paragraph{Models.}
-We train the volume-set MTPP with three interchangeable continuous-time
-decoders: a Neural-Hawkes cell~\cite{Mei2017TheProcess}
-(\textsc{vsm-hawkes}), an RMTPP-style recurrent
-decoder~\cite{du2016recurrent} (\textsc{vsm-rmtpp}), and a structured
-state-space decoder (\textsc{vsm-s2p2}).  Baselines follow the
-borrowed-backbone protocol of Shi and
-Cartlidge~\cite{Shi2022StateSimulation}: an LSTM, a causal Transformer
-(SAHP-style~\cite{zhang2020self}), a decayed-cell recurrent network
-(CT-LSTM-style~\cite{Mei2017TheProcess}), and a per-type parallel
-recurrent network (PCT-LSTM-style~\cite{Shi2022StateSimulation}), each
-fitted with identical set/volume/time heads, multi-hot event-set
-histories, and the same training budget (30 epochs, batch 512, AdamW,
-$10^{-3}$).  Our models carry an explicit per-channel volume head
-(log-volume Normal) whose negative log-likelihood over active channels
-enters the joint objective.\footnote{These are \emph{adapted} backbones
-under a shared set-decoding protocol, not paper-faithful
-continuous-time likelihood implementations; comparisons are against the
-architectures' inductive biases, not the original systems.}  A
-non-parametric empirical transition baseline (\textsc{EmpTrans};
-next-set frequencies conditioned on the last event set) anchors the
-tables.  Results are from a single seed; a three-seed extension is in
-progress.
+Our proposed model is \textbf{\textsc{lgm}} (linear rate-pinned
+multi-timescale Hawkes ground rate $\times$ deep soft-max marks,
+Sec.~\ref{subsec:hawkes_mean_calibration}).  We compare against seven
+baselines under an identical protocol (shared single-item type head,
+multi-hot event histories, and the same training budget---30 epochs,
+batch 512, AdamW, $10^{-3}$): two classic marked point processes, a
+parametric \textsc{Hawkes} process~\cite{Hawkes1971} and
+\textsc{RMTPP}~\cite{du2016recurrent}; a structured state-space decoder
+\textsc{s2p2}; and four neural baselines following the borrowed-backbone
+protocol of Shi and Cartlidge~\cite{Shi2022StateSimulation}---an
+\textsc{lstm}, a self-attentive Transformer
+(\textsc{sahp}~\cite{zhang2020self}), a continuous-time decayed-cell
+network (\textsc{ct-lstm}~\cite{Mei2017TheProcess}), and a per-type
+parallel recurrent network
+(\textsc{pct-lstm}~\cite{Shi2022StateSimulation}).\footnote{The neural
+baselines are \emph{adapted} backbones under a shared single-item
+type-decoding protocol, not paper-faithful re-implementations;
+comparisons probe the architectures' inductive biases, not the original
+systems.}  A non-parametric empirical-transition baseline
+(\textsc{EmpTrans}; next-type frequencies conditioned on the last event
+type) anchors the tables.
 
 \paragraph{Protocol.}
 All headline metrics are \emph{target-free}: no model receives the
-ground-truth next-event time.  For the volume-set MTPP, the predictive
-distribution over the next arrival is obtained from the learned ground
-intensity by trapezoid quadrature of the compensator
+ground-truth next-event time.  The predictive distribution over the
+next arrival time is obtained from the learned ground intensity by
+trapezoid quadrature of the compensator
 $\Lambda(t)=\int_0^{t}\lambda(s)\,ds$ on a log-spaced grid; point
 predictions read out the decision-theoretically matched statistic
-(predictive median for MAE, predictive mean for RMSE), and event-set
-probabilities are evaluated at the model-predicted time.  Set decoding
-uses either a global threshold calibrated for validation
-F\textsubscript{1} (shared with all baselines) or a per-sample
-expected-F\textsubscript{1} rule, $k^{*}=\arg\max_k 2\sum_{i\le
-k}p_{(i)}/(k+\sum_j p_j)$~\cite{ye2012optimizing}.  As a control we
-also report the time-conditioned (``known-time'') variant; the
-model's advantage does not derive from timing information.
+(predictive median for MAE, predictive mean for RMSE).  The next event
+\emph{type} is scored from the conditional mark distribution
+$p^*(k\mid t)$ evaluated at the model-predicted time: we report top-1
+type accuracy and per-event type perplexity (the head-agnostic
+single-item likelihood, comparable across all models).
 
-\subsection{Event-Set Prediction}\label{sec:eval-set}
+\subsection{Next-Event Prediction}\label{sec:eval-set}
 
-Table~\ref{tab:set} compares set-valued next-event prediction across
-all models under both decodes.  The state-space variant
-(\textsc{vsm-s2p2} with expected-F\textsubscript{1} decoding) leads
-every model on both per-sample Jaccard (\resSspJaccardEf{}, an $8\%$
-relative improvement over the strongest adapted baseline) and
-F\textsubscript{1} (\resSspFoneEf), at roughly half the predicted set
-size of the neural baselines; the non-parametric \textsc{EmpTrans}
-trails all learned models on set metrics.  It also attains the best
-event NLL (\resSspNll{} vs.\ $\geq$\resHawkesNll{} for the other
-variants and $\approx$3.10 for the baselines) and is the first learned
-model in this comparison to reach the empirical transition table's
-single-type accuracy (\resSspTypeAcc{} vs.\ \resEmptransTypeAcc).
+Table~\ref{tab:predict} compares single-item next-event prediction
+across all models: next-type top-1 accuracy and perplexity, and
+target-free next-time MAE/RMSE.  All models share the single-item type
+head and histories, so the comparison isolates the effect of the
+intensity/backbone.  \emph{Results are pending the Gemini/Coinbase
+experiment runs} (Sec.~\ref{sec:eval-setup}); the table records the
+model set and metrics.
 
 \begin{table}[t]
-\caption{Event-set prediction on the test set (single seed; true mean
-set size \dataTrueSetSize).  Threshold decode is shared by all models
-($\tau$ calibrated on validation); EF\textsubscript{1} is the
-per-sample expected-F\textsubscript{1} decode.  Best in \textbf{bold}.}
-\label{tab:set}
+\caption{Single-item next-event prediction on the held-out test set:
+next-type top-1 accuracy ($\uparrow$), type perplexity ($\downarrow$),
+and target-free next-time MAE/RMSE ($\downarrow$). \textsc{lgm} is the
+proposed model; the remainder are baselines. Best in \textbf{bold}.
+Cells marked ``--'' are pending experiment runs.}
+\label{tab:predict}
 \small
-\input{generated/table_set}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Model & Acc $\uparrow$ & Perplexity $\downarrow$ & Time MAE $\downarrow$ & Time RMSE $\downarrow$ \\
+\midrule
+EmpTrans (non-param.)        & -- & -- & -- & -- \\
+Hawkes~\cite{Hawkes1971}     & -- & -- & -- & -- \\
+RMTPP~\cite{du2016recurrent} & -- & -- & -- & -- \\
+LSTM                         & -- & -- & -- & -- \\
+SAHP~\cite{zhang2020self}    & -- & -- & -- & -- \\
+CT-LSTM~\cite{Mei2017TheProcess} & -- & -- & -- & -- \\
+s2p2                         & -- & -- & -- & -- \\
+PCT-LSTM~\cite{Shi2022StateSimulation} & -- & -- & -- & -- \\
+\midrule
+\textbf{LGM} (ours)          & -- & -- & -- & -- \\
+\bottomrule
+\end{tabular}
 \end{table}
-
-\subsection{Next-Event Time, Type, and Volume}\label{sec:eval-timetype}
-
-Table~\ref{tab:timetype} reports target-free next-event timing, the
-single-next-event adaptation of Shi and
-Cartlidge~\cite{Shi2022StateSimulation} (primary label $=$ a
-deterministic representative of the target set; event-type NLL from
-normalized channel intensities), and per-channel volume MAE (log1p
-space, true channels) from the joint volume head.
-\textsc{vsm-rmtpp} is the best-calibrated timer of all models: its
-target-free predictive median ($0.098$\,s) essentially coincides with
-the true median inter-arrival ($0.100$\,s) and its MAE
-(\resRmtppTimeMae) matches the best baseline.  The
-\textsc{hawkes} and \textsc{s2p2} decoders are systematically
-\emph{mis}-calibrated between events (predicted intensity
-$\approx$3$\times$ the true rate; Sec.~\ref{sec:eval-discussion}),
-while volume MAE is statistically tied across our variants and the
-best dedicated baseline head.
-One honest caveat: the inter-arrival distribution is nearly degenerate
-(the $0.1$\,s exchange grid concentrates much of the mass at exactly
-$0.100$), so absolute timing differences are small.
-
-\begin{table}[t]
-\caption{Target-free next-event time, Shi-style single-event metrics,
-and volume MAE (single seed).  Our models read out the predictive
-median for MAE and predictive mean for RMSE.  \textsc{EmpTrans} NLL is
-omitted (non-comparable score family).}
-\label{tab:timetype}
-\footnotesize
-\setlength{\tabcolsep}{3.2pt}
-\input{generated/table_timetype}
-\end{table}
-
-%% TODO(tsne): planned t-SNE of the 62 learned type embeddings (4 types
-%% highlighted) -- not yet produced.
 
 \subsection{Stylized Facts of Simulated Order Flow}\label{sec:eval-stylized}
+
+This and the price-realism section evaluate \textsc{lgm} against the
+baselines in closed loop; the numbers below reflect the earlier
+diagnostic decoders and will be regenerated with \textsc{lgm} as the
+proposed model on the Gemini/Coinbase runs. \textsc{lgm}'s rate pin
+(exact stationary mean, Sec.~\ref{subsec:hawkes_mean_calibration}) is
+precisely the property expected to deliver closed-loop stability, the
+criterion this section isolates.
 
 A generative model is only a \emph{simulator} if it remains
 on-distribution when its own outputs are fed back as history.  We
