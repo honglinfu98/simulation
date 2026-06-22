@@ -49,7 +49,7 @@ read from `left`; the post-event impulse only enters `right`. Verified by the sm
 | flag | file | intensity | certificate | notes |
 |---|---|---|---|---|
 | `is_lgm` | `lgm_decoder.py` | **`Lambda(t)·softmax(z)`** — linear ground × deep marks | ground `n = sr(a/beta)`, gauge-free | **the model**: exact mean, rate-pinned, calibrated |
-| `is_ptp` | `ptp_s2p2_decoder.py` | per-type s2p2, nonlinear LayerNorm read-out | gauge-broken (monitor only) | LGM composes this as its rate-neutral **mark head** |
+| `is_ptp` | `lgm_decoder.py` (`PerTypeS2P2Decoder`) | per-type s2p2, nonlinear LayerNorm read-out | gauge-broken (monitor only) | folded into `lgm_decoder.py` as LGM's rate-neutral **mark head** |
 | (generic) | `s2p2_decoder.py` | stacked latent linear Hawkes (state-space PP) | gauge-broken | literature **baseline** |
 | (generic) | `decoder_original.py` | `HawkesDecoder` (CT-LSTM), `RMTPPDecoder` (Du 2016) | — | classic **baselines** |
 

@@ -13,7 +13,7 @@ root, importable once the root is on `PYTHONPATH` (run `./setup_repo.sh` locally
 - SSH multiplexing from the Mac uses a single ControlMaster (`scripts/hpc-common.sh open`). Never run 2+ heavy concurrent SSH sessions over it.
 
 ## Package map (`volume_set_mtpp/`)
-- `models/` — `lgm_decoder.py` (**the model**: `Lambda(t)·softmax(z)`, rate-pinned, gauge-free `closed_form_rho`), `ptp_s2p2_decoder.py` (LGM's rate-neutral mark head), and the literature baselines `s2p2_decoder.py` + `decoder_original.py` (`HawkesDecoder`, `RMTPPDecoder`), plus the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, `ppmodel_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
+- `models/` — `lgm_decoder.py` (**the model**: `Lambda(t)·softmax(z)`, rate-pinned, gauge-free `closed_form_rho`; also contains `PerTypeS2P2Decoder`, LGM's rate-neutral mark head), and the literature baselines `s2p2_decoder.py` + `decoder_original.py` (`HawkesDecoder`, `RMTPPDecoder`), plus the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, `ppmodel_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
 - `training/` — `train.py` (`--decoder-type`, `--nmh-timescales`, `--nmh-project-rho` applied after `optimizer.step()`, `--mark-head`, `--lgm-target-rate`), `data_loader.py` (windowed, cold-start S=0 per window — the sim-mismatch cause).
 - `process/` — `event_construction_chunked.py`, `process_all_events_chunked.py`.
 - `extract/` — cluster-only downloaders (credentialed stubs; see `extract/README.md`).
