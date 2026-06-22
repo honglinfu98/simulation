@@ -1,6 +1,13 @@
 """
 Event construction from LOB and trade data - CHUNKED HPC VERSION.
 
+CANONICAL SOURCE: github.com/honglinfu98/simulation
+    volume_set_mtpp/process/event_construction_chunked.py
+This is the single source of truth for event construction. Do NOT fork or copy this
+file into other trees -- deploy this repo and import it. (Older forks under the
+`volume-set-mtpp` repo, e.g. event_construction{,_fixed,_new,_production}.py, are
+deprecated and used by nothing in this package.)
+
 This module processes limit order book (LOB) snapshots and trade prints to construct
 event sequences for market microstructure analysis.
 
@@ -12,9 +19,9 @@ KEY FEATURES:
 5. JSONL streaming to prevent memory issues and handle partial outputs
 """
 
-import ast
 import bisect
 import gzip
+import heapq
 import json
 import os
 from collections import defaultdict
@@ -109,6 +116,12 @@ class EventConstructor:
         self.k_levels = k_levels
         self.fast_mode = fast_mode
         self.tick_size = tick_size
+        # Cached top-k levels per side, as sorted [(price, volume), ...] (bids
+        # descending, asks ascending). Maintained incrementally across rows so we
+        # avoid re-sorting the full (thousands-deep) book on every update; only
+        # recomputed when an update touches the top-k band. See _refresh_side_topk.
+        self._topk_bids: List[Tuple[float, float]] = []
+        self._topk_asks: List[Tuple[float, float]] = []
 
     @staticmethod
     def detect_tick_size(trade_prices: List[float]) -> float:
@@ -188,6 +201,39 @@ class EventConstructor:
         bids = [(p, float(bids_full[p])) for p in bid_prices]
         asks = [(p, float(asks_full[p])) for p in ask_prices]
         return LOBSnapshot(timestamp, bids, asks)
+
+    def _refresh_side_topk(
+        self,
+        book: Dict[float, float],
+        deltas: Dict[float, float],
+        cached: List[Tuple[float, float]],
+        reverse: bool,
+        force: bool,
+    ) -> List[Tuple[float, float]]:
+        """Return the up-to-date top-k [(price, volume), ...] for one side.
+
+        Equivalent to ``sorted(book.keys(), reverse=reverse)[:k]`` paired with the
+        current volumes, but skips the sort when the top-k provably cannot have
+        changed. The top-k is unchanged iff (deep book) none of the updated prices
+        falls in the top-k band: for bids the band is ``price >= kth``, for asks
+        ``price <= kth``, where ``kth`` is the worst price currently in the top-k.
+        Any price addition/removal/value-change inside the band, a full reset
+        (``force``), or a book with <= k levels triggers a recompute.
+        """
+        k = self.k_levels
+        if not force:
+            if not deltas:
+                return cached
+            if len(book) > k and len(cached) == k:
+                kth = cached[-1][0]
+                if reverse:
+                    if not any(p >= kth for p in deltas):
+                        return cached
+                else:
+                    if not any(p <= kth for p in deltas):
+                        return cached
+        prices = heapq.nlargest(k, book.keys()) if reverse else heapq.nsmallest(k, book.keys())
+        return [(p, book[p]) for p in prices]
 
     def classify_events_from_deltas(
         self,
@@ -369,7 +415,7 @@ class EventConstructor:
                 asks_updates = parse_cache[asks_str]
             else:
                 try:
-                    asks_updates = ast.literal_eval(asks_str) if asks_str != '[]' else []
+                    asks_updates = json.loads(asks_str) if asks_str != '[]' else []
                     if len(parse_cache) < MAX_CACHE_SIZE:
                         parse_cache[asks_str] = asks_updates
                 except:
@@ -379,7 +425,7 @@ class EventConstructor:
                 bids_updates = parse_cache[bids_str]
             else:
                 try:
-                    bids_updates = ast.literal_eval(bids_str) if bids_str != '[]' else []
+                    bids_updates = json.loads(bids_str) if bids_str != '[]' else []
                     if len(parse_cache) < MAX_CACHE_SIZE:
                         parse_cache[bids_str] = bids_updates
                 except:
@@ -389,6 +435,7 @@ class EventConstructor:
             bid_deltas: Dict[float, float] = {}
             ask_deltas: Dict[float, float] = {}
 
+            did_reset = False
             if update_type == 'u' and not first_update:
                 # incremental update
                 bid_deltas = self._apply_side_updates_return_deltas(current_bids, bids_updates)
@@ -401,11 +448,16 @@ class EventConstructor:
                 current_bids.update({float(p): float(v) for p, v in bids_updates if float(v) > 0})
                 current_asks.update({float(p): float(v) for p, v in asks_updates if float(v) > 0})
                 bid_deltas, ask_deltas = {}, {}
+                did_reset = True
                 if first_update:
                     first_update = False
 
-            # Build TOP-K snapshots from full dict state
-            curr_snapshot = self._top_k_snapshot_from_full_books(ts, current_bids, current_asks)
+            # Maintain TOP-K incrementally (recompute only when the top-k band is
+            # touched), then build the snapshot from the cached top-k. Equivalent
+            # to sorting the full book every row, but avoids the O(N log N) sort.
+            self._topk_bids = self._refresh_side_topk(current_bids, bid_deltas, self._topk_bids, True, did_reset)
+            self._topk_asks = self._refresh_side_topk(current_asks, ask_deltas, self._topk_asks, False, did_reset)
+            curr_snapshot = LOBSnapshot(ts, self._topk_bids, self._topk_asks)
 
             if prev_snapshot is None:
                 prev_snapshot = curr_snapshot
@@ -464,10 +516,12 @@ class EventConstructor:
                     # LOB state: top-k book AFTER applying this update. Row t's book is
                     # the conditioning context for generating the event set at row t+1
                     # (MarS-style: order tokens conditioned on k-level LOB volumes + mid).
-                    bid_prices_sorted = sorted(current_bids.keys(), reverse=True)[:self.k_levels]
-                    ask_prices_sorted = sorted(current_asks.keys())[:self.k_levels]
-                    total_bid = sum(current_bids[p] for p in bid_prices_sorted)
-                    total_ask = sum(current_asks[p] for p in ask_prices_sorted)
+                    # Reuse the top-k already maintained for curr_snapshot (bids
+                    # descending, asks ascending) instead of re-sorting the full book.
+                    cb = curr_snapshot.bids
+                    ca = curr_snapshot.asks
+                    total_bid = sum(v for _, v in cb)
+                    total_ask = sum(v for _, v in ca)
                     if total_bid + total_ask > 0:
                         imbalance = float((total_ask - total_bid) / (total_ask + total_bid))
                     else:
@@ -478,16 +532,16 @@ class EventConstructor:
                         lob_discrete_state = 2
                     else:
                         lob_discrete_state = 1
-                    if bid_prices_sorted and ask_prices_sorted:
-                        mid = round((bid_prices_sorted[0] + ask_prices_sorted[0]) / 2.0, 10)
+                    if cb and ca:
+                        mid = round((cb[0][0] + ca[0][0]) / 2.0, 10)
                     else:
                         mid = None
                     event_data['lob_state'] = {
                         'imbalance': round(imbalance, 6),
                         'state': lob_discrete_state,
                         'mid': mid,
-                        'bids': [[p, round(float(current_bids[p]), 8)] for p in bid_prices_sorted],
-                        'asks': [[p, round(float(current_asks[p]), 8)] for p in ask_prices_sorted],
+                        'bids': [[p, round(float(v), 8)] for p, v in cb],
+                        'asks': [[p, round(float(v), 8)] for p, v in ca],
                     }
 
                     if jsonl_mode:
@@ -664,7 +718,9 @@ def process_data_files_chunked(
     # Stream to file (gzip-compressed if the filename says so — uncompressed
     # event JSONL is ~9x the size of the gzipped raw input)
     os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
-    _opener = (lambda p: gzip.open(p, 'wt')) if output_file.endswith('.gz') else (lambda p: open(p, 'w'))
+    # compresslevel=6: ~same ratio as the default 9 but markedly faster compress;
+    # the decompressed JSONL bytes are identical regardless of level.
+    _opener = (lambda p: gzip.open(p, 'wt', compresslevel=6)) if output_file.endswith('.gz') else (lambda p: open(p, 'w'))
     with _opener(output_file) as f:
         constructor.construct_events_chunked(
             orderbook_file=orderbook_file,
