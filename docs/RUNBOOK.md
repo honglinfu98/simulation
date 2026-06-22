@@ -33,6 +33,17 @@ Entry-point CLIs live in `scripts/` (e.g. `python scripts/train.py`, `python scr
 - `_template_run.sh` — train → `closed_form_rho` → `genuine_eval` → `stylized_facts`; the canonical template. Copy for a new variant.
 - `run_marks_{lgm,lgm086,lgm09,lgmv}.sh` — LGM variant runs.
 
+### Single-item comparison sweep (LGM + baselines)
+`--decoder-type` choices: **`lgm`** (proposed), and baselines `hawkes`, `rmtpp`, `s2p2`,
+`pts2p2`, `lstm`, `sahp`, `ct-lstm` (=neural Hawkes), `pct-lstm` (=per-type parallel).
+All use the single-item categorical head. Sweep via the watcher, one tag per model:
+```bash
+for d in lgm hawkes rmtpp s2p2 lstm sahp ct-lstm pct-lstm; do
+  bash scripts/submit_run.sh --tag "$d" --decoder "$d" \
+       --extra "--decoder-type $d --mark-head categorical"
+done   # LGM adds: --lgm-target-rate <R> --nmh-project-rho 0.86 ; sahp adds: --sahp-heads/--sahp-layers
+```
+
 ## Automated runs + email on completion
 ```bash
 cp .env.example .env                 # fill HPC_* and SMTP_* (Gmail app password)
