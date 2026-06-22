@@ -25,6 +25,14 @@ try:
     from .lgm_decoder import LGMDecoder
 except Exception:
     LGMDecoder = None
+try:
+    from .lstm_decoder import LSTMDecoder
+except Exception:
+    LSTMDecoder = None
+try:
+    from .sahp_decoder import SAHPDecoder
+except Exception:
+    SAHPDecoder = None
 
 
 class VolumeSetMTPP(PPModel):
@@ -857,8 +865,47 @@ def create_volume_set_mtpp(
             time_embedding=time_embedding,
             recurrent_hidden_size=config['recurrent_hidden_size']
         )
+    elif decoder_type == 'lstm':
+        if LSTMDecoder is None:
+            raise ImportError('LSTMDecoder is unavailable')
+        decoder = LSTMDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            num_layers=config.get('lstm_layers', 1),
+            dropout=config.get('lstm_dropout', 0.0),
+        )
+    elif decoder_type == 'sahp':
+        if SAHPDecoder is None:
+            raise ImportError('SAHPDecoder is unavailable')
+        decoder = SAHPDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            n_heads=config.get('sahp_heads', 4),
+            num_layers=config.get('sahp_layers', 2),
+            dropout=config.get('sahp_dropout', 0.0),
+        )
+    elif decoder_type == 'ct-lstm':
+        # Alias: continuous-time LSTM == Neural Hawkes decoder.
+        decoder = HawkesDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size']
+        )
+    elif decoder_type == 'pct-lstm':
+        # Alias: per-type continuous-time LSTM == PerTypeS2P2Decoder.
+        if PerTypeS2P2Decoder is None:
+            raise ImportError('PerTypeS2P2Decoder is unavailable')
+        decoder = PerTypeS2P2Decoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            per_type_dim=config.get('ptp_dim', 8),
+        )
     else:
-        raise ValueError(f"Unknown decoder_type {decoder_type!r}; expected 'hawkes', 'rmtpp', 's2p2', or 'nmh'")
+        raise ValueError(f"Unknown decoder_type {decoder_type!r}; expected 'hawkes', 'rmtpp', "
+                         "'s2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', or 'nmh'")
 
     # Create model
     model = VolumeSetMTPP(
