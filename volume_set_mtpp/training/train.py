@@ -254,8 +254,16 @@ def main():
                         help='Pinned stationary mean event rate (events/s) for --decoder-type lgm')
     parser.add_argument('--lgm-vol-feedback', action='store_true',
                         help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
-    parser.add_argument('--decoder-type', choices=['hawkes', 'rmtpp', 's2p2', 'pts2p2', 'lgm'], default='hawkes',
-                        help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM, RMTPP LSTM, S2P2 diagonal SSM')
+    parser.add_argument('--decoder-type',
+                        choices=['hawkes', 'rmtpp', 's2p2', 'pts2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        default='hawkes',
+                        help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
+                             'RMTPP LSTM, S2P2 diagonal SSM, plain LSTM, SAHP causal attention, '
+                             'per-type CT-LSTM (pts2p2/pct-lstm)')
+    parser.add_argument('--sahp-heads', type=int, default=4,
+                        help='Number of attention heads for --decoder-type sahp')
+    parser.add_argument('--sahp-layers', type=int, default=2,
+                        help='Number of transformer encoder layers for --decoder-type sahp')
     parser.add_argument('--s2p2-readout', choices=['state', 'output'], default='state',
                         help="output = paper-faithful: heads read the LayerNorm'd stack output "
                              "(rate-bounded); queries evolve all layers. state = legacy raw top state.")
@@ -344,6 +352,8 @@ def main():
         's2p2_layers': args.s2p2_layers,
         's2p2_dropout': args.s2p2_dropout,
         's2p2_input_dependent_dynamics': (not args.no_s2p2_input_dependent_dynamics),
+        'sahp_heads': args.sahp_heads,
+        'sahp_layers': args.sahp_layers,
         'volume_head': args.volume_head,
         'volume_loss_weight': args.volume_loss_weight,
         'volume_head_detach': args.volume_head_detach,
