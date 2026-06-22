@@ -103,3 +103,56 @@ clustering shape through $a_m/\delta_m$, but it cannot inflate the long-run mean
 rate. Since the Chang-style conditional set distribution is normalized over subsets, the
 set head changes only the composition of simultaneous events and leaves the scalar Hawkes
 mean calibration unchanged.
+
+\subsection{Set-Valued and Single-Item Output as a Mark-Head Choice}
+\label{subsec:mark_head_choice}
+
+A useful consequence of the factorization $\lambda_x^*(t)=\Lambda(t)\,p^*(x\mid t)$ is that
+the timing model and the calibration are \emph{agnostic} to the support of the mark
+distribution $p^*(\cdot\mid t)$. The ground rate $\Lambda(t)$ counts set-event arrivals
+(one increment per timestamp, irrespective of cardinality), so the branching ratio $n$ and
+the rate pin $\mu_0=R_{\mathrm{target}}(1-n)$ are defined entirely on the arrival clock and
+are untouched by how the mark mass is distributed. The single-item versus set-valued
+distinction is therefore a localized \emph{mark-head} choice over the support of $p^*$.
+
+Write $\mathcal{X}=\mathcal{P}(\{1,\ldots,K\})$. Both heads consume the same per-type
+logits $z_k=z_k(h_\theta(t))$ and differ only in the final normalization and likelihood:
+
+\paragraph{Single-item (categorical) head.} The support is restricted to the singletons
+$\{k\}$, and $p^*$ is a soft-max over types,
+\[
+p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_{j=1}^{K}e^{z_j}},
+\qquad
+\sum_{k=1}^{K}p^*(\{k\}\mid t)=1,
+\]
+trained by categorical cross-entropy. Each arrival is one event type.
+
+\paragraph{Set-valued (Dynamic Bernoulli) head.} The support is the full power set, and
+$p^*$ factorizes into independent per-type Bernoullis with $\rho_k=\sigma(z_k)$,
+\[
+p^*(x\mid t)=\prod_{k\in x}\rho_k\prod_{k\notin x}\bigl(1-\rho_k\bigr),
+\]
+trained by the summed per-type Bernoulli log-likelihood. Each arrival is a subset of
+event types, modelling genuine simultaneity.
+
+\paragraph{Both heads are rate-neutral, so calibration is preserved either way.}
+Rate-neutrality is the statement $\sum_{x}p^*(x\mid t)=1$ over the chosen support, which
+holds in both cases: the soft-max sums to one over the $K$ singletons, while the
+product-of-Bernoullis sums to one over the entire power set,
+\[
+\sum_{x\subseteq\{1,\ldots,K\}}\;\prod_{k\in x}\rho_k\prod_{k\notin x}(1-\rho_k)
+=\prod_{k=1}^{K}\bigl(\rho_k+(1-\rho_k)\bigr)=1.
+\]
+In either case $\sum_{x}\lambda_x^*(t)=\Lambda(t)$, so the stationary-mean pin
+$\bar{\Lambda}=R_{\mathrm{target}}$ and the branching certificate are independent of the
+mark-head choice. A single event is simply the singleton $x=\{k\}$ ($|x|=1$), so the
+set-valued formulation subsumes single-item output as a special case, and the multi-hot
+event encoding represents it natively.
+
+The practical guidance follows directly: pick the head to match the data, not the timing
+model. When arrivals are effectively atomic, the categorical head is exact and economical;
+when simultaneity ($|x|>1$) is material, the Dynamic Bernoulli head represents it
+faithfully, while the categorical head must collapse each set to a single representative
+type and is then a lossy approximation. Crucially, switching between the two changes only
+the mark head's activation and likelihood---never the ground rate, its calibration, or the
+set-valued input encoding.
