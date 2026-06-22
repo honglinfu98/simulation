@@ -13,18 +13,17 @@ root, importable once the root is on `PYTHONPATH` (run `./setup_repo.sh` locally
 - SSH multiplexing from the Mac uses a single ControlMaster (`scripts/hpc-common.sh open`). Never run 2+ heavy concurrent SSH sessions over it.
 
 ## Package map (`volume_set_mtpp/`)
-- `models/` — `nmh_decoder.py` (`NMHDecoder`: `get_states_and_event_left_states`, `get_hidden_h`, `type_intensities`, `branching_proxy`, `project_subcritical`, `closed_form_rho`), `lgm_decoder.py` (the model), `gmh/ptp_s2p2/s2p2` decoders, and the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, plus `ppmodel_original`, `decoder_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
+- `models/` — `lgm_decoder.py` (**the model**: `Lambda(t)·softmax(z)`, rate-pinned, gauge-free `closed_form_rho`), `ptp_s2p2_decoder.py` (LGM's rate-neutral mark head), and the literature baselines `s2p2_decoder.py` + `decoder_original.py` (`HawkesDecoder`, `RMTPPDecoder`), plus the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, `ppmodel_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
 - `training/` — `train.py` (`--decoder-type`, `--nmh-timescales`, `--nmh-project-rho` applied after `optimizer.step()`, `--mark-head`, `--lgm-target-rate`), `data_loader.py` (windowed, cold-start S=0 per window — the sim-mismatch cause).
 - `process/` — `event_construction_chunked.py`, `process_all_events_chunked.py`.
 - `extract/` — cluster-only downloaders (credentialed stubs; see `extract/README.md`).
-- `evaluation/` — `genuine_eval.py` (genuine acc + perplexity), `stylized_facts.py` (neural-harness rollout + Cont facts), `nmh_thinning.py` (exact Ogata thinning), `compound_hawkes.py`, `mt_hawkes.py` (best baseline simulator), `price_facts{,_v2}.py` + `book_replay.py`, `build_comparison_table.py`, and `market_making/` (Stage-1/2 maker + RL).
+- `evaluation/` — `genuine_eval.py` (genuine acc + perplexity), `stylized_facts.py` (neural-harness rollout + Cont facts), `compound_hawkes.py`, `mt_hawkes.py` (best baseline simulator, exact thinning), `price_facts{,_v2}.py` + `book_replay.py`, `build_comparison_table.py`, and `market_making/` (Stage-1/2 maker + RL).
 
 ## Invocation (modules, not bare scripts)
 ```bash
 python -m volume_set_mtpp.training.train            --help
 python -m volume_set_mtpp.evaluation.genuine_eval   --checkpoint <ckpt> ...
 python -m volume_set_mtpp.evaluation.stylized_facts --checkpoint <ckpt> ...
-python -m volume_set_mtpp.evaluation.nmh_thinning   --checkpoint <ckpt> --v2-dir <data> ...
 python -m volume_set_mtpp.evaluation.mt_hawkes      --v2-dir <data> --rho-max 0.8 ...
 python -m volume_set_mtpp.evaluation.build_comparison_table
 ```
@@ -32,7 +31,7 @@ Entry-point CLIs live in `scripts/` (e.g. `python scripts/train.py`, `python scr
 
 ## Run scripts (`scripts/`, `qsub run_*.sh`)
 - `_template_run.sh` — train → `closed_form_rho` → `genuine_eval` → `stylized_facts`; the canonical template. Copy for a new variant.
-- `run_marks_{nmh,nmhc,nmhp,nmhwp,gmh,lgm,lgm086,lgm09,lgmv}.sh` — per-variant runs.
+- `run_marks_{lgm,lgm086,lgm09,lgmv}.sh` — LGM variant runs.
 
 ## Automated runs + email on completion
 ```bash

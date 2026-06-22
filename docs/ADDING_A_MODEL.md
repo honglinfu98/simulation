@@ -5,7 +5,7 @@ A repeatable recipe so each new decoder is fast, correct, and comparable. Read
 
 ## 1. Write the decoder — `volume_set_mtpp/models/<x>_decoder.py`
 
-Mirror `lgm_decoder.py` / `nmh_decoder.py`. Minimum:
+Mirror `lgm_decoder.py`. Minimum:
 - class attribute `is_<x> = True` and `intensity_activation = "<x>"`;
 - `recurrent_hidden_size`;
 - `get_states_and_event_left_states`, `get_states`, `get_event_left_states`, `get_hidden_h`;
@@ -56,7 +56,7 @@ does: train -> rho report -> genuine-event eval -> stylized facts -> price facts
 
 - Genuine accuracy/perplexity: `python -m volume_set_mtpp.evaluation.genuine_eval`.
 - Free-rollout stylized facts: `… stylized_facts` (neural harness) or
-  `… nmh_thinning` (exact thinning, for Hawkes-form decoders).
+  `… mt_hawkes` (exact thinning, for Hawkes-form baselines).
 - Add the result row: `… build_comparison_table` -> `results/comparison_table.json`.
 - **Report robust stats**: raw 1 s kurtosis/skew are outlier-dominated (median bucket count
   is 0). Use winsorized or >=5 s buckets (see `RESULTS.md`).

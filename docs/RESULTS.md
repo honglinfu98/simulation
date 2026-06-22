@@ -2,9 +2,12 @@
 
 Real rate ≈ **1.8 events/s**. Genuine accuracy/perplexity on non-empty targets
 (head-agnostic). Fano(1s) is F5 at the 1s bucket. ρ = closed-form branching ratio
-where defined. All sims are free-rollout; baselines/s2p2/NMH via the neural harness
-(`stylized_facts.py`), Compound Hawkes / MT-Hawkes / NMH-thinning via exact
-Ogata thinning.
+where defined. All sims are free-rollout; baselines/s2p2 via the neural harness
+(`stylized_facts.py`), Compound Hawkes / MT-Hawkes via exact Ogata thinning.
+
+> **Note (2026-06-22):** LGM is the locked model; NMH/GMH were our own diagnostic
+> constructions (now removed from the codebase). The NMH rows below are retained only
+> as the empirical *motivation* for LGM's rate-pin — not as proposed models or baselines.
 
 ## Main table
 
@@ -18,8 +21,6 @@ Ogata thinning.
 | Compound Hawkes | 0.176 | — | 0.641 | 8.84 | 100.2 | -0.91 | 0.002 | -0.04 |
 | s2p2-cat | 0.316 | 11.1 | — | 36.7 | 18.6 | -0.55 | 0.033 | 0.89 |
 | **s2p2-pfa** (best predictor) | **0.319** | 11.3 | — | 41.0 | 44.7 | -0.53 | 0.010 | 0.12 |
-| NMH-MLE (unconstrained) | 0.281 | 13.2 | **1323** | 378 | 0.1 | -0.12 | 0.041 | 0.40 |
-| NMH (penalty, ρ=0.70) | 0.257 | 16.0 | 0.702 | 92 | 0.2 | -0.06 | 0.007 | -0.25 |
 | **MT-Hawkes** (full-stream MLE, ρ=0.8) | 0.196 | 17.8 | 0.800 | **10.35** | 48.6 | -1.11 | 0.003 | 0.00 |
 
 ## NMH free-rollout RATE (exact thinning) — the explosion/taming story

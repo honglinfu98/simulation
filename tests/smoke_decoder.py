@@ -11,10 +11,8 @@ import sys
 import torch
 import torch.nn as nn
 
-from volume_set_mtpp.models.nmh_decoder import NMHDecoder
 from volume_set_mtpp.models.ptp_s2p2_decoder import PerTypeS2P2Decoder
 from volume_set_mtpp.models.lgm_decoder import LGMDecoder
-from volume_set_mtpp.models.gmh_decoder import GMHDecoder
 
 K, B, N = 62, 4, 50
 
@@ -77,9 +75,7 @@ def check(name, dec):
 def build():
     emb = nn.Embedding(K, 64)
     return [
-        ("nmh", NMHDecoder(num_channels=K, num_timescales=4)),
         ("ptp", PerTypeS2P2Decoder(channel_embedding=emb, num_channels=K, per_type_dim=8)),
-        ("gmh", GMHDecoder(channel_embedding=emb, time_embedding=None, num_channels=K, num_timescales=4)),
         ("lgm", LGMDecoder(channel_embedding=emb, num_channels=K, per_type_dim=8, num_timescales=4, target_rate=2.0)),
     ]
 

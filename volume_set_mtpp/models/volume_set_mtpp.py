@@ -18,14 +18,6 @@ try:
 except Exception:  # keep old checkpoints importable if optional file is absent
     S2P2SetDecoder = None
 try:
-    from .nmh_decoder import NMHDecoder
-except Exception:
-    NMHDecoder = None
-try:
-    from .gmh_decoder import GMHDecoder
-except Exception:
-    GMHDecoder = None
-try:
     from .ptp_s2p2_decoder import PerTypeS2P2Decoder
 except Exception:
     PerTypeS2P2Decoder = None
@@ -274,8 +266,7 @@ class VolumeSetMTPP(PPModel):
                 "channel_intensity": Lam * p,
             }
 
-        if (getattr(self.decoder, "is_nmh", False) or getattr(self.decoder, "is_gmh", False)
-                or getattr(self.decoder, "is_ptp", False)):
+        if getattr(self.decoder, "is_ptp", False):
             lam = self.decoder.type_intensities(h_t)               # [B, N, K]
             total_intensity = lam.sum(dim=-1, keepdim=True)        # ground intensity
             item_logits = torch.log(lam + 1e-8)                    # softmax -> lambda_k/sum
@@ -832,28 +823,6 @@ def create_volume_set_mtpp(
         if config.get('s2p2_readout', 'state') == 'output' and config.get('subcritical_closed', False):
             raise ValueError("subcritical_closed assumes the legacy state readout; "
                              "use --subcritical-empirical with --s2p2-readout output")
-    elif decoder_type == 'nmh':
-        if NMHDecoder is None:
-            raise ImportError('NMHDecoder is unavailable')
-        decoder = NMHDecoder(
-            num_channels=num_channels,
-            num_timescales=config.get('nmh_timescales', 4),
-            channel_embedding=channel_embedding,
-            time_embedding=time_embedding,
-        )
-    elif decoder_type == 'gmh':
-        if GMHDecoder is None:
-            raise ImportError('GMHDecoder is unavailable')
-        decoder = GMHDecoder(
-            channel_embedding=channel_embedding,
-            time_embedding=time_embedding,
-            num_channels=num_channels,
-            num_timescales=config.get('nmh_timescales', 4),
-            s2p2_hidden=config.get('recurrent_hidden_size', 128),
-            s2p2_layers=config.get('s2p2_layers', 3),
-            s2p2_dropout=config.get('s2p2_dropout', 0.0),
-            gate_max=config.get('gmh_gate_max', 3.0),
-        )
     elif decoder_type == 'pts2p2':
         if PerTypeS2P2Decoder is None:
             raise ImportError('PerTypeS2P2Decoder is unavailable')

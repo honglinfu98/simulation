@@ -34,9 +34,10 @@ extraction through event construction, the model zoo, training, and the evaluati
 
 ## **Repository Structure**
 - `volume_set_mtpp/`: the core package — `extract/` (raw LOB/trade download), `process/`
-  (event construction), `models/` (decoders **lgm**/nmh/gmh/ptp_s2p2/s2p2 + framework +
-  `ARCHITECTURE.md`), `training/` (train + data loader), `evaluation/` (stylized facts,
-  genuine eval, baselines, `market_making/`).
+  (event construction), `models/` (**lgm** — the model — + its `ptp_s2p2` mark head and
+  the literature baselines `s2p2`/RMTPP/Hawkes + framework + `ARCHITECTURE.md`), `training/`
+  (train + data loader), `evaluation/` (stylized facts, genuine eval, baselines,
+  `market_making/`).
 - `scripts/`: command-line entry points (`fetch_data.py`, `build_events.py`, `train.py`,
   `evaluate.py`) plus the SGE run scripts and the **automated HPC runner + email watcher**
   (`submit_run.sh`, `watch_runs.sh`, `notify_email.py`, `hpc-common.sh`).
@@ -115,7 +116,6 @@ Gemini ETH-USD, 62 event types; real rate ≈ 2.38 ev/s.
 |---|---|---|---|---|---|
 | Compound Hawkes | 0.18 | 8.8 | 0.64 (exact) | ~2 | stable, no long-memory |
 | s2p2 (best predictor) | **0.32** | 41 | gauge-broken | — | over-disperses |
-| NMH / GMH (windowed neural) | 0.26 | explode | 1300 / 0.8 | 52–100/s | explode / Poisson |
 | **LGM (n=0.86)** | **0.29** | **6.0** | **0.86 (honest)** | **2.22/s** | **calibrated ✓** |
 
 LGM uniquely is calibrated (rate within ~7% of real) **and** a competitive predictor **and**
