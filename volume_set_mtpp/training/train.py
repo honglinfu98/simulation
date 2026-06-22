@@ -245,19 +245,17 @@ def main():
     parser.add_argument('--set-loss-reduction', choices=['sum', 'mean-labels'], default='sum',
                         help='sum = paper Bernoulli likelihood; mean-labels = average BCE over labels for balancing')
     parser.add_argument('--nmh-timescales', type=int, default=4,
-                        help='Number of decay timescales for --decoder-type nmh')
+                        help='Number of decay timescales M in the LGM linear-Hawkes ground rate')
     parser.add_argument('--nmh-project-rho', type=float, default=0.0,
-                        help='>0: hard-project NMH/GMH (effective) spectral radius to this value each step')
-    parser.add_argument('--gmh-gate-max', type=float, default=3.0,
-                        help='Upper bound on the bounded s2p2 gate for --decoder-type gmh')
+                        help='>0: hard-project the (effective) branching ratio to this value each step (LGM/s2p2)')
     parser.add_argument('--ptp-dim', type=int, default=8,
                         help='Per-type latent dim d for --decoder-type pts2p2 / lgm')
     parser.add_argument('--lgm-target-rate', type=float, default=1.8,
                         help='Pinned stationary mean event rate (events/s) for --decoder-type lgm')
     parser.add_argument('--lgm-vol-feedback', action='store_true',
                         help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
-    parser.add_argument('--decoder-type', choices=['hawkes', 'rmtpp', 's2p2', 'nmh', 'gmh', 'pts2p2', 'lgm'], default='hawkes',
-                        help='Decoder/backbone: existing Neural Hawkes CT-LSTM, RMTPP LSTM, or S2P2-style diagonal SSM')
+    parser.add_argument('--decoder-type', choices=['hawkes', 'rmtpp', 's2p2', 'pts2p2', 'lgm'], default='hawkes',
+                        help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM, RMTPP LSTM, S2P2 diagonal SSM')
     parser.add_argument('--s2p2-readout', choices=['state', 'output'], default='state',
                         help="output = paper-faithful: heads read the LayerNorm'd stack output "
                              "(rate-bounded); queries evolve all layers. state = legacy raw top state.")
@@ -339,7 +337,6 @@ def main():
         'decoder_type': args.decoder_type,
         'nmh_timescales': args.nmh_timescales,
         'nmh_project_rho': args.nmh_project_rho,
-        'gmh_gate_max': args.gmh_gate_max,
         'ptp_dim': args.ptp_dim,
         'lgm_target_rate': args.lgm_target_rate,
         'lgm_vol_feedback': args.lgm_vol_feedback,

@@ -3,7 +3,6 @@
 
     python scripts/evaluate.py genuine  --checkpoint <ckpt> --data-dir <events> ...   # acc + perplexity
     python scripts/evaluate.py facts     --checkpoint <ckpt> --data-dir <events> ...   # stylized facts (free rollout)
-    python scripts/evaluate.py thinning  --checkpoint <ckpt> --v2-dir <data> ...        # exact Ogata thinning
     python scripts/evaluate.py table                                                    # rebuild comparison table
 """
 import pathlib
@@ -14,7 +13,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 _TASKS = {
     "genuine": "volume_set_mtpp.evaluation.genuine_eval",
     "facts": "volume_set_mtpp.evaluation.stylized_facts",
-    "thinning": "volume_set_mtpp.evaluation.nmh_thinning",
     "table": "volume_set_mtpp.evaluation.build_comparison_table",
 }
 

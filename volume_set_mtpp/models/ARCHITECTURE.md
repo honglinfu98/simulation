@@ -29,7 +29,7 @@ A decoder plugs into `VolumeSetMTPP` (in `volume_set_mtpp.py`, this folder). It 
 | `get_hidden_h(state_values[B,*,D], state_times[B,N], query[B,Mq])` | `-> [B,Mq,D]` | evolve the last state before each query forward to the query time |
 
 Then **one of**:
-- a **per-type decoder** exposes `type_intensities(h[..,D]) -> lambda[..,K]` (NMH/GMH/PTP) or
+- a **per-type decoder** exposes `type_intensities(h[..,D]) -> lambda[..,K]` (PTP) or
   a `(ground_intensity, mark_score)` pair (LGM), and sets a routing flag `is_<name> = True`
   consumed by a branch in `VolumeSetMTPP.get_total_intensity_and_items`; **or**
 - a generic decoder leaves the state for the model's built-in intensity/mark heads.
@@ -48,13 +48,13 @@ read from `left`; the post-event impulse only enters `right`. Verified by the sm
 
 | flag | file | intensity | certificate | notes |
 |---|---|---|---|---|
-| `is_nmh` | `nmh_decoder.py` | `softplus(mu + A·S)` per type, multi-timescale counts | closed-form `rho = sr(A/delta)`, gauge-free | explodes under windowed training (diagnostic) |
-| `is_gmh` | `gmh_decoder.py` | linear Hawkes backbone × bounded s2p2 gate | `rho_backbone · G_max` | bounded but mis-calibrated under windowed training |
-| `is_ptp` | `ptp_s2p2_decoder.py` | per-type s2p2, nonlinear LayerNorm read-out | gauge-broken (monitor only) | the per-type / "parallel over types" variant |
 | `is_lgm` | `lgm_decoder.py` | **`Lambda(t)·softmax(z)`** — linear ground × deep marks | ground `n = sr(a/beta)`, gauge-free | **the model**: exact mean, rate-pinned, calibrated |
+| `is_ptp` | `ptp_s2p2_decoder.py` | per-type s2p2, nonlinear LayerNorm read-out | gauge-broken (monitor only) | LGM composes this as its rate-neutral **mark head** |
+| (generic) | `s2p2_decoder.py` | stacked latent linear Hawkes (state-space PP) | gauge-broken | literature **baseline** |
+| (generic) | `decoder_original.py` | `HawkesDecoder` (CT-LSTM), `RMTPPDecoder` (Du 2016) | — | classic **baselines** |
 
-`s2p2_decoder.py` (stacked latent linear Hawkes) is a dependency of GMH and the original
-state-space point process baseline. `volume_set_mtpp.py` (here) and `../training/train.py`
+`s2p2_decoder.py` (stacked latent linear Hawkes) is the state-space point process
+baseline. `volume_set_mtpp.py` (here) and `../training/train.py`
 are the framework files (the factory + the `is_*` branches + training flags).
 
 ## Where a new decoder wires in (5 touch-points)

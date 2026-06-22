@@ -5,6 +5,14 @@ description: Briefing on the TFOW/VolumeSetMTPP world-model SIMULATION problem a
 
 # NMH / World-Model Simulation — situation briefing
 
+> **STATUS (2026-06-22): LGM is the locked model.** NMH and GMH were our own diagnostic
+> constructions on the path to LGM and have been **removed from the codebase**; the
+> proposed model is **LGM** (linear rate-pinned ground × deep soft-max marks), compared
+> against other papers' models (Compound Hawkes, s2p2, RMTPP, MT-Hawkes). This briefing is
+> retained as the *diagnostic narrative* — the "why LGM" motivation (windowed neural Hawkes
+> mis-calibrate/explode; the branching-ratio certificate; the calibration fix) — not as a
+> menu of candidate models. See `ROADMAP.md` for LGM's open directions.
+
 This skill is a complete hand-off briefing. Read it end-to-end before touching the
 simulation problem. Numbers and file paths are as of 2026-06-15 (verify against
 current code before asserting as fact).

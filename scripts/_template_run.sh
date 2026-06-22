@@ -23,11 +23,10 @@ DATA=/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks
 CACHE=$DATA/.tensor_cache_seq50_stride32
 SEED=1
 TAG=TAG                 # <- e.g. lgm086
-DECODER=DECODER         # <- e.g. lgm | nmh | gmh | pts2p2
+DECODER=DECODER         # <- lgm (the model) | pts2p2 | s2p2 | hawkes | rmtpp (baselines)
 EXTRA="--mark-head categorical"   # <- decoder-specific flags, e.g.:
 # lgm:  --decoder-type lgm --nmh-timescales 4 --ptp-dim 8 --lgm-target-rate 2.381 --nmh-project-rho 0.86 --mark-head categorical
-# nmh:  --decoder-type nmh --nmh-timescales 4 --nmh-project-rho 0.8 --mark-head categorical
-# gmh:  --decoder-type gmh --nmh-timescales 4 --gmh-gate-max 3.0 --s2p2-layers 3 --nmh-project-rho 0.8 --mark-head categorical
+# s2p2: --decoder-type s2p2 --s2p2-readout output --mark-head categorical
 
 BASE="experiments/gmni_marks_${TAG}_$(date +%Y%m%d_%H%M%S)"; mkdir -p "$BASE"; M="$BASE/master.log"
 log(){ echo "$@" | tee -a "$M"; }

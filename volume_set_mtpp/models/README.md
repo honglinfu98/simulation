@@ -12,16 +12,15 @@ This is the `models` subpackage of the installable `volume_set_mtpp` package
 | file | role | flag |
 |---|---|---|
 | `lgm_decoder.py` | **The model.** Linear ground-rate × deep soft-max marks; exact mean, rate-pinned, gauge-free `rho`. | `is_lgm` |
-| `nmh_decoder.py` | Neural multivariate Hawkes (multi-timescale per-type counts, softplus). Diagnostic: explodes under windowed training. | `is_nmh` |
-| `gmh_decoder.py` | Linear Hawkes backbone × bounded s2p2 gate. Depends on `s2p2_decoder.py`. | `is_gmh` |
-| `ptp_s2p2_decoder.py` | Per-type ("parallel over types") s2p2 with nonlinear LayerNorm read-out. | `is_ptp` |
-| `s2p2_decoder.py` | Stacked latent linear Hawkes (state-space PP). Dependency of GMH; baseline. | `is`-via-generic |
+| `ptp_s2p2_decoder.py` | Per-type ("parallel over types") s2p2 with nonlinear LayerNorm read-out. **LGM composes this as its rate-neutral mark head.** | `is_ptp` |
+| `s2p2_decoder.py` | Stacked latent linear Hawkes (state-space PP). Literature **baseline**. | `is`-via-generic |
+| `decoder_original.py` | Classic **baselines**: `HawkesDecoder` (CT-LSTM neural Hawkes), `RMTPPDecoder` (Du et al. 2016). | — |
 | `volume_set_mtpp.py` | The framework: the `create_volume_set_mtpp` factory + the `is_*` intensity branches. | — |
 
 `volume_set_mtpp.py` builds on the framework files in this folder (`ppmodel_original`,
 `decoder_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`); the
-trainer + data loader live in the sibling `training/` subpackage. The standalone decoders
-(`nmh/ptp/gmh/lgm/s2p2`) need only PyTorch and each other, and are covered by the repo-root
+trainer + data loader live in the sibling `training/` subpackage. The decoders
+(`ptp/lgm/s2p2`) need only PyTorch and each other, and are covered by the repo-root
 `tests/smoke_decoder.py`.
 
 Interface contract for new decoders: see [`ARCHITECTURE.md`](ARCHITECTURE.md) (in this folder).
