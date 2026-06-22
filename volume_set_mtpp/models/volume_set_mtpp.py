@@ -831,15 +831,6 @@ def create_volume_set_mtpp(
         if config.get('s2p2_readout', 'state') == 'output' and config.get('subcritical_closed', False):
             raise ValueError("subcritical_closed assumes the legacy state readout; "
                              "use --subcritical-empirical with --s2p2-readout output")
-    elif decoder_type == 'pts2p2':
-        if PerTypeS2P2Decoder is None:
-            raise ImportError('PerTypeS2P2Decoder is unavailable')
-        decoder = PerTypeS2P2Decoder(
-            channel_embedding=channel_embedding,
-            time_embedding=time_embedding,
-            num_channels=num_channels,
-            per_type_dim=config.get('ptp_dim', 8),
-        )
     elif decoder_type == 'lgm':
         if LGMDecoder is None:
             raise ImportError('LGMDecoder is unavailable')

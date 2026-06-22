@@ -156,3 +156,19 @@ faithfully, while the categorical head must collapse each set to a single repres
 type and is then a lossy approximation. Crucially, switching between the two changes only
 the mark head's activation and likelihood---never the ground rate, its calibration, or the
 set-valued input encoding.
+
+\paragraph{The mark head and the PCT-LSTM ablation.}
+Concretely, \textsc{lgm}'s mark logits $z_k(t)$ are produced by a \emph{per-type
+parallel} recurrent network---each event type carries its own decaying latent with a
+weight-shared nonlinear read-out (the per-type continuous-time structure of Shi and
+Cartlidge~\cite{Shi2022StateSimulation}). \textsc{lgm} uses this network for the marks
+\emph{only}: its scores are placed on the simplex by the soft-max and multiplied by the
+separate linear, rate-pinned ground rate $\Lambda(t)$, so the network never touches the
+total rate. Running the \emph{same} per-type network standalone---letting it drive the
+rate as well, via $\lambda_k=\operatorname{softplus}(z_k)$ with
+$\Lambda=\sum_k\lambda_k$ rather than the rate-neutral soft-max---recovers exactly the
+\textsc{pct-lstm} baseline. The \textsc{lgm}-vs-\textsc{pct-lstm} comparison is therefore
+a controlled ablation of the factorization itself: identical mark network, with versus
+without the linear rate-pinned ground rate. Any gain in calibration, branching-ratio
+certifiability, or closed-loop stability is attributable to the rate pin, not to the mark
+parameterization.

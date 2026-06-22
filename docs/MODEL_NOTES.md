@@ -114,7 +114,7 @@ A **certified linear Compound-Hawkes backbone** (exact gauge-free $\rho$, multi-
 - **skew +1.11** — FIRST model on the correct (positive) side (all prior ≈0 or negative).
 - honest ground certificate n=0.8.
 
-Gaps: Fano(1s) 2.99<7.9 (n=0.8→asymptotic 25; real n≈0.86 — raise `--nmh-project-rho` to ~0.9); extreme kurt 10709 unreached (needs QHawkes volatility-feedback). Code: `lgm_decoder.py` (now also contains `PerTypeS2P2Decoder` — the per-type s2p2 mark head, also usable standalone, nonlinear gauge-broken readout); factory `decoder_type='lgm'`/`'pts2p2'`; `--lgm-target-rate`, `--ptp-dim`, `--nmh-project-rho`.
+Gaps: Fano(1s) 2.99<7.9 (n=0.8→asymptotic 25; real n≈0.86 — raise `--nmh-project-rho` to ~0.9); extreme kurt 10709 unreached (needs QHawkes volatility-feedback). Code: `lgm_decoder.py` (now also contains `PerTypeS2P2Decoder` — the per-type s2p2 mark head, also usable standalone, nonlinear gauge-broken readout); factory `decoder_type='lgm'`/`'pct-lstm'`; `--lgm-target-rate`, `--ptp-dim`, `--nmh-project-rho`.
 
 ## 8. Open next steps (in priority order)
 

@@ -249,17 +249,17 @@ def main():
     parser.add_argument('--nmh-project-rho', type=float, default=0.0,
                         help='>0: hard-project the (effective) branching ratio to this value each step (LGM/s2p2)')
     parser.add_argument('--ptp-dim', type=int, default=8,
-                        help='Per-type latent dim d for --decoder-type pts2p2 / lgm')
+                        help='Per-type latent dim d for the per-type s2p2 mark head (lgm / pct-lstm)')
     parser.add_argument('--lgm-target-rate', type=float, default=1.8,
                         help='Pinned stationary mean event rate (events/s) for --decoder-type lgm')
     parser.add_argument('--lgm-vol-feedback', action='store_true',
                         help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'pts2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
                         default='hawkes',
                         help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
                              'RMTPP LSTM, S2P2 diagonal SSM, plain LSTM, SAHP causal attention, '
-                             'per-type CT-LSTM (pts2p2/pct-lstm)')
+                             'per-type parallel CT-LSTM (pct-lstm)')
     parser.add_argument('--sahp-heads', type=int, default=4,
                         help='Number of attention heads for --decoder-type sahp')
     parser.add_argument('--sahp-layers', type=int, default=2,

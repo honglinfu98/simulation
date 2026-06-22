@@ -53,7 +53,7 @@ class PerTypeS2P2Decoder(nn.Module):
     is gauge-dependent (LayerNorm scale-invariance) and NOT honestly certifiable.
     `branching_proxy` is a weight-norm monitor only (not a gauge-free certificate).
     LGM composes this as its rate-neutral mark head (via `per_type_score`); it is
-    also usable standalone (decoder_type 'pts2p2').
+    also usable standalone as the PCT-LSTM baseline (decoder_type 'pct-lstm').
 
     State layout (raw pre-readout latent, the readout lives in type_intensities):
       right/left states & get_hidden_h all return x reshaped to [..., K*d].

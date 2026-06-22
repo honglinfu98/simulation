@@ -35,7 +35,7 @@ Entry-point CLIs live in `scripts/` (e.g. `python scripts/train.py`, `python scr
 
 ### Single-item comparison sweep (LGM + baselines)
 `--decoder-type` choices: **`lgm`** (proposed), and baselines `hawkes`, `rmtpp`, `s2p2`,
-`pts2p2`, `lstm`, `sahp`, `ct-lstm` (=neural Hawkes), `pct-lstm` (=per-type parallel).
+`lstm`, `sahp`, `ct-lstm` (=neural Hawkes), `pct-lstm` (=per-type parallel).
 All use the single-item categorical head. Sweep via the watcher, one tag per model:
 ```bash
 for d in lgm hawkes rmtpp s2p2 lstm sahp ct-lstm pct-lstm; do
