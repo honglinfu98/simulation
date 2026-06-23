@@ -856,12 +856,9 @@ def create_volume_set_mtpp(
             time_embedding=time_embedding,
             recurrent_hidden_size=config['recurrent_hidden_size'],
             num_channels=num_channels,
-            num_timescales=config.get('nmh_timescales', 4),
+            num_modes=config.get('llh_modes') or config['recurrent_hidden_size'],
             target_rate=config.get('lgm_target_rate', 1.8),
-            num_layers=config.get('s2p2_layers', 2),
-            dropout=config.get('s2p2_dropout', 0.0),
-            input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
-            readout_mode=config.get('s2p2_readout', 'state'),
+            n_cap=(config.get('nmh_project_rho') or 0.99),   # branching cap; --nmh-project-rho
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(

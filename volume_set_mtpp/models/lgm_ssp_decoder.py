@@ -44,7 +44,7 @@ class LGMSSPDecoder(nn.Module):
         num_modes: Optional[int] = None,
         min_decay: float = 0.05,
         n_cap: float = 0.99,
-        delta_init=(50.0, 5.0, 0.5, 0.05),
+        delta_init=(50.0, 0.5, 0.01),   # geometric span: timescales ~0.02s ... 100s (long memory)
         max_dt: float = 1e4,
         **_ignore,
     ):
