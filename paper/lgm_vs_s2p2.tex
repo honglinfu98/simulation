@@ -1,0 +1,166 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\Lam}{\Lambda}
+\newcommand{\R}{\mathbb{R}}
+
+\title{\textbf{Formulation comparison: LGM vs.\ S2P2}\\[2pt]
+\large Linear rate-pinned ground rate $\times$ soft-max marks \quad vs.\quad deep continuous-time state-space point process}
+\author{}\date{}
+\begin{document}
+\maketitle
+\vspace{-3em}
+
+\noindent\textbf{S2P2} $=$ \emph{State-Space Point Process} (Chang, Boyd, Xiao, Kass-Hout, Bhatia,
+Smyth, Warrington, ``Deep Continuous-Time State-Space Models for Marked Event Sequences,''
+NeurIPS 2025, arXiv:2412.19634): a stack of \emph{latent linear Hawkes} (LLH) layers --- diagonalized
+complex-plane state-space recurrences with stochastic jumps, computed by a parallel scan.
+\textbf{LGM} (this work) factorizes the set intensity into a \emph{linear, rate-pinned} scalar
+ground rate times a rate-neutral soft-max mark head. Both share the Chang--Boyd--Smyth set/marked-MTPP
+lineage; they differ in the \emph{rate model} and in \emph{how marks are produced}.
+
+\section{Common MTPP scaffold}
+A history $\mathcal{H}_t=\{(t_i,k_i)\}$, per-mark intensity
+$\lambda^k_t\,dt:=\mathbb{E}[\text{event of type }k\text{ in }[t,t{+}dt)\mid\mathcal{H}_{t-}]$, total rate
+$\lambda_t=\sum_{k=1}^K\lambda^k_t$, and log-likelihood
+$\mathcal{L}=\sum_i\log\lambda^{k_i}_{t_i}-\int_0^T\lambda_s\,ds$.
+\emph{Scope difference:} S2P2 is a \textbf{marked} TPP (one mark $k_i\in\{1,\dots,K\}$ per event);
+LGM is \textbf{set-valued} ($x_i\subseteq\{1,\dots,K\}$, simultaneous events), with single-item as the
+$|x_i|=1$ special case.
+
+\section{S2P2 --- deep continuous-time state-space point process}
+\textbf{Latent linear Hawkes (LLH) layer.} Generalizing the linear Hawkes process into a latent space
+$\R^P$ \emph{decoupled} from the mark space $\R^K$, with low-rank mark embeddings
+$\boldsymbol\alpha\in\R^{R\times K}$, $\mathbf E\in\R^{P\times R}$:
+\[
+d\mathbf x_t=-\mathbf A\mathbf x_{t-}\,dt+\mathbf A\mathbf B\mathbf u_{t-}\,dt+\mathbf E\boldsymbol\alpha\,d\mathbf N_t,
+\qquad \mathbf y_t=\mathbf C\mathbf x_t+\mathbf D\mathbf u_t .
+\]
+\textbf{Diagonalize + discretize (ZOH).} With $-\mathbf A=\mathbf V\boldsymbol\Lambda\mathbf V^{-1}$
+(eigenvalues constrained to negative real part for stability) and $\bar{\boldsymbol\Lambda}=e^{\boldsymbol\Lambda(t'-t)}$,
+\[
+\tilde{\mathbf x}_{t'}=\bar{\boldsymbol\Lambda}\tilde{\mathbf x}_t+(\bar{\boldsymbol\Lambda}-\mathbf I)\tilde{\mathbf B}\mathbf u_{t'-}
+\;\bigl[+\,\tilde{\mathbf E}\boldsymbol\alpha_k\ \text{if a type-}k\text{ event at }t'\bigr],
+\]
+a linear recurrence evaluated by a \textbf{parallel scan} ($\mathcal{O}(\log N)$ depth); left limits
+$=$ right limits $-$ impulse $\tilde{\mathbf E}\boldsymbol\alpha_k$. Optional \emph{input-dependent}
+dynamics $\boldsymbol\Lambda_i=\mathrm{diag}(\softplus(\mathbf W'\mathbf u_{t_i}+\mathbf b'))\boldsymbol\Lambda$ (Mamba-style).
+\textbf{Architecture.} $L$ LLH layers with position-wise GELU $+$ LayerNorm,
+$\mathbf u^{(l+1)}_t=\mathrm{LayerNorm}(\sigma(\mathbf y^{(l)}_t)+\mathbf u^{(l)}_t)$, $\mathbf u^{(1)}=\mathbf 0$.
+\textbf{Intensity (``Proj.\ \& Soft-plus'').} A nonlinear, non-negative read-out of the top output:
+\[
+\boxed{\;\boldsymbol\lambda_t=\mathbf s\odot\softplus\!\bigl((\mathbf W\mathbf u^{(L+1)}_t+\mathbf b)\odot\mathbf s^{-1}\bigr),\quad \mathbf W\in\R^{K\times H},
+\qquad \lambda_t=\textstyle\sum_k\lambda^k_t.\;}
+\]
+The $\int_0^T\lambda_s\,ds$ term is estimated by Monte-Carlo at sampled times (no closed form).
+There is \textbf{no separate parametric mark head}: the intensity is tied to the continuously
+evolving latent state (like the neural Hawkes process). Stability comes from the \emph{stable SSM
+eigenvalues}; there is no mean-rate target and no closed-form branching certificate.
+
+\section{LGM --- linear ground rate $\times$ soft-max marks (this work)}
+\[
+\boxed{\;\lambda_x^*(t)=\Lam(t)\,p^*(x\mid t),\quad
+\Lam(t)=\mu_0+\sum_{m=1}^{M}a_m s_m(t),\quad
+p^*(\{k\}\mid t)=\frac{e^{z_k(t)}}{\sum_j e^{z_j(t)}}.\;}
+\]
+$\Lam$ is an \emph{explicit scalar} linear multi-timescale Hawkes rate
+($s_m=\sum_{t_i<t}e^{-\delta_m(t-t_i)}$, $a_m\ge0$), updated in $\mathcal{O}(M)$ per event. Branching
+$n=\sum_m a_m/\delta_m$; setting $\mu_0=R_{\mathrm{target}}(1-n)$ pins the mean \emph{exactly},
+$\mathbb{E}[\Lam]=R_{\mathrm{target}}$, and $n<1$ is a closed-form subcriticality certificate.
+The mark logits $z_k$ come from a per-type parallel network; the head is rate-neutral
+($\sum_x p^*=1$), so it never affects $\Lam$. The linear ground rate is monotone between events,
+so LGM admits \textbf{exact Ogata thinning}.
+
+\section{How each model handles the marks (detail)}
+\paragraph{S2P2 --- marks \emph{are} the per-mark intensities (no separate head).}
+The $K$ marks enter the latent dynamics only through low-rank embeddings $\boldsymbol\alpha_k$
+(column $k$ of $\boldsymbol\alpha$) in the jump term $\tilde{\mathbf E}\boldsymbol\alpha_k$, share one
+$P$-dim latent (diagonal dynamics treat modes as independent, but marks interact through the dense
+projections $\tilde{\mathbf B},\tilde{\mathbf C}$ and the GELU/LayerNorm nonlinearities), and exit
+through the $K\times H$ Proj.\,\&\,Soft-plus read-out. The mark law is the \emph{normalized intensity}
+\[
+p(k\mid t)=\frac{\lambda^k_t}{\sum_{j}\lambda^j_t}
+=\frac{s_k\,\softplus((\mathbf w_k^\top\mathbf u^{(L+1)}+b_k)/s_k)}{\sum_j s_j\,\softplus(\cdots)},
+\]
+so the \emph{same} vector $\boldsymbol\lambda_t$ sets \emph{both} the total timing rate
+$\lambda_t=\sum_k\lambda^k_t$ \emph{and} the mark $\lambda^k/\lambda$ --- marks and rate are
+\textbf{entangled}, the mean rate is whatever the soft-plus learns, and one mark fires per event.
+
+\paragraph{LGM --- a rate-neutral mark head over per-type scores.}
+The same per-type scores $z_k$ are normalized by a head that sums to one \emph{by construction},
+multiplied by the separate linear rate:
+\[
+\text{single-item: } p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_j e^{z_j}};\qquad
+\text{set-valued: } \rho_k=\sigma(z_k),\ p^*(x\mid t)=\!\prod_{k\in x}\rho_k\!\prod_{k\notin x}(1-\rho_k).
+\]
+Since $\sum_x p^*(x\mid t)=1$, the head is \textbf{rate-neutral}: $\sum_x\lambda_x^*=\Lam$, so the mark
+mass can be reshaped without touching $\Lam$ and the pin $\mathbb{E}[\Lam]=R_{\mathrm{target}}$ holds for
+\emph{any} mark distribution. The mark term is a plain categorical cross-entropy
+$\log p^*(\{k\})$ (or summed per-type Bernoulli), \emph{separate} from the rate/compensator term, and
+the Dynamic-Bernoulli head represents genuine simultaneity (sets), which the marked S2P2 does not.
+
+\paragraph{One-line mark contrast.}
+\[
+\text{S2P2: } p(k)=\frac{\lambda^k}{\sum_j\lambda^j}\ \text{(mark}\equiv\text{normalized rate, entangled)}
+\quad\Longleftrightarrow\quad
+\text{LGM: } p(k)=\frac{e^{z_k}}{\sum_j e^{z_j}}\ \text{(rate-neutral; }\Lam\text{ is separate).}
+\]
+
+\section{Marks: side-by-side}
+\renewcommand{\arraystretch}{1.3}
+\begin{center}\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}p{5.8cm} >{\raggedright\arraybackslash}p{5.8cm}}
+\toprule
+\textbf{Mark aspect} & \textbf{S2P2} & \textbf{LGM}\\
+\midrule
+Output type & marked: one $k_i\in\{1..K\}$ per event & set-valued: $x_i\subseteq\{1..K\}$ (single-item = $|x|{=}1$)\\
+Where marks enter & low-rank embeddings $\boldsymbol\alpha_k$ in the jump $\tilde{\mathbf E}\boldsymbol\alpha_k$ & event embedding into per-type latent (mark net)\\
+Per-mark score & Proj.\,\&\,Soft-plus $\lambda^k=s_k\softplus(\cdot)$ & per-type logit $z_k$ (parallel-over-types net)\\
+Mark law & $p(k)=\lambda^k/\sum_j\lambda^j$ (normalized intensity) & soft-max $e^{z_k}/\sum_j e^{z_j}$ / Bernoulli $\sigma(z_k)$\\
+Separate mark head? & no --- mark falls out of the intensities & yes --- rate-neutral head decoupled from $\Lam$\\
+Rate--mark relation & \textbf{entangled}: $\lambda_t=\sum_k\lambda^k$ \emph{is} the un-normalized mark & \textbf{decoupled}: head reshapes mass, $\Lam$ fixed\\
+Effect on mean rate & changing marks changes $\lambda_t$ (no calibration) & mark-invariant: pin $\mathbb{E}[\Lam]=R_{\mathrm{target}}$ always holds\\
+Mark coupling & shared $P$-latent $+$ dense $\tilde{\mathbf B},\tilde{\mathbf C}$ $+$ nonlinearities & weight-shared read-out across per-type latents\\
+Simultaneity & not native (one mark/event) & native via Dynamic-Bernoulli power-set head\\
+Mark training term & $\log(\lambda^{k_i}/\!\int)$ inside the MTPP LL (coupled) & categorical cross-entropy, separate from rate\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Rate \& overall: side-by-side}
+\renewcommand{\arraystretch}{1.3}
+\begin{center}\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm} >{\raggedright\arraybackslash}p{5.8cm} >{\raggedright\arraybackslash}p{5.8cm}}
+\toprule
+\textbf{Aspect} & \textbf{S2P2} & \textbf{LGM}\\
+\midrule
+Rate model & deep stack of diagonalized LLH (state-space) layers, nonlinear soft-plus read-out & explicit scalar linear multi-timescale Hawkes $\mu_0+\sum_m a_m s_m$\\
+Latent vs mark dim & latent $P$ \emph{decoupled} from $K$; arbitrarily wide & scalar ground rate; $M$ timescales\\
+Mean-rate calibration & none (emergent) & \textbf{exact pin} $\mu_0=R_{\mathrm{target}}(1-n)$\\
+Stability guarantee & stable SSM eigenvalues $\mathrm{Re}(\boldsymbol\Lambda)<0$ (bounded) & \textbf{closed-form} branching $n<1$ certificate\\
+$\int\lambda$ / compensator & Monte-Carlo (no closed form) & closed form (sum of $1-e^{-\delta_m\Delta}$)\\
+Simulation & nonlinear intensity $\Rightarrow$ thinning via upper bounds / grid & linear monotone $\Lam$ $\Rightarrow$ \textbf{exact Ogata thinning}\\
+Compute & parallel scan, $\mathcal{O}(\log N)$ depth, linear work & $\mathcal{O}(M)$ per event (sequential)\\
+Expressivity of rate & very high (deep SSM) & deliberately limited (linear), for calibration\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Relationship}
+LGM and S2P2 sit in the same Chang--Boyd--Smyth (set-)MTPP lineage --- LGM's factorization
+$\lambda_x^*(t)=\Lam(t)\,p^*(x\mid t)$ follows their set-valued MTPP formulation. The design choice is
+opposite in spirit on the \emph{rate}: S2P2 maximizes rate expressivity with a deep, parallel,
+nonlinear state-space intensity (state-of-the-art predictive likelihood), but its mean rate is only
+\emph{emergently} stable and its marks are inseparable from the rate. LGM instead makes the rate a
+\emph{linear, exactly rate-pinned} scalar Hawkes and puts a \emph{rate-neutral} soft-max/Bernoulli
+mark head on top --- trading rate expressivity for exact mean-rate calibration, a closed-form
+$n<1$ certificate, exact Ogata thinning, and genuine set-valued (simultaneous) marks. For a
+\emph{world-model / simulator} of LOB flow --- where long closed-loop rollouts must not drift in
+activity --- that calibration is the property LGM is built to guarantee and S2P2 does not.
+\end{document}

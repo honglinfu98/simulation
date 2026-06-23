@@ -1,0 +1,92 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs,array,xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\Lam}{\Lambda}
+\newcommand{\R}{\mathbb{R}}
+\title{\textbf{LGM-SSP: decoding one S2P2 embedding into a calibrated rate and rate-neutral marks}\\[2pt]
+\large A bridge between S2P2 (deep state-space point process) and LGM (linear rate-pinned $\times$ soft-max marks)}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-3em}
+
+\section{Idea}
+Take a single S2P2-style continuous-time embedding $u(t)$ and \textbf{decode it with two heads}:
+(i) a \emph{rate-neutral} soft-max mark head, and (ii) a \emph{mean-pinned scalar rate} head. This is
+exactly the ``decode the embedding separately into marks and rate'' architecture: it keeps S2P2's
+expressive shared backbone while inheriting LGM's exact mean-rate calibration. LGM today does
+\emph{not} do this --- its rate is a mark-independent linear Hawkes; LGM-SSP instead lets the shared
+embedding drive the rate too, but in a mean-preserving way so the pin survives.
+
+\section{Architecture}
+\paragraph{Shared backbone.} A continuous-time state-space stack produces a left-limit
+(anti-leakage) embedding $u(t)\in\R^{H}$ --- the existing \texttt{S2P2SetDecoder} (real-valued
+diagonal CT state-space, $L$ layers, GELU\,+\,LayerNorm) serves as the backbone, standing in for
+S2P2's $u^{(L)}$.
+\paragraph{Head 1 --- rate-neutral marks.} $z(t)=V\,u(t)+c\in\R^{K}$, and
+\[
+\text{single-item: } p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_j e^{z_j}};\qquad
+\text{set: } \rho_k=\sigma(z_k),\ p^*(x\mid t)=\!\prod_{k\in x}\!\rho_k\!\prod_{k\notin x}\!(1-\rho_k).
+\]
+Rate-neutral by construction ($\sum_x p^*=1$).
+\paragraph{Head 2 --- mean-pinned scalar rate.} A linear multi-timescale Hawkes baseline plus a
+\emph{mean-zero} embedding modulation:
+\[
+\boxed{\;\Lam(t)=\underbrace{\mu_0+\sum_{m=1}^{M}a_m s_m(t)}_{\text{linear Hawkes baseline}}
+\;+\;\underbrace{\bigl(\phi(u(t))-\hat c\bigr)}_{\text{mean-zero neural modulation}},\quad
+\Lam(t)\leftarrow\max(\Lam(t),\varepsilon).\;}
+\]
+$s_m(t)=\sum_{t_i<t}e^{-\delta_m(t-t_i)}$, $a_m\ge0$; branching $n=\sum_m a_m/\delta_m$; base rate
+$\mu_0=R_{\mathrm{target}}(1-n)$. The modulation $\phi(u)=w^\top u$ (or a small MLP) is centered by
+$\hat c$, a running estimate of $\mathbb{E}[\phi(u)]$ (EMA in training, frozen at eval/sim). Because
+the added term is mean-zero, $\mathbb{E}[\Lam]=\mu_0+\bar\Lam\,n+0\Rightarrow
+\mathbb{E}[\Lam]=R_{\mathrm{target}}$ --- the \textbf{exact pin is preserved}, while the embedding now
+shapes the \emph{instantaneous} rate (clustering, regime, vol bursts). This is the direct
+generalization of LGM's QHawkes vol-feedback (which used $\phi=b\,R^2$, $\hat c=b\,c_0$) to a learned
+embedding feature, and it is what makes the rate a genuine \emph{decode} of $u(t)$.
+\paragraph{Per-mark intensity.} $\lambda_k^*(t)=\Lam(t)\,p^*(\{k\}\mid t)$ (LGM-style product), so the
+framework's per-type interface (\texttt{type\_intensities}, \texttt{closed\_form\_rho}) is reused.
+
+\section{Why this is the requested model}
+\begin{center}\small\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.6cm}}
+\toprule
+& \textbf{S2P2} & \textbf{LGM (today)} & \textbf{LGM-SSP (new)}\\
+\midrule
+Embedding $u(t)$ & deep state-space & per-type net (marks only) & deep state-space (shared)\\
+Rate from $u$? & yes (Proj.\,\&\,Softplus) & \emph{no} (linear Hawkes) & \textbf{yes, mean-zero modulation}\\
+Marks from $u$? & yes (normalized $\lambda_k$) & yes (separate per-type net) & \textbf{yes (rate-neutral soft-max)}\\
+Rate \& marks & entangled (one head) & decoupled, rate not neural & \textbf{two heads on one $u$}\\
+Mean-rate pin & none & exact (closed form) & \textbf{exact (mean-zero modulation)}\\
+$n<1$ certificate & no & yes & yes (on the Hawkes baseline)\\
+\bottomrule
+\end{tabular}
+\end{center}
+LGM-SSP $=$ ``S2P2 backbone $+$ LGM's factorization'': one embedding, decoded into a rate-neutral mark
+head and a mean-pinned scalar rate head.
+
+\section{Training \& simulation}
+Likelihood is the usual $\sum_i[\log\Lam(t_i)+\log p^*(x_i\mid t_i)]-\int_0^T\Lam$, with the compensator
+$\int_0^T\Lam=\big(\mu_0 T+\sum_m\frac{a_m}{\delta_m}\sum_{t_i<T}(1-e^{-\delta_m(T-t_i)})\big)+\int_0^T(\phi(u)-\hat c)$;
+the modulation integral is taken by the same Monte-Carlo / grid quadrature S2P2 uses (the linear part
+stays closed-form). Simulation: the rate is no longer monotone between events (the modulation moves with
+$u$), so use the neural compensator-grid sampler (as for the other neural decoders); the linear-Hawkes
+baseline still bounds the bulk. (Pure-LGM exact Ogata thinning is recovered when $\phi\equiv0$.)
+
+\section{Implementation plan (concrete)}
+\begin{itemize}\itemsep1pt
+\item New file \texttt{volume\_set\_mtpp/models/lgm\_ssp\_decoder.py}: class \texttt{LGMSSPDecoder}
+  composing \texttt{S2P2SetDecoder} (backbone) $+$ the linear-Hawkes ground (reuse LGM's
+  $a_m,\delta_m,\mu_0,\texttt{closed\_form\_rho}$) $+$ a mark head $V$ $+$ a modulation head $\phi$ with
+  an EMA buffer $\hat c$. Expose \texttt{type\_intensities}, \texttt{per\_type\_score},
+  \texttt{get\_states*}, \texttt{closed\_form\_rho} (interface-compatible with \texttt{LGMDecoder}).
+\item Factory \texttt{volume\_set\_mtpp.py}: add \texttt{decoder\_type='lgmssp'} (per-type branch like
+  \texttt{lgm}); plumb \texttt{--ssp-layers}, reuse \texttt{--lgm-target-rate},
+  \texttt{--nmh-timescales}, \texttt{--nmh-project-rho}.
+\item \texttt{train.py}: register the choice; default heads/dims.
+\item Smoke: 2-epoch capped run on cbse-BTC; check $\rho<1$, genuine-eval and stylized-facts emit.
+\item Add as an extra row in the sweep / comparison table (ablation: LGM vs LGM-SSP vs S2P2).
+\end{itemize}
+\end{document}

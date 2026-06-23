@@ -26,6 +26,10 @@ try:
 except Exception:
     LGMDecoder = None
 try:
+    from .lgm_ssp_decoder import LGMSSPDecoder  # LGM heads on an S2P2 state-space backbone
+except Exception:
+    LGMSSPDecoder = None
+try:
     from .lstm_decoder import LSTMDecoder
 except Exception:
     LSTMDecoder = None
@@ -843,6 +847,21 @@ def create_volume_set_mtpp(
             target_rate=config.get('lgm_target_rate', 1.8),
             vol_feedback=config.get('lgm_vol_feedback', False),
             cond_dim=(config.get('lob_state_dim', 6) if config.get('lob_state_input', False) else 0),
+        )
+    elif decoder_type == 'lgmssp':
+        if LGMSSPDecoder is None:
+            raise ImportError('LGMSSPDecoder is unavailable')
+        decoder = LGMSSPDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            num_channels=num_channels,
+            num_timescales=config.get('nmh_timescales', 4),
+            target_rate=config.get('lgm_target_rate', 1.8),
+            num_layers=config.get('s2p2_layers', 2),
+            dropout=config.get('s2p2_dropout', 0.0),
+            input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
+            readout_mode=config.get('s2p2_readout', 'state'),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(

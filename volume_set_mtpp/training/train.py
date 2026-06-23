@@ -255,7 +255,7 @@ def main():
     parser.add_argument('--lgm-vol-feedback', action='store_true',
                         help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'lgm', 'lgmssp', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
                         default='hawkes',
                         help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
                              'RMTPP LSTM, S2P2 diagonal SSM, plain LSTM, SAHP causal attention, '
