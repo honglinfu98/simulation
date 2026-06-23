@@ -218,8 +218,18 @@ class LGMDecoder(nn.Module):
         self.register_buffer("target_rate", torch.tensor(float(target_rate)))
         M = self.M
 
-        # ground: scalar multi-timescale linear Hawkes
-        d0 = torch.tensor([float(ground_delta_init[i]) for i in range(M)])
+        # ground: scalar multi-timescale linear Hawkes.
+        # Use the configured decays when enough are given; otherwise geometrically
+        # interpolate M decays between the configured fastest/slowest (supports M>4).
+        if len(ground_delta_init) >= M:
+            d0 = torch.tensor([float(ground_delta_init[i]) for i in range(M)])
+        else:
+            hi = float(max(ground_delta_init)); lo = float(min(ground_delta_init))
+            if M > 1:
+                frac = torch.arange(M, dtype=torch.float32) / (M - 1)
+                d0 = hi * (lo / hi) ** frac
+            else:
+                d0 = torch.tensor([hi])
         self.log_delta_g = nn.Parameter(torch.log(torch.expm1((d0 - self.min_decay).clamp_min(1e-3))))
         self.a_raw = nn.Parameter(torch.full((M,), -3.0))          # softplus -> small >=0
 
