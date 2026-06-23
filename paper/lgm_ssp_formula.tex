@@ -1,61 +1,58 @@
 \documentclass[11pt]{article}
 \usepackage[margin=0.9in]{geometry}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{xcolor}
 \newcommand{\Lam}{\Lambda}
 \newcommand{\R}{\mathbb{R}}
-\newcommand{\softplus}{\operatorname{softplus}}
 \pagestyle{empty}
 \begin{document}
-\begin{center}{\Large\textbf{LGM-SSP — rate calibrated on the SSM superposition}}\end{center}
+\begin{center}{\Large\textbf{LGM-SSP — latent linear Hawkes superposition, closed-form rate pin}}\end{center}
 \vspace{0.4em}
 
-\noindent\textbf{Idea.}\; A deep continuous-time \textbf{state-space (S2P2) backbone} produces an
-embedding $u(t)\in\R^{H}$ and, through a per-mark soft-plus read-out, the SSM's natural
-\textbf{per-mark intensities}. Their \textbf{superposition} (sum over marks) is the total rate, and
-its \emph{mean} is calibrated to a target; the marks are the normalized composition of the same
-field. One calibrated SSM intensity field $\Rightarrow$ both the rate and the marks.
+\noindent\textbf{Idea.}\; The rate is a \emph{linear} read-out of a latent state-space
+(latent linear Hawkes, LLH) \textbf{superposition}, and its mean is calibrated to $R_{\mathrm{target}}$
+in \textbf{closed form} (no EMA / running estimate). One field gives both the rate (its sum) and the
+marks (its normalized composition).
 
 \medskip
-\noindent\textbf{Backbone.}\; $L$ diagonal continuous-time state-space layers (decay between events,
-set-embedding impulse at events, GELU\,+\,LayerNorm) give the left-limit embedding $u(t)$.
+\noindent\textbf{Latent superposition.}\; $x(t)\in\R^{P}$ is a superposition of $P$ decaying modes;
+between events it decays, and each event of mark $j$ adds a non-negative impulse $B_j$:
+\[
+x(t)=\sum_{t_i<t} B_{k_i}\,e^{-\delta\,(t-t_i)}\qquad(\delta_p>0,\ B\ge0,\ \text{elementwise per mode}).
+\]
+\noindent\textbf{Per-mark intensities (multivariate linear Hawkes), rate, marks.}
+\[
+\boxed{\;\lambda_k(t)=\nu_k+(W\,x(t))_k\;}\quad(W\ge0,\ \nu\ge0),\qquad
+\Lam(t)=\sum_{k=1}^{K}\lambda_k(t),\qquad p(k\mid t)=\frac{\lambda_k(t)}{\Lam(t)} .
+\]
 
 \medskip
-\noindent\textbf{Per-mark intensities (the SSM field).}
+\noindent\textbf{Closed-form calibration (the pin) --- no EMA.}\;
+With the branching matrix and ratio
 \[
-\lambda_k^{\mathrm{raw}}(t)=\softplus\!\bigl((C\,u(t))_k\bigr),\qquad k=1,\dots,K .
+G_{kj}=\sum_{p=1}^{P}\frac{W_{kp}\,B_{jp}}{\delta_p},\qquad
+n=\rho(G)\ \text{(spectral radius, projected to }n\le n_{\mathrm{cap}}<1),
 \]
-\noindent\textbf{Superposition $=$ total rate, calibrated to the target mean.}
+the linear-Hawkes stationary mean is the fixed point $\mathbb{E}[\lambda]=(I-G)^{-1}\nu$. Rescaling the
+baseline once,
 \[
-\boxed{\;\Lam_{\mathrm{raw}}(t)=\sum_{k=1}^{K}\lambda_k^{\mathrm{raw}}(t),\qquad
-\Lam(t)=R_{\mathrm{target}}\,\frac{\Lam_{\mathrm{raw}}(t)}{\hat c}\;}
-\qquad
-\hat c=\mathbb{E}[\Lam_{\mathrm{raw}}]\ \text{(EMA, frozen at eval)} .
+\boxed{\;\nu=\nu_{\mathrm{raw}}\cdot\frac{R_{\mathrm{target}}}{\mathbf 1^{\top}(I-G)^{-1}\nu_{\mathrm{raw}}}
+\quad\Longrightarrow\quad
+\mathbb{E}\Big[\textstyle\sum_k\lambda_k\Big]=\mathbf 1^{\top}(I-G)^{-1}\nu=R_{\mathrm{target}}\;}
 \]
-Since $\hat c$ tracks the mean of the superposition, the rescale pins it:
-\[
-\mathbb{E}[\Lam(t)]=R_{\mathrm{target}}\,\frac{\mathbb{E}[\Lam_{\mathrm{raw}}]}{\hat c}=R_{\mathrm{target}} .
-\]
-\noindent\textbf{Marks $=$ normalized superposition; per-mark calibrated intensity.}
-\[
-p(k\mid t)=\frac{\lambda_k^{\mathrm{raw}}(t)}{\Lam_{\mathrm{raw}}(t)},\qquad
-\boxed{\;\lambda_k(t)=\Lam(t)\,p(k\mid t)=\frac{R_{\mathrm{target}}}{\hat c}\,\lambda_k^{\mathrm{raw}}(t)\;}
-\]
-i.e.\ the whole SSM per-mark field is rescaled by the single scalar $R_{\mathrm{target}}/\hat c$ so its
-sum has stationary mean $R_{\mathrm{target}}$; the rescale cancels in $p(k\mid t)$, leaving the marks
-exactly the SSM's natural composition $\lambda_k^{\mathrm{raw}}/\sum_j\lambda_j^{\mathrm{raw}}$.
+pins the total stationary mean \emph{exactly} and analytically (verified: $=40.600$ for
+$R_{\mathrm{target}}=40.6$). $n<1$ is a genuine subcriticality certificate.
 
 \medskip
-\noindent\textbf{In words.}\; The rate is the SSM's own superposition $\sum_k\lambda_k^{\mathrm{raw}}$
-(not a separate hand-imposed Hawkes), simply \emph{calibrated} so its long-run mean equals
-$R_{\mathrm{target}}$; the marks are that same field, normalized. Stability is provided by the
-backbone's stable SSM eigenvalues (reported as a branching proxy), rather than a closed-form $n<1$.
+\noindent\textbf{In words.}\; A multivariate (cross-exciting) linear Hawkes built on a latent decaying
+superposition: the total rate is $\sum_k\lambda_k$, the marks are $\lambda_k/\sum_j\lambda_j$, and the
+baseline $\nu$ is set in closed form (one $(I-G)^{-1}$ solve) so the mean event rate is exactly
+$R_{\mathrm{target}}$. This is LGM's exact-pin philosophy ($\mu_0=R_{\mathrm{target}}(1-n)$) generalized
+from a scalar ground rate to the full latent-linear-Hawkes superposition --- replacing the earlier
+EMA rescale with an analytic stationary-mean pin, and recovering the $n<1$ certificate.
 
 \medskip
 \noindent\textbf{Likelihood.}\;
-$\displaystyle \sum_i\bigl[\log\lambda_{k_i}(t_i)\bigr]-\int_0^T\Lam(u)\,du$ \;(equivalently
-$\sum_i[\log\Lam(t_i)+\log p(k_i\mid t_i)]-\int_0^T\Lam$), with $\int\Lam$ by Monte-Carlo on the
-SSM-evolved state. (Contrast: the earlier LGM-SSP imposed a linear Hawkes baseline
-$\mu_0+\sum_m a_m s_m$ and only let the SSM add a mean-zero correction; here the rate \emph{is} the
-calibrated SSM superposition.)
+$\sum_i\log\lambda_{k_i}(t_i)-\int_0^T\Lam(s)\,ds$; the compensator is closed-form per mode
+($\int e^{-\delta_p\tau}$), so no Monte-Carlo is needed for the rate. Linear intensity is kept
+non-negative by $W,\nu,B\ge0$.
 \end{document}
