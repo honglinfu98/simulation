@@ -25,8 +25,8 @@ ROOT="${ROOT:-$REPO/experiments/compare_3way}"
 
 # TAG  DECODER  EXTRA
 read -r -d '' GRID <<EOF
-lgm     lgm     --decoder-type lgm --mark-head categorical --lgm-target-rate $TARGET_RATE --nmh-project-rho 0.92 --nmh-timescales 4 --ptp-dim 8 --lgm-vol-feedback
-lgmssp  lgmssp  --decoder-type lgmssp --mark-head categorical --lgm-target-rate $TARGET_RATE --nmh-timescales 4 --s2p2-layers 2
+lgm     lgm     --decoder-type lgm --mark-head categorical --lgm-target-rate $TARGET_RATE --nmh-project-rho 0.92 --nmh-timescales 8 --ptp-dim 8 --lgm-vol-feedback
+lgmssp  lgmssp  --decoder-type lgmssp --mark-head categorical --lgm-target-rate $TARGET_RATE --nmh-timescales 8 --s2p2-layers 2
 s2p2    s2p2    --decoder-type s2p2 --mark-head categorical --s2p2-readout output --s2p2-layers 2
 EOF
 LINE=$(echo "$GRID" | sed -n "${SGE_TASK_ID}p")
