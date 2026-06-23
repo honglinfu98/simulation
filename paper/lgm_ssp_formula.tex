@@ -1,0 +1,61 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{xcolor}
+\newcommand{\Lam}{\Lambda}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\softplus}{\operatorname{softplus}}
+\pagestyle{empty}
+\begin{document}
+\begin{center}{\Large\textbf{LGM-SSP — rate calibrated on the SSM superposition}}\end{center}
+\vspace{0.4em}
+
+\noindent\textbf{Idea.}\; A deep continuous-time \textbf{state-space (S2P2) backbone} produces an
+embedding $u(t)\in\R^{H}$ and, through a per-mark soft-plus read-out, the SSM's natural
+\textbf{per-mark intensities}. Their \textbf{superposition} (sum over marks) is the total rate, and
+its \emph{mean} is calibrated to a target; the marks are the normalized composition of the same
+field. One calibrated SSM intensity field $\Rightarrow$ both the rate and the marks.
+
+\medskip
+\noindent\textbf{Backbone.}\; $L$ diagonal continuous-time state-space layers (decay between events,
+set-embedding impulse at events, GELU\,+\,LayerNorm) give the left-limit embedding $u(t)$.
+
+\medskip
+\noindent\textbf{Per-mark intensities (the SSM field).}
+\[
+\lambda_k^{\mathrm{raw}}(t)=\softplus\!\bigl((C\,u(t))_k\bigr),\qquad k=1,\dots,K .
+\]
+\noindent\textbf{Superposition $=$ total rate, calibrated to the target mean.}
+\[
+\boxed{\;\Lam_{\mathrm{raw}}(t)=\sum_{k=1}^{K}\lambda_k^{\mathrm{raw}}(t),\qquad
+\Lam(t)=R_{\mathrm{target}}\,\frac{\Lam_{\mathrm{raw}}(t)}{\hat c}\;}
+\qquad
+\hat c=\mathbb{E}[\Lam_{\mathrm{raw}}]\ \text{(EMA, frozen at eval)} .
+\]
+Since $\hat c$ tracks the mean of the superposition, the rescale pins it:
+\[
+\mathbb{E}[\Lam(t)]=R_{\mathrm{target}}\,\frac{\mathbb{E}[\Lam_{\mathrm{raw}}]}{\hat c}=R_{\mathrm{target}} .
+\]
+\noindent\textbf{Marks $=$ normalized superposition; per-mark calibrated intensity.}
+\[
+p(k\mid t)=\frac{\lambda_k^{\mathrm{raw}}(t)}{\Lam_{\mathrm{raw}}(t)},\qquad
+\boxed{\;\lambda_k(t)=\Lam(t)\,p(k\mid t)=\frac{R_{\mathrm{target}}}{\hat c}\,\lambda_k^{\mathrm{raw}}(t)\;}
+\]
+i.e.\ the whole SSM per-mark field is rescaled by the single scalar $R_{\mathrm{target}}/\hat c$ so its
+sum has stationary mean $R_{\mathrm{target}}$; the rescale cancels in $p(k\mid t)$, leaving the marks
+exactly the SSM's natural composition $\lambda_k^{\mathrm{raw}}/\sum_j\lambda_j^{\mathrm{raw}}$.
+
+\medskip
+\noindent\textbf{In words.}\; The rate is the SSM's own superposition $\sum_k\lambda_k^{\mathrm{raw}}$
+(not a separate hand-imposed Hawkes), simply \emph{calibrated} so its long-run mean equals
+$R_{\mathrm{target}}$; the marks are that same field, normalized. Stability is provided by the
+backbone's stable SSM eigenvalues (reported as a branching proxy), rather than a closed-form $n<1$.
+
+\medskip
+\noindent\textbf{Likelihood.}\;
+$\displaystyle \sum_i\bigl[\log\lambda_{k_i}(t_i)\bigr]-\int_0^T\Lam(u)\,du$ \;(equivalently
+$\sum_i[\log\Lam(t_i)+\log p(k_i\mid t_i)]-\int_0^T\Lam$), with $\int\Lam$ by Monte-Carlo on the
+SSM-evolved state. (Contrast: the earlier LGM-SSP imposed a linear Hawkes baseline
+$\mu_0+\sum_m a_m s_m$ and only let the SSM add a mean-zero correction; here the rate \emph{is} the
+calibrated SSM superposition.)
+\end{document}
