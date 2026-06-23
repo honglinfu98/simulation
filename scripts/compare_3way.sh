@@ -31,7 +31,8 @@ s2p2    s2p2    --decoder-type s2p2 --mark-head categorical --s2p2-readout outpu
 EOF
 LINE=$(echo "$GRID" | sed -n "${SGE_TASK_ID}p")
 TAG=$(echo "$LINE" | awk '{print $1}')
-EXTRA=$(echo "$LINE" | cut -d' ' -f3-)
+# drop columns 1 (TAG) and 2 (DECODER); the rest is the train.py flag string
+EXTRA=$(echo "$LINE" | awk '{$1="";$2="";sub(/^ +/,"");print}')
 [ -z "$TAG" ] && { echo "no config for task $SGE_TASK_ID"; exit 1; }
 
 cd "$REPO"
