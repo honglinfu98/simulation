@@ -1,0 +1,101 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs,array,xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\Lam}{\Lambda}
+\title{\textbf{Why LGM-SSP cannot beat LGM}\\[2pt]
+\large A mechanistic analysis of the linear latent-Hawkes vs.\ the rate-pinned soft-max model}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-3em}
+
+\section{Headline}
+\textbf{LGM-SSP traded away expressivity for a calibration property LGM already had.}
+LGM is \emph{already} exactly rate-pinned (scalar $\mu_0=R_{\mathrm{target}}(1-n)$) \emph{and} keeps a
+deep nonlinear mark head. LGM-SSP, to put everything in one linear latent-Hawkes field, made
+\textbf{both the rate and the marks linear} --- and gained \emph{no} calibration advantage in return
+(LGM was already calibrated). So it is a near-pure expressivity loss. The two models are
+\[
+\textbf{LGM: }\ \lambda_k=\underbrace{\Lam(t)}_{\text{linear scalar Hawkes, pinned}}\!\cdot\,
+\underbrace{\operatorname{softmax}(z_k)}_{\text{DEEP NONLINEAR per-type net}}
+\qquad\qquad
+\textbf{LGM-SSP: }\ \lambda_k=\underbrace{\nu_k+(Wx)_k}_{\text{LINEAR readout of one latent field}} .
+\]
+
+\section{Measured gaps (cbse-BTC days 1--2, seq64)}
+\begin{center}\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcccc}
+\toprule
+model & ACC $\uparrow$ & PPL $\downarrow$ & SIM $\downarrow$ & clustering $\mathtt{clus\_re}\downarrow$\\
+\midrule
+LGM \texttt{L64\_r92\_M8} (nonlinear, best pred.) & \textbf{0.4322} & \textbf{8.80} & 0.357 & \textbf{0.12}\\
+LGM \texttt{L128\_r92\_M4\_vfb} (best sim.) & 0.350 & 11.2 & \textbf{0.14} & 0.04\\
+LGM-SSP \texttt{P256\_n99} (best tuned) & 0.3846 & 10.49 & 0.822 & 0.94\\
+LGM-SSP \texttt{P128\_n97} (best-sim tuned) & 0.358 & 10.89 & 0.748 & 0.93\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Four mechanisms}
+\paragraph{1. Marks: deep nonlinear soft-max vs.\ a ratio of linear functions $\Rightarrow$ the prediction gap ($0.432\to0.385$).}
+Next-mark accuracy is governed by $p(k\mid t)$. LGM uses $p(k)=\operatorname{softmax}(z_k(h))$ with
+$z_k$ from a \emph{deep per-type recurrent network} --- it can learn rich history$\to$type maps. LGM-SSP
+uses $p(k)=\lambda_k/\sum_j\lambda_j=(\nu_k+Wx_k)/\sum_j(\nu_j+Wx_j)$, a \textbf{ratio of linear
+functions of one shared $x$}, with no nonlinear capacity and tied to the rate field. A linear logit
+underfits a 62-way conditional categorical with complex LOB dependencies --- the dominant driver of
+the accuracy/perplexity gap.
+
+\paragraph{2. Rate: nonlinear vol-feedback vs.\ linear self-excitation $\Rightarrow$ the clustering gap ($\mathtt{clus\_re}\ 0.93\to0.12$).}
+Volatility clustering (the $|r|$-ACF) needs the rate to \emph{amplify during directional bursts} --- a
+multiplicative, state-dependent effect. LGM($+$vfb) adds a \textbf{nonlinear} QHawkes term
+$b(R^2-c_0)$ so the rate spikes during signed-flow runs (fat tails $+$ clustering). LGM-SSP's
+$\Lam=\sum_k(\nu_k+Wx_k)$ is \textbf{purely linear}: a linear Hawkes gives only exponential,
+branching-bounded clustering and cannot match real conditional-variance clustering. Hence
+$\mathtt{clus\_re}$ stays $\approx0.93$ \emph{across all $P$ and $n_{\mathrm{cap}}$} --- structural, not
+a hyperparameter.
+
+\paragraph{3. Entanglement vs.\ decoupling.}
+LGM \emph{separates} the jobs: the scalar rate handles \emph{when/how-often} (and is calibrated); the
+free nonlinear net handles \emph{which type}. Each uses its full capacity for its task. LGM-SSP
+\emph{fuses} rate and marks into one linear field, so the mark head is constrained by the rate's
+structure and cannot specialize. Decoupling is precisely why LGM's marks can be expressive \emph{and}
+its rate stays calibrated at the same time.
+
+\paragraph{4. The $n<1$ constraint caps the only clustering LGM-SSP has.}
+LGM-SSP's clustering comes entirely from linear self-excitation, whose strength \emph{is} the branching
+ratio $n$. But stability/calibration require $n<1$, so the architecture \textbf{caps the very mechanism}
+it depends on. Empirically: $n_{\mathrm{cap}}=0.90\Rightarrow$ collapse (ACC $0.17$, too damped); even
+$n_{\mathrm{cap}}=0.99$ (near-critical) cannot cluster enough. LGM's clustering comes from the
+\emph{nonlinear} vfb, which is \emph{not} subject to the linear-branching cap --- it can cluster hard
+while staying calibrated.
+
+\section{The tuning sweep isolates the cause}
+\begin{center}\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.2cm} >{\raggedright\arraybackslash}p{5.2cm} >{\raggedright\arraybackslash}p{4.3cm}}
+\toprule
+lever changed & expectation \emph{if} it were the bottleneck & observed\\
+\midrule
+$n_{\mathrm{cap}}:0.90\to0.99$ & clustering improves & ACC recovers, \textbf{clustering flat $\approx0.93$}\\
+$P:128\to256$ (more latent modes) & richer kernel $\Rightarrow$ clustering improves & \textbf{prediction $+0.01$, clustering flat}\\
+\bottomrule
+\end{tabular}
+\end{center}
+Neither branching nor capacity moves clustering $\Rightarrow$ the limit is \textbf{linearity}, not
+hyperparameters.
+
+\section{The deeper point and conclusion}
+The one thing LGM-SSP uniquely adds over LGM is \textbf{cross-excitation} (mark $j$ raising mark $k$'s
+rate). But because it is \emph{linear}, that cross-excitation is weak, and LGM already captures
+cross-mark structure inside its nonlinear mark soft-max --- so LGM-SSP's single novel ingredient does
+not pay for the expressivity it gave up.
+
+\medskip
+\noindent\textbf{Conclusion.} LGM-SSP cannot beat LGM because it removed the two nonlinearities that
+matter --- the deep mark head (drives prediction) and the vol-feedback rate (drives clustering) --- in
+exchange for a calibration guarantee LGM \emph{already} provides. \textbf{Exact calibration does not
+require linearity}: LGM gets the exact mean pin with a \emph{scalar} rate while keeping nonlinear marks;
+LGM-SSP linearized everything and paid for it with no calibration upside. To close the gap one must
+re-introduce nonlinearity (a mean-preserving multiplicative modulation, or a nonlinear mark head), at
+which point the model converges back toward LGM / S2P2.
+\end{document}

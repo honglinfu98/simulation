@@ -1,0 +1,114 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\softmax}{\operatorname{softmax}}
+\newcommand{\LN}{\operatorname{LayerNorm}}
+\newcommand{\Lam}{\Lambda}
+\title{\textbf{SS2P2 — Formulation}\\[2pt]
+\large Stable State-Space Point Process \emph{(as implemented)}}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-3em}
+
+\noindent SS2P2 keeps S2P2's expressive latent-linear-Hawkes (LLH) backbone and replaces its two
+output heads with a \textbf{gated-bounded (G1) rate} and a \textbf{rate-neutral mark head}:
+\[
+\textbf{SS2P2}=\underbrace{\text{LLH backbone}\;\to\;u(t)}_{\text{unchanged}}
+\;\Longrightarrow\;
+\underbrace{\lambda(t)=s\,\softplus\!\bigl(w_{\mathrm{eff}}^\top h(u)+b\bigr)}_{\text{G1 bounded rate}}
+\;\times\;
+\underbrace{p^*(k\mid t)=\softmax(\mathrm{MLP}(u))_k}_{\text{decoupled marks}} .
+\]
+
+\paragraph{Notation.} Event stream $\{(t_i,k_i)\}$, marks $k\in\{1,\dots,K\}$ (single-item, $K{=}62$).
+History $\mathcal H_t$. Hidden width $H$. Per-mark intensity $\lambda^*_k(t)$, total rate
+$\lambda(t)=\sum_k\lambda^*_k(t)$.
+
+\section{Backbone: LLH stack $\to$ embedding $u(t)$}
+Stacked state-space layers $\ell=1,\dots,L$ with diagonal state $x^{(\ell)}$, decay
+$\delta^{(\ell)}=\softplus(\cdot)+\delta_{\min}>0$ (optionally input-gated), ZOH-discretized so the
+state between events evolves $x_{t'}=\bar A\,x_t+(\bar A-I)\tilde B\,u^{(\ell-1)}$ with
+$\bar A=e^{-\delta\,\Delta t}$, and an event of mark $k$ adds an impulse $\tilde E\,\alpha_k$
+($\alpha_k=$ mean channel embedding). Position-wise read-out with GELU, residual and LayerNorm gives
+the (paper-faithful, bounded) embedding $u(t):=u^{(L)}(t)\in\R^{H}$:
+\[
+y^{(\ell)}=C^{(\ell)}x^{(\ell)}+D^{(\ell)}u^{(\ell-1)},\qquad
+u^{(\ell)}=\LN\!\bigl(\mathrm{GELU}(y^{(\ell)})+\text{skip}(u^{(\ell-1)})\bigr).
+\]
+This is \emph{identical} to S2P2; both models read the same $u(t)$.
+
+\section{Rate head: gated bound (G1) $\to\lambda(t)$}
+A multiplicative gate produces a \emph{bounded} state $h$, read out in S2P2's
+\emph{Proj\,\&\,Softplus} form with a learnable positive scale $s$:
+\[
+o(t)=\sigma\!\bigl(W_o\,u(t)+b_o\bigr)\in(0,1)^{H},\qquad
+\boxed{\,h(t)=o(t)\odot\tanh\!\bigl(u(t)\bigr)\in(-1,1)^{H}\,}
+\]
+\[
+\boxed{\ \lambda(t)=s\cdot\softplus\!\bigl(w_{\mathrm{eff}}^{\top} h(t)+b\bigr)\ },\qquad
+s=\softplus(s_{\mathrm{raw}})>0,\quad
+w_{\mathrm{eff}}=w\cdot\min\!\Bigl(1,\tfrac{c}{\lVert w\rVert_1}\Bigr).
+\]
+The $\ell_1$ cap enforces $\lVert w_{\mathrm{eff}}\rVert_1\le c$, hence $|w_{\mathrm{eff}}^\top h|<c$
+(since $|h_i|<1$), giving a closed-form \textbf{two-sided bound} — the ``Poisson sandwich'':
+\[
+\boxed{\ \lambda(t)\in(\ell_-,\ell_+),\quad
+\ell_\pm=s\,\softplus(b\pm c)\ }
+\;\;\Longrightarrow\;\;
+\mathrm{Poisson}(\ell_-)\preceq N(t)\preceq\mathrm{Poisson}(\ell_+).
+\]
+The scale $s$ carries the \emph{magnitude} (mean rate); $\softplus(b\pm c)$ carries the
+\emph{multiplicative dynamic range}. Initialise $b{=}0$, $s{=}R_{\mathrm{target}}/\ln 2$ so the
+baseline rate ($h{\to}0$) is $\approx R_{\mathrm{target}}$. \textbf{Calibration-free}: $s,b$ and the
+MLE $-\!\int\lambda$ term set the mean — no EMA, no branching/subcriticality projection.
+
+\section{Mark head: rate-neutral (decoupled) $\to p^*(k\mid t)$}
+Marks read the \emph{same} $u$ through an independent softmax MLP and never perturb the total rate:
+\[
+z(t)=W_2\,\mathrm{ReLU}\!\bigl(W_1 u(t)+b_1\bigr)+b_2\in\R^{K},\qquad
+p^*(k\mid t)=\softmax(z(t))_k,
+\]
+\[
+\boxed{\ \lambda^*_k(t)=\lambda(t)\,p^*(k\mid t)\ }\qquad
+\Bigl(\textstyle\sum_k\lambda^*_k=\lambda:\ \text{marks are rate-neutral}\Bigr).
+\]
+
+\section{Likelihood (training objective)}
+Set-MTPP factorization: one ground/total intensity per event time plus a conditional mark term,
+minus the compensator,
+\[
+\log\mathcal L=\sum_{i}\Bigl[\log\lambda(t_i)+\log p^*(k_i\mid t_i)\Bigr]-\int_0^T\lambda(s)\,ds ,
+\]
+with $\int\lambda$ via the rectangle/quadrature rule on the SSM-evolved state used elsewhere in the
+codebase. The mark term is the single-item softmax cross-entropy on genuine events.
+
+\section{Why ``SS'': stability properties}
+\begin{enumerate}[leftmargin=1.5em,itemsep=1.5pt]
+\item \textbf{No runaway / no death:} $0<\ell_-\le\lambda(t)\le\ell_+<\infty$ in closed-loop rollout,
+by construction — \emph{without} a subcriticality cap.
+\item \textbf{Self-limiting gain:} $\partial\lambda/\partial u\to0$ as $\tanh$/gate saturate, and
+$\softplus'<1$.
+\item \textbf{BIBO state:} $\delta^{(\ell)}\ge\delta_{\min}>0\Rightarrow u(t)$ bounded $\Rightarrow$ the
+event$\to u\to\lambda\to$event loop is bounded.
+\item \textbf{Fail-safe baseline:} if the gate closes ($o\to0$) then $h\to0$ and
+$\lambda\to s\,\softplus(b)$ — free-running reverts to the baseline rate off-distribution.
+\item \textbf{Single safety knob:} the cap $c=\lVert w\rVert_1$ sets both the dynamic range
+($\approx e^{c}$ near the soft knee) and the ceiling $\ell_+$.
+\end{enumerate}
+
+\section*{Implementation map}
+\noindent\footnotesize
+\texttt{ss2p2\_decoder.py}: \texttt{ground\_intensity}$=\lambda$ (G1), \texttt{mark\_score}$=z$,
+\texttt{\_w\_eff}$=w_{\mathrm{eff}}$, \texttt{rate\_bounds}$=(\ell_-,\ell_+)$; backbone inherited from
+\texttt{S2P2SetDecoder} with \texttt{readout\_mode="output"}.\;
+\texttt{volume\_set\_mtpp.py}: the \texttt{is\_ss2p2} branch sets
+total$=\lambda$, marks$=\softmax(z)$, channel$=\lambda\,p^*$.\;
+Defaults: $L{=}2$, $H{=}64$, $c{=}6$, $R_{\mathrm{target}}{=}3.77$ (Gemini-ETH).
+\end{document}

@@ -255,7 +255,7 @@ def main():
     parser.add_argument('--lgm-vol-feedback', action='store_true',
                         help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'lgm', 'lgmssp', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lgmssp', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
                         default='hawkes',
                         help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
                              'RMTPP LSTM, S2P2 diagonal SSM, plain LSTM, SAHP causal attention, '
@@ -273,6 +273,11 @@ def main():
                         help='Dropout in S2P2 residual blocks')
     parser.add_argument('--no-s2p2-input-dependent-dynamics', action='store_true',
                         help='Disable input-dependent S2P2 decay gates')
+    parser.add_argument('--ss2p2-wnorm-cap', type=float, default=6.0,
+                        help='SS2P2 G1 rate: l1 cap on the readout weight ||w||_1; '
+                             'sets the two-sided bound lambda in (softplus(b-cap), softplus(b+cap))')
+    parser.add_argument('--ss2p2-mark-hidden', type=int, default=0,
+                        help='SS2P2 rate-neutral mark MLP hidden size (0 = recurrent hidden)')
 
     # Training arguments
     parser.add_argument('--device', type=str, default='auto',
@@ -352,6 +357,8 @@ def main():
         's2p2_layers': args.s2p2_layers,
         's2p2_dropout': args.s2p2_dropout,
         's2p2_input_dependent_dynamics': (not args.no_s2p2_input_dependent_dynamics),
+        'ss2p2_wnorm_cap': args.ss2p2_wnorm_cap,
+        'ss2p2_mark_hidden': (args.ss2p2_mark_hidden or None),
         'sahp_heads': args.sahp_heads,
         'sahp_layers': args.sahp_layers,
         'volume_head': args.volume_head,

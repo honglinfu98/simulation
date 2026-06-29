@@ -30,6 +30,10 @@ try:
 except Exception:
     LGMSSPDecoder = None
 try:
+    from .ss2p2_decoder import SS2P2SetDecoder  # S2P2 backbone + G1 bounded rate x rate-neutral marks
+except Exception:
+    SS2P2SetDecoder = None
+try:
     from .lstm_decoder import LSTMDecoder
 except Exception:
     LSTMDecoder = None
@@ -263,6 +267,21 @@ class VolumeSetMTPP(PPModel):
         # categorical head falls out, so we bypass the generic split/heads.
         # LGM: linear ground rate (exact mean) x deep softmax marks. Total
         # intensity is the scalar ground Lambda; the mark logits feed the simplex.
+        # SS2P2: decoupled (rate-neutral) heads on the S2P2 backbone embedding u.
+        # Both heads read the SAME full embedding h_t = u (no split): the G1
+        # gated-bounded total rate lambda(u) and the softmax mark head p*(k|u).
+        # channel_intensity = lambda * p is exactly rate-neutral (sum_k = lambda).
+        if getattr(self.decoder, "is_ss2p2", False):
+            Lam = self.decoder.ground_intensity(h_t).unsqueeze(-1)     # [B,N,1]
+            z = self.decoder.mark_score(h_t, state_features)           # [B,N,K]
+            p = torch.softmax(z, dim=-1)
+            return {
+                "total_intensity": Lam,
+                "item_logits": z,
+                "item_probability": p,
+                "channel_intensity": Lam * p,
+            }
+
         if getattr(self.decoder, "is_lgm", False):
             hg = h_t[..., :self.decoder.ground_dim]
             hm = h_t[..., self.decoder.ground_dim:]
@@ -847,6 +866,21 @@ def create_volume_set_mtpp(
             target_rate=config.get('lgm_target_rate', 1.8),
             vol_feedback=config.get('lgm_vol_feedback', False),
             cond_dim=(config.get('lob_state_dim', 6) if config.get('lob_state_input', False) else 0),
+        )
+    elif decoder_type == 'ss2p2':
+        if SS2P2SetDecoder is None:
+            raise ImportError('SS2P2SetDecoder is unavailable')
+        decoder = SS2P2SetDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            num_channels=num_channels,
+            num_layers=config.get('s2p2_layers', 2),
+            dropout=config.get('s2p2_dropout', 0.0),
+            input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
+            target_rate=config.get('lgm_target_rate', 40.6),
+            wnorm_cap=config.get('ss2p2_wnorm_cap', 6.0),
+            mark_hidden=config.get('ss2p2_mark_hidden', None),
         )
     elif decoder_type == 'lgmssp':
         if LGMSSPDecoder is None:

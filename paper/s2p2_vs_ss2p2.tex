@@ -1,0 +1,141 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.82in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs,array,xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\softmax}{\operatorname{softmax}}
+\newcommand{\LN}{\operatorname{LayerNorm}}
+\newcommand{\Lam}{\Lambda}
+\title{\textbf{S2P2 vs.\ SS2P2}\\[2pt]
+\large Same expressive backbone, two output heads: how the gated bound turns a
+state-space point process into a \emph{stable} simulator}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-3em}
+
+\section{One-line summary}
+\noindent\textbf{S2P2} is a state-space point process: a stacked latent-linear-Hawkes (LLH)
+backbone with a \emph{Proj\,\&\,Softplus} rate head and a rate-coupled mark head.
+\textbf{SS2P2} keeps that backbone \emph{verbatim} and swaps only the two heads for a
+\textbf{gated-bounded (G1) rate} and a \textbf{rate-neutral mark head}:
+\[
+\textbf{SS2P2}=\underbrace{\text{S2P2 LLH backbone}}_{\text{unchanged, expressive}}
+\;\to\;\underbrace{\text{G1 bounded rate }\lambda(t)}_{\text{Poisson sandwich}}
+\;\times\;\underbrace{\text{rate-neutral }p^*(x\mid t)}_{\text{decoupled marks}} .
+\]
+The backbone is identical, so any difference in behaviour is attributable to the heads.
+
+\section{Shared backbone (both models)}
+Stacked LLH/SSM layers $\ell=1,\dots,L$ with diagonal state, ZOH-discretized and
+parallel-scan computable, with a paper-faithful LayerNorm'd readout producing the
+embedding $u(t):=u^{(L)}(t)\in\R^{H}$:
+\[
+x^{(\ell)}_{t'}=\bar A^{(\ell)} x^{(\ell)}_{t}+(\bar A^{(\ell)}-I)\,\tilde B^{(\ell)} u^{(\ell-1)}
+\;[+\,\tilde E^{(\ell)}\alpha\ \text{at an event}],\qquad
+u^{(\ell)}=\LN\!\bigl(\mathrm{GELU}(y^{(\ell)})+u^{(\ell-1)}\bigr).
+\]
+Both models read the \emph{same} $u(t)$. They differ only in what comes next.
+
+\section{The two heads, side by side}
+\begin{center}\small\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.4cm} >{\raggedright\arraybackslash}p{6.0cm} >{\raggedright\arraybackslash}p{6.0cm}}
+\toprule
+ & \textbf{S2P2} (baseline) & \textbf{SS2P2} (stable variant)\\
+\midrule
+Rate $\lambda(t)$ &
+$\lambda=s\cdot\softplus(w^\top u+b)$ \newline (\emph{Proj\,\&\,Softplus}; unbounded above) &
+$h=\sigma(W_o u)\odot\tanh(u)\in(-1,1)^H$, \newline
+$\lambda=s\cdot\softplus(w_{\mathrm{eff}}^\top h+b)$, $\;\|w_{\mathrm{eff}}\|_1\le c$ \newline
+(\textbf{gated, two-sided bounded})\\
+\addlinespace
+Mark $p^*(x\mid t)$ &
+$p(k)=\lambda_k/\sum_j\lambda_j$ — \emph{coupled} to the rate field (or a shared-head softmax) &
+$p^*(k)=\softmax(\mathrm{MLP}(u))_k$ — \emph{decoupled}, rate-neutral\\
+\addlinespace
+$\lambda_x^*(t)$ & emergent from the field & $\lambda(t)\,p^*(x\mid t)$, with $\sum_x p^*=1$\\
+\addlinespace
+Rate range & $(0,\infty)$ — can run away in closed loop & $\bigl(s\,\softplus(b-c),\,s\,\softplus(b+c)\bigr)$ — finite both sides\\
+\addlinespace
+Mean calibration & emergent (MLE) & emergent (MLE); $s,b$ set the level — \emph{no} EMA / branching pin\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Why the gate matters (G1).} Because $|h_i|<1$ and $\|w_{\mathrm{eff}}\|_1\le c$, we have
+$|w_{\mathrm{eff}}^\top h|<c$, hence the closed-form two-sided bound
+\[
+\lambda(t)\in\bigl(\ell_-,\ell_+\bigr),\quad
+\ell_\pm=s\,\softplus(b\pm c)
+\;\;\Rightarrow\;\;
+\mathrm{Poisson}(\ell_-)\preceq N(t)\preceq\mathrm{Poisson}(\ell_+).
+\]
+This is the ``Poisson sandwich'': in a free-running rollout the event rate can neither
+explode (no runaway) nor die (no silence), \emph{without} any subcriticality projection.
+S2P2's $\softplus(w^\top u+b)$ has no upper bound, so a self-exciting closed loop can
+diverge. The magnitude lives in the learnable scale $s$ and the dynamic range in
+$\softplus(b\pm c)$, so the bound is \emph{multiplicative} (wide) rather than additive.
+
+\paragraph{Why decoupled marks.} S2P2's $p(k)=\lambda_k/\sum\lambda_j$ ties the mark
+distribution to the rate field. SS2P2 reads marks from the same $u$ through an independent
+softmax MLP, so marks stay fully expressive while never perturbing the bounded total rate
+($\sum_x\lambda^*_x=\lambda$).
+
+\section{Stability properties}
+\begin{center}\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcc}
+\toprule
+property & S2P2 & SS2P2\\
+\midrule
+No runaway in closed-loop rollout & \textcolor{red}{not guaranteed} & \textcolor{teal}{\textbf{guaranteed}} ($\lambda\le\ell_+$)\\
+No death / silent absorbing state & \textcolor{red}{not guaranteed} & \textcolor{teal}{\textbf{guaranteed}} ($\lambda\ge\ell_->0$)\\
+Self-limiting gain & no & yes ($\tanh$ saturates, $\softplus'<1$)\\
+Off-distribution fail-safe & no & yes ($o\!\to\!0\Rightarrow\lambda\!\to\!s\,\softplus(b)$)\\
+Marks perturb the rate? & yes (coupled) & no (rate-neutral)\\
+Expressive (parallel-scan) backbone & yes & yes (identical)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Empirical head-to-head}
+Identical settings (seq 64 / stride 32, categorical mark head, same \texttt{genuine\_eval} +
+\texttt{stylized\_facts} harness). \emph{Prediction}: top-1 mark accuracy / perplexity over
+genuine events. \emph{Simulation}: relative error of stylized facts vs.\ real (lower is
+better); SIM is their mean.
+
+\begin{center}\small\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{lcccccc}
+\toprule
+model & ACC $\uparrow$ & PPL $\downarrow$ & Fano\_re & clus\_re & kurt\_re & \textbf{SIM} $\downarrow$\\
+\midrule
+\textbf{SS2P2} & 0.4519 & 8.51 & 0.939 & \textbf{0.241} & 0.658 & \textbf{0.613}\\
+S2P2 (parent)  & \textbf{0.4648} & \textbf{8.47} & \textbf{0.388} & 1.331 & \textbf{0.159} & 0.626\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Raw stylized facts (real $\to$ model):
+\begin{itemize}[leftmargin=1.4em,itemsep=1pt]
+\item Volatility clustering ($|r|$-ACF, lags 1--10): real $0.127\to$ \textbf{SS2P2 $0.096$}, S2P2 $0.296$ (S2P2 \emph{over}-clusters).
+\item Excess kurtosis: real $8.79\to$ SS2P2 $3.01$, \textbf{S2P2 $7.39$}.
+\item Fano @1s: real $54.9\to$ SS2P2 $5.77$, \textbf{S2P2 $26.0$}.
+\end{itemize}
+
+\paragraph{Read.} Prediction is essentially tied (SS2P2 $-1.3$\,pp ACC, equal PPL): the
+decoupled softmax head keeps S2P2's predictive power. Aggregate SIM is tied
+($0.613$ vs $0.626$), but the \emph{profile} differs: the G1 bound regularizes the rate, so
+SS2P2 matches volatility clustering far better while undershooting Fano/kurtosis (the bound
+plus a tight $\|w\|_1$ cap limit burst magnitude — recoverable with a looser cap / more
+training). The point SS2P2 buys is \textbf{stability}: the bounded rate ran a closed-loop
+rollout with no blow-up, by construction.
+
+\vspace{0.4em}
+\noindent\footnotesize\textit{Caveat: these numbers are a local validation on Coinbase-BTC
+(1 day), 10 epochs on CPU, short rollout — smoke-quality, for isolating the head change. The
+paper-grade comparison (Gemini data, full config grid, GPU) is staged for the cluster.}
+
+\end{document}

@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array,xcolor}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\title{\textbf{SS2P2 vs.\ S2P2 — Results on Gemini-ETH}\\[2pt]
+\large Prediction and closed-loop simulation on single-item LOB event data}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-2.6em}
+
+\section{Setup}
+Both models trained and evaluated under \textbf{identical} settings, so the only difference is the
+two output heads (S2P2: \emph{Proj\,\&\,Softplus} rate + rate-coupled marks; SS2P2: gated-bounded
+\emph{G1} rate $\times$ rate-neutral softmax marks) on the \emph{same} latent-linear-Hawkes backbone.
+\begin{center}\small\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{ll}
+\toprule
+Data & \texttt{gmni\_eth\_7\_v2\_marks} — Gemini ETH, 7 days (2026-01-01\,$\to$\,07), \textbf{100\% single-item}\\
+ & $2.28$M events, $\approx 3.77$ ev/s; 49{,}886 train / 10{,}668 val / 10{,}668 test windows\\
+Window & sequence 64, stride 32; 40 epochs; batch 256; lr $2\times10^{-3}$; categorical mark head\\
+Backbone & 2 LLH layers, hidden 64; SS2P2 G1 cap $\|w\|_1\le6$, scale init to $3.77$ ev/s\\
+Hardware & 1$\times$ NVIDIA H100 80GB (seymour4); $\approx$30 min train + rollout per model\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Prediction}: top-1 mark accuracy / perplexity over genuine (non-empty) events,
+scored head-agnostically. \textbf{Simulation}: relative error of Cont (2001) stylized facts between a
+closed-loop rollout and the real stream (lower is better); SIM is the mean of the three core facts.
+
+\section{Headline results}
+\begin{center}\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{l cc c ccc c}
+\toprule
+ & \multicolumn{2}{c}{\textbf{Prediction}} & & \multicolumn{3}{c}{\textbf{Simulation} (rel-err $\downarrow$)} & \\
+\cmidrule(lr){2-3}\cmidrule(lr){5-7}
+model & ACC $\uparrow$ & PPL $\downarrow$ & & Fano\_re & clus\_re & kurt\_re & \textbf{SIM} $\downarrow$\\
+\midrule
+\textbf{SS2P2} & \textbf{0.3407} & \textbf{9.96} & & \textbf{1.56} & \textbf{0.24} & 1.00 & \textbf{0.93}\\
+S2P2 (parent) & 0.3298 & 10.41 & & 13.79 & 3.98 & 1.00 & 6.26\\
+\midrule
+\multicolumn{8}{l}{\footnotesize SS2P2 advantage: \textbf{+1.1\,pp} accuracy, $-0.45$ perplexity, and \textbf{$\sim$6.7$\times$} lower SIM.}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Raw stylized facts (real $\to$ model):
+\begin{center}\small\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lccc}
+\toprule
+fact & real & SS2P2 & S2P2\\
+\midrule
+Fano @1s (over-dispersion) & $7.9$ & $\mathbf{22.9}$ & $77.9$\\
+Volatility clustering ($|r|$-ACF, lags 1--10) & $0.0163$ & $\mathbf{0.0123}$ & $0.0812$\\
+Excess kurtosis (1\,s buckets) & $\approx\!1.06\times10^4$ & $18.8$ & $7.0$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Reading the result}
+\begin{itemize}[leftmargin=1.4em]
+\item\textbf{Prediction: SS2P2 wins.} The rate-neutral softmax mark head reads the same backbone
+embedding as S2P2's coupled head but is free to specialise, giving $+1.1$\,pp accuracy and lower
+perplexity. Decoupling marks from the rate costs nothing predictively.
+\item\textbf{Simulation: SS2P2 wins decisively ($\sim$6.7$\times$).} This is the whole point of the
+G1 bound. S2P2's $\mathrm{softplus}(w^\top u+b)$ rate is unbounded above, so the
+event\,$\to$\,state\,$\to$\,rate feedback \emph{runs away} in free-running rollout: its Fano@1s
+explodes to $77.9$ (real $7.9$) and it over-clusters $5\times$. SS2P2's gated bound
+$\lambda\in(\ell_-,\ell_+)$ (``Poisson sandwich'') keeps the rollout bounded — Fano $22.9$ (still high
+but $3.4\times$ closer) and volatility clustering essentially exact ($0.0123$ vs real $0.0163$).
+\item\textbf{Kurtosis: a wash, and a data artifact.} The real 1-second-bucket return proxy has an
+enormous excess kurtosis ($\sim\!10^4$, driven by a handful of extreme buckets); \emph{neither} model
+reproduces it, so kurt\_re$\approx1.0$ for both and it does not separate them.
+\end{itemize}
+
+\noindent\textbf{Takeaway.} On Gemini-ETH, SS2P2 is \emph{strictly better than its S2P2 parent on both
+axes}: it predicts marginally better and simulates far more faithfully, because the gated bound
+converts S2P2's runaway-prone rate into a provably bounded, drift-controlled one without sacrificing
+the expressive backbone or the mark head.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.49\textwidth]{figs/sf_ss2p2.png}\hfill
+\includegraphics[width=0.49\textwidth]{figs/sf_s2p2.png}
+\caption*{\small Stylized facts, real (blue) vs.\ model (red): \textbf{SS2P2 (left)} tracks the real
+Fano/clustering curves; \textbf{S2P2 (right)} over-disperses (Fano) and over-clusters.}
+\end{figure}
+
+\vspace{-0.5em}
+\noindent\footnotesize Job \texttt{7001736.1--2}, \texttt{experiments/ss2p2\_bench/} on the CS cluster.
+SIM $=\frac13(\text{Fano\_re}+\text{clus\_re}+\text{kurt\_re})$, the same definition used across the
+LGM/S2P2/LGM-SSP comparison.
+\end{document}

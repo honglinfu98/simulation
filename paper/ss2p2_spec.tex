@@ -1,0 +1,108 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\LN}{\operatorname{LayerNorm}}
+\newcommand{\Lam}{\Lambda}
+\title{\textbf{SS2P2 — Stable State-Space Point Process}\\[2pt]
+\large S2P2's expressive LLH backbone, made simulation-stable by a gated-bounded,
+mean-calibrated rate and a rate-neutral mark head}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-3em}
+
+\noindent\textbf{Goal.} Keep S2P2's deep latent-linear-Hawkes (LLH) expressivity, but guarantee a
+\emph{stable, drift-free} closed-loop simulation. SS2P2 = S2P2 backbone $\to$ \textbf{gated-bounded,
+mean-calibrated} rate $\lambda(t)$ $\times$ \textbf{rate-neutral} mark head $p^*(x\mid t)$.
+
+\paragraph{Data.} Marks $\{1,\dots,K\}$; history $\mathcal H_t$ of events $(t_i,x_i)$ with
+$x_i\subseteq\{1,\dots,K\}$ (single-item: $|x_i|=1$). Per-mark intensity $\lambda^*_x(t)$, total rate
+$\lambda(t)=\sum_x\lambda^*_x(t)$.
+
+\section{Backbone: stacked LLH layers $\to$ embedding $u(t)$}
+For layers $\ell=1,\dots,L$ with complex diagonal state $x^{(\ell)}\in\C^{P}$:
+\[
+\Lam^{(\ell)}=-\exp(\rho^{(\ell)})+i\,\omega^{(\ell)},\qquad
+\boxed{\ \mathrm{Re}\,\Lam^{(\ell)}\le-\delta_{\min}\ }\ \text{(decay-floor guard)},
+\]
+\[
+d x^{(\ell)}=\Lam^{(\ell)} x^{(\ell)}\,dt+\Lam^{(\ell)}\tilde B^{(\ell)} u^{(\ell-1)}\,dt
++\tilde E^{(\ell)}\boldsymbol\alpha\,dN_t .
+\]
+ZOH discretization ($\bar A=\exp(\Lam\,\Delta t)$), parallel-scan computable:
+\[
+x_{t'}=\bar A\,x_t+(\bar A-I)\tilde B\,u_{t'^-}\ \bigl[\,+\,\tilde E\boldsymbol\alpha_k\ \text{at a type-}k\text{ event}\,\bigr],
+\qquad x^{\text{left}}_{t}=x^{\text{right}}_{t}-\tilde E\boldsymbol\alpha_k .
+\]
+Position-wise read-out with residual ($\sigma=\mathrm{GELU}$), and the embedding $u(t):=u^{(L)}(t)$:
+\[
+y^{(\ell)}=\mathrm{Re}\!\bigl(\tilde C^{(\ell)} x^{(\ell)}\bigr)+D^{(\ell)} u^{(\ell-1)},\qquad
+u^{(\ell)}=\LN\!\bigl(\sigma(y^{(\ell)})+u^{(\ell-1)}\bigr),\quad u^{(1)}\text{-input}=0 .
+\]
+
+\section{Rate head: gated bound (G1) $+$ mean calibration $\to\lambda(t)$}
+\[
+o(t)=\sigma\!\bigl(W_o\,u(t)+b_o\bigr)\in(0,1)^{H}\quad\text{(gate)},\qquad
+h(t)=o(t)\odot\tanh\!\bigl(u(t)\bigr)\in(-1,1)^{H}\quad\text{(bounded state)},
+\]
+\[
+\lambda_{\mathrm{raw}}(t)=\softplus\!\bigl(w^{\top} h(t)+b_\lambda\bigr),\qquad
+\boxed{\ \lambda(t)=R_{\mathrm{target}}\,\frac{\lambda_{\mathrm{raw}}(t)}{Z}\ }\quad
+Z=\E[\lambda_{\mathrm{raw}}]\ \text{(frozen constant)} .
+\]
+Closed-form two-sided bound (since $|h_i|<1\Rightarrow|w^\top h|<\|w\|_1$):
+\[
+\lambda_{\mathrm{raw}}\in(\ell_-,\ell_+),\quad
+\ell_-=\softplus(b_\lambda-\|w\|_1),\ \ \ell_+=\softplus(b_\lambda+\|w\|_1)
+\ \Rightarrow\
+\lambda(t)\in\Bigl(\tfrac{R_{\mathrm{target}}\ell_-}{Z},\ \tfrac{R_{\mathrm{target}}\ell_+}{Z}\Bigr).
+\]
+
+\section{Mark head: rate-neutral (decoupled) $\to p^*(x\mid t)$}
+\[
+z(t)=V\,u(t)+c\in\R^{K},\qquad
+\text{single-item: } p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_j e^{z_j}},
+\]
+\[
+\text{set-valued (Dynamic Bernoulli): } \rho_k=\sigma(z_k),\quad
+p^*(x\mid t)=\!\prod_{k\in x}\rho_k\!\prod_{k\notin x}(1-\rho_k),\qquad \sum_x p^*(x\mid t)=1 .
+\]
+\[
+\boxed{\ \lambda^*_x(t)=\lambda(t)\,p^*(x\mid t)\ }\qquad(\text{rate-neutral: }\textstyle\sum_x\lambda^*_x=\lambda).
+\]
+
+\section{Training objective}
+\[
+\mathcal L=\sum_{i}\Bigl[\log\lambda(t_i)+\log p^*(x_i\mid t_i)\Bigr]-\int_0^T\lambda(s)\,ds ,
+\]
+compensator $\int\lambda$ via the SSM-evolved state (closed form for the linear part; Monte-Carlo
+otherwise). The calibration constant $Z$ is fixed once on a held-out pass (no EMA).
+
+\section{Stability properties (what ``SS'' buys)}
+\begin{enumerate}[leftmargin=1.5em,itemsep=2pt]
+\item \textbf{No runaway / no death:} $\lambda(t)\in(\lambda_-,\lambda_+)$ with $0<\lambda_-,\ \lambda_+<\infty$
+$\Rightarrow$ stochastic domination $\mathrm{Poisson}(\lambda_-)\preceq N(t)\preceq\mathrm{Poisson}(\lambda_+)$.
+\item \textbf{Self-limiting gain:} $\partial\lambda/\partial u\to0$ as $\tanh$ saturates, and
+$\softplus'=\sigma(w^\top h)$ stays bounded away from $1$ (because $|w^\top h|<\|w\|_1$)
+$\Rightarrow$ stable \emph{without} a branching projection.
+\item \textbf{No drift:} $\E[\lambda]=R_{\mathrm{target}}$ by the $Z$-pin.
+\item \textbf{BIBO state:} $\mathrm{Re}\,\Lam\le-\delta_{\min}\Rightarrow u(t)$ bounded $\Rightarrow$ the
+event$\to u\to\lambda\to$event loop is bounded.
+\item \textbf{Off-distribution fail-safe:} $o\to0\Rightarrow h\to0\Rightarrow
+\lambda\to R_{\mathrm{target}}\softplus(b_\lambda)/Z$ (baseline) — free-running reverts to the calibrated
+rate when the state is unfamiliar.
+\item \textbf{Single knob:} $\|w\|_1$ sets the dynamic range ($\approx e^{\|w\|_1}$) and the ceiling;
+constrain it (row/spectral norm) to choose the safety margin.
+\end{enumerate}
+
+\section*{One line}
+\noindent SS2P2 $=$ S2P2 LLH backbone (expressive, parallel-scan) $\to$ \textbf{gated-bounded (G1),
+mean-calibrated} rate $\lambda(t)$ $\times$ \textbf{rate-neutral} mark head $p^*(x\mid t)$: a provably
+bounded, drift-free, self-stabilizing simulator that keeps S2P2's expressivity.
+\end{document}

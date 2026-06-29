@@ -1,0 +1,71 @@
+\documentclass[12pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\Lam}{\Lambda}
+\pagestyle{empty}
+\begin{document}
+
+\begin{center}
+{\LARGE\textbf{SS2P2}}\\[2pt]
+{\large Stable State-Space Point Process}
+\end{center}
+
+\vspace{1em}
+
+\begin{center}
+\fbox{\parbox{0.93\textwidth}{\centering\itshape
+SS2P2 $=$ S2P2 LLH backbone (expressive, parallel-scan) $\;\to\;$
+gated-bounded (G1) rate $\lambda(t)$ $\;\times\;$ rate-neutral mark head $p^*(x\mid t)$.}}
+\end{center}
+
+\vspace{1.5em}
+
+\noindent\textbf{Three pieces.}
+\begin{enumerate}[leftmargin=1.6em,itemsep=6pt]
+
+\item \textbf{Backbone (keep S2P2's expressivity).} Stacked latent-linear-Hawkes
+layers with complex diagonal modes, ZOH-discretized and \emph{parallel-scan}
+computable, produce a history embedding
+\[
+u(t)\in\R^{H}\qquad(\text{the same deep, expressive state S2P2 learns}).
+\]
+
+\item \textbf{Rate head (make it simulation-stable).} A gated bound (G1) maps
+$u$ to a \emph{two-sided bounded} total rate:
+\[
+o=\sigma(W_o u+b_o)\in(0,1)^H,\quad
+h=o\odot\tanh(u)\in(-1,1)^H,\quad
+\lambda(t)=\softplus\!\bigl(w^\top h+b_\lambda\bigr).
+\]
+Since $|h_i|<1$,\; $\lambda(t)\in(\ell_-,\ell_+)$ with
+$\ell_\pm=\softplus(b_\lambda\pm\|w\|_1)$ — a ``Poisson sandwich''
+$\mathrm{Poisson}(\ell_-)\preceq N(t)\preceq\mathrm{Poisson}(\ell_+)$: \emph{no
+runaway, no death}, stable \emph{without} a branching projection.
+
+\item \textbf{Mark head (rate-neutral / decoupled).} Marks read the \emph{same}
+$u$ but do not change the total rate:
+\[
+\text{single-item: } p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_j e^{z_j}},\quad
+\text{set: } \rho_k=\sigma(z_k),\ z=Vu+c,
+\qquad \sum_x p^*(x\mid t)=1,
+\]
+\[
+\boxed{\;\lambda^*_x(t)=\lambda(t)\,p^*(x\mid t)\;}\qquad
+\Bigl(\textstyle\sum_x\lambda^*_x=\lambda:\ \text{marks never perturb the bound}\Bigr).
+\]
+\end{enumerate}
+
+\vspace{0.8em}
+
+\noindent\textbf{Why it works.} The backbone keeps S2P2's representational power;
+the G1 gate makes the closed-loop rate \emph{provably bounded} (so free-running
+simulation can't blow up or die); decoupling lets the expressive marks ride on a
+stable rate. Calibration is optional — the bias $b_\lambda$ and the MLE
+$-\int\lambda$ term set the mean; the bound holds regardless — so SS2P2 needs
+\emph{no} EMA and \emph{no} mean-pin to stay stable.
+
+\end{document}
