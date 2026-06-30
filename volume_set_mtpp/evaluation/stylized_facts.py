@@ -209,6 +209,83 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
     return np.stack(rec_marks, axis=1), dt_arr, np.cumsum(dt_arr, axis=1)
 
 
+def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed: int,
+                             duration: float = 0.0, over_sample: float = 1.0,
+                             max_inner: int = 200) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Closed-loop rollout via Ogata's thinning with SS2P2's EXACT closed-form bound.
+
+    SS2P2's total rate is two-sided bounded, lambda(t) in (ell_-, ell_+), with
+    ell_+ a GLOBAL CONSTANT returned by ``decoder.rate_bounds()``. That constant
+    dominates lambda(t) at every time and every state, so it is a valid Ogata
+    upper bound lambda* with (i) NO per-step recomputation and (ii) NO
+    over-sampling fudge factor (over_sample defaults to 1.0 -- unlike the generic
+    EasyTPP/NHP sampler, which must guess lambda* by sampling+max+over_sample).
+
+    Per outer step, with the history (hence the SSM states) fixed:
+      tau <- 0
+      repeat:                                   # Ogata thinning
+        tau <- tau + Exp(lambda*)               # candidate from dominating Poisson
+        accept tau with prob lambda(tau)/lambda*    # ratio <= 1 GUARANTEED by the bound
+      next inter-arrival = first accepted tau
+      mark ~ p*(k | tau) = item_probability     # rate-neutral head (lambda_k = lambda*p*)
+    Exact in continuous time (no grid as in the inversion sampler).
+
+    Returns (marks [n,S,K] bool, dt [n,S], cum_time [n,S]).
+    """
+    if not hasattr(model.decoder, "rate_bounds"):
+        raise ValueError("simulate_stream_thinning needs a decoder with a closed-form "
+                         "rate bound (SS2P2.rate_bounds()). Use --sampler inversion otherwise.")
+    torch.manual_seed(seed)
+    n = min(n_seq, batch["input_marks"].shape[0])
+    marks = batch["input_marks"][:n].float().to(device).clone()
+    dts = batch["input_times"][:n].float().clamp_min(0.0).to(device).clone()
+    _, ell_plus = model.decoder.rate_bounds()
+    lam_star = float(ell_plus) * float(over_sample)            # global, constant dominating rate
+    rec_marks, rec_dt = [], []
+    max_steps = steps if duration <= 0 else ROLLOUT_HARD_CAP
+    cum_time = torch.zeros(n, device=device)
+    n_prop = n_acc = 0
+    with torch.no_grad():
+        for _ in range(max_steps):
+            timestamps = torch.cumsum(dts, dim=1)
+            states = model.decoder.get_states(marks, timestamps)   # fixed during the inner thinning loop
+            t_cand = torch.zeros(n, device=device)
+            dt_out = torch.zeros(n, device=device)
+            accepted = torch.zeros(n, dtype=torch.bool, device=device)
+            for _i in range(max_inner):
+                active = ~accepted
+                if not bool(active.any()):
+                    break
+                # advance the candidate time of still-unaccepted sequences by Exp(lambda*)
+                e = -torch.log(torch.rand(n, device=device).clamp_min(1e-12)) / lam_star
+                t_cand = torch.where(active, t_cand + e, t_cand)
+                lam = _distribution_at_dts(model, states, timestamps,
+                                           t_cand.unsqueeze(1))["total_intensity"].squeeze(-1).squeeze(-1)
+                u = torch.rand(n, device=device)
+                ratio = (lam / lam_star).clamp(max=1.0)         # <=1 by the bound (else over_sample fixes it)
+                newly = active & (u <= ratio)
+                dt_out = torch.where(newly, t_cand, dt_out)
+                accepted = accepted | newly
+                n_prop += int(active.sum().item()); n_acc += int(newly.sum().item())
+            # rare fallback: sequences not accepted within max_inner keep their last candidate
+            dt_out = torch.where(accepted, dt_out, t_cand).clamp(min=1e-6)
+            # draw the mark at the accepted time from the rate-neutral head
+            probs = _distribution_at_dts(model, states, timestamps,
+                                         dt_out.unsqueeze(1))["item_probability"].squeeze(1).float()
+            idx = torch.multinomial(probs.clamp_min(1e-12), 1).squeeze(1)
+            new_set = torch.zeros_like(probs); new_set.scatter_(1, idx.unsqueeze(1), 1.0)
+            rec_marks.append(new_set.bool().cpu().numpy()); rec_dt.append(dt_out.cpu().numpy())
+            marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
+            dts = torch.cat([dts[:, 1:], dt_out.unsqueeze(1)], dim=1)
+            cum_time = cum_time + dt_out
+            if duration > 0 and bool((cum_time >= duration).all().item()):
+                break
+    print("THINNING lam_star=%.4f (ell_+=%.4f x over_sample=%.2f)  mean_accept_rate=%.4f"
+          % (lam_star, float(ell_plus), float(over_sample), n_acc / max(n_prop, 1)), flush=True)
+    dt_arr = np.stack(rec_dt, axis=1)
+    return np.stack(rec_marks, axis=1), dt_arr, np.cumsum(dt_arr, axis=1)
+
+
 def bucketize(marks: np.ndarray, dt: np.ndarray, sign: np.ndarray, moving: np.ndarray,
               bucket: float) -> Tuple[np.ndarray, np.ndarray]:
     """Aggregate one contiguous stream into (r [T], activity [T]) per time bucket."""
@@ -460,6 +537,11 @@ def main():
     ap.add_argument("--max-real-windows", type=int, default=4096)
     ap.add_argument("--dt-horizon", type=float, default=10.0)
     ap.add_argument("--dt-grid-points", type=int, default=64)
+    ap.add_argument("--sampler", choices=["inversion", "thinning"], default="inversion",
+                    help="inversion = compensator-inversion on a quadrature grid (any model); "
+                         "thinning = Ogata thinning with SS2P2's exact closed-form upper bound")
+    ap.add_argument("--over-sample-rate", type=float, default=1.0,
+                    help="thinning safety multiplier on lambda* (SS2P2 bound is exact, so 1.0)")
     args = ap.parse_args()
 
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
@@ -506,13 +588,20 @@ def main():
 
     # Simulated stream
     first_batch = move_batch(next(iter(test_loader)), device)
-    sim_marks, sim_dt, sim_cum = simulate_stream(model, first_batch, device, args.rollout_steps,
-                                                 args.rollout_sequences, args.dt_horizon,
-                                                 args.dt_grid_points, args.rollout_seed,
-                                                 vocab=sf_vocab, depth_profile=sf_depth, bps_per_level=sf_bps,
-                                                 duration=args.rollout_duration)
+    if args.sampler == "thinning":
+        print("SAMPLER thinning (Ogata, SS2P2 closed-form bound)", flush=True)
+        sim_marks, sim_dt, sim_cum = simulate_stream_thinning(
+            model, first_batch, device, args.rollout_steps, args.rollout_sequences,
+            args.rollout_seed, duration=args.rollout_duration, over_sample=args.over_sample_rate)
+    else:
+        sim_marks, sim_dt, sim_cum = simulate_stream(model, first_batch, device, args.rollout_steps,
+                                                     args.rollout_sequences, args.dt_horizon,
+                                                     args.dt_grid_points, args.rollout_seed,
+                                                     vocab=sf_vocab, depth_profile=sf_depth, bps_per_level=sf_bps,
+                                                     duration=args.rollout_duration)
     r_chunks, a_chunks = [], []
     n_sim_events = 0
+    sim_time = 0.0
     for i in range(sim_marks.shape[0]):
         if args.rollout_duration > 0:
             keep = sim_cum[i] <= args.rollout_duration
@@ -520,10 +609,16 @@ def main():
         else:
             m_i, d_i = sim_marks[i], sim_dt[i]
         n_sim_events += len(d_i)
+        sim_time += float(d_i.sum())
         r_i, a_i = bucketize(m_i, d_i, sign, moving, args.bucket_seconds)
         r_chunks.append(r_i); a_chunks.append(a_i)
     r_sim = np.concatenate(r_chunks); a_sim = np.concatenate(a_chunks)
-    print("SIM events", n_sim_events, "buckets", len(r_sim), flush=True)
+    # Mean-rate fit gate: simulated vs real event rate (ev/s). If these diverge,
+    # every downstream stylized fact is computed on a mis-scaled stream.
+    sim_rate = n_sim_events / max(sim_time, 1e-9)
+    real_rate = len(dt_r) / max(float(dt_r.sum()), 1e-9)
+    print("SIM events", n_sim_events, "buckets", len(r_sim),
+          "sim_rate", round(sim_rate, 4), "real_rate", round(real_rate, 4), flush=True)
 
     facts_real = all_facts(r_real, a_real)
     facts_sim = all_facts(r_sim, a_sim)
@@ -545,6 +640,7 @@ def main():
         headline[name] = {"real": facts_real[key], "model": facts_sim[key]}
     headline["F4 kurtosis at scales"] = {"real": facts_real["f4_kurtosis_vs_scale"], "model": facts_sim["f4_kurtosis_vs_scale"]}
     headline["F5 Fano at scales"] = {"real": facts_real["f5_fano_vs_scale"], "model": facts_sim["f5_fano_vs_scale"]}
+    headline["F0 mean event rate (ev/s)"] = {"real": real_rate, "model": sim_rate}
 
     summary = {
         "label": args.label,
