@@ -3,7 +3,7 @@
 #$ -cwd
 #$ -j y
 #$ -N eval_worker
-#$ -l h_rt=12:00:00
+#$ -l h_rt=8:00:00
 #$ -l tmem=32G
 #$ -l gpu=true
 #$ -l gpu_type=h100
