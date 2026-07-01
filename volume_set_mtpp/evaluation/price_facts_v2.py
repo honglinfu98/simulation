@@ -86,6 +86,7 @@ def parse_v2_file(path: str, name_to_idx: Dict[str, int], k: int, max_events: in
         "ask_depth": np.asarray(a_depth, dtype=np.float32),
         "level_gap": float(np.median(gaps)) if gaps else 1.0,
         "time": ts - ts[0],
+        "t0": float(ts[0]) if len(ts) else 0.0,
     }
 
 
