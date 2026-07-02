@@ -220,6 +220,11 @@ def main():
                         help='intensity ceiling (events/s) for --intensity-link sigmoid')
     parser.add_argument('--mark-head', choices=['bernoulli', 'categorical'], default='bernoulli',
                         help='categorical = single-mark softmax for event-driven data (drops the set condition)')
+    parser.add_argument('--mc-compensator', action='store_true',
+                        help='unbiased Monte-Carlo compensator (uniform samples over the window, '
+                             'Mei & Eisner style) instead of the biased endpoint rule lambda(t_i^-)*dt_i')
+    parser.add_argument('--mc-samples', type=int, default=32,
+                        help='MC sample count per sequence for --mc-compensator')
     parser.add_argument('--potential-head', action='store_true',
                         help='2-D (activity, imbalance) potential-flow feedback head: '
                              'local-supercritical/global-stable bursts, momentum mean-reversion, asymmetry')
@@ -369,6 +374,8 @@ def main():
         'intensity_link': args.intensity_link,
         'lambda_max': args.lambda_max,
         'mark_head': args.mark_head,
+        'mc_compensator': args.mc_compensator,
+        'mc_samples': args.mc_samples,
         'potential_head': args.potential_head,
         'trust_region_cap': args.trust_region_cap,
         'trust_region_k': args.trust_region_k,

@@ -580,8 +580,25 @@ class VolumeSetMTPP(PPModel):
         # 2. Survival term integrates the ground/total intensity, not
         # sum_k lambda(t) * rho_k(t).  The latter would model simultaneous
         # labels as separate item arrivals rather than one set-valued event.
+        #
+        # Default (endpoint rule): lambda(t_i^-) * dt_i per interval.  This is a
+        # single-point approximation at the interval END, where a decaying
+        # intensity is at its minimum -- it systematically under-estimates the
+        # compensator and lets MLE inflate the rate (the mean_u > 1 bias).
+        # mc_compensator: Monte-Carlo estimate over uniformly sampled times in
+        # (0, T] (Mei & Eisner style), an unbiased integral of the same
+        # get_hidden_h dynamics used at evaluation time.
         time_intervals = input_times
-        input_survival_term = (time_intervals * total_intensity_flat).sum(dim=1)
+        if getattr(self, "mc_compensator", False):
+            span = (timestamps[:, -1] + target_time.clamp_min(0.0)).clamp_min(1e-6)   # [B]
+            M = int(getattr(self, "mc_samples", 32))
+            u = torch.rand(span.shape[0], M, device=device) * span.unsqueeze(1)       # [B,M] ~ U(0, span)
+            h_u = self.decoder.get_hidden_h(state_values=states, state_times=timestamps, timestamps=u)
+            lam_u = self.get_total_intensity_and_items(
+                h_u, state_features=None, potential_feats=None)['total_intensity'].squeeze(-1)  # [B,M]
+            input_survival_term = span * lam_u.mean(dim=1)   # spans input window AND target horizon
+        else:
+            input_survival_term = (time_intervals * total_intensity_flat).sum(dim=1)
 
         # 3. Target time likelihood at the prediction horizon, again one
         # ground-intensity contribution for the whole target set.
@@ -589,9 +606,14 @@ class VolumeSetMTPP(PPModel):
         target_time_lik = torch.log(target_total_intensity + 1e-8)
         # Include survival from the last observed input event to the target event.
         # Without this term, target_time affects the positive log-intensity but not
-        # the no-event probability over the prediction horizon.
+        # the no-event probability over the prediction horizon.  (The MC compensator
+        # already integrates over the full (0, t_N + target_dt] span, so the
+        # endpoint-rule target term must not be double-counted.)
         target_survival_term = target_time.clamp_min(0.0) * target_total_intensity
-        survival_term = input_survival_term + target_survival_term
+        if getattr(self, "mc_compensator", False):
+            survival_term = input_survival_term   # MC integral already spans the target horizon
+        else:
+            survival_term = input_survival_term + target_survival_term
 
         # 4. Mark likelihood.  Bernoulli-set (default) sums log-probs over all
         # labels; categorical (event-driven / single-mark) models one
@@ -980,6 +1002,9 @@ def create_volume_set_mtpp(
         lob_state_input=config.get('lob_state_input', False),
         lob_state_dim=config.get('lob_state_dim', 6),
     )
+    # Unbiased MC compensator (Mei & Eisner style) instead of the endpoint rule.
+    model.mc_compensator = bool(config.get('mc_compensator', False))
+    model.mc_samples = int(config.get('mc_samples', 32))
 
     # Hard subcriticality projection threshold for NMH (applied post-step in the
     # training loop): 0 disables.  Robust to loss scale unlike the soft penalty.

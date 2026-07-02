@@ -64,7 +64,7 @@ class SAHPDecoder(nn.Module):
         if marks.numel() == 0:
             mark_input = self.channel_embedding(torch.LongTensor([[]]))
         else:
-            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight.data)
+            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight)
             mark_count = torch.unsqueeze(marks.sum(dim=-1), -1)
             mark_input = torch.div(mark_embeddings_sum, torch.clamp(mark_count, min=1))
         recurrent_input = torch.cat([mark_input, time_deltas], dim=-1)
@@ -115,8 +115,11 @@ class SAHPDecoder(nn.Module):
         """Piecewise-constant selection: return the most-recent event's hidden state
         for each query time, with NO intensity decay applied."""
         closest_dict = find_closest(sample_times=timestamps, true_times=state_times)
+        # state_values: index 0 = init, index j+1 = post-event-j; find_closest
+        # returns the original event index j (-1 if none) -> gather at j+1.
+        anchor_idx = (closest_dict["closest_indices"] + 1).clamp(min=0, max=state_values.shape[1] - 1)
         selected_hidden_states = state_values.gather(
             dim=1,
-            index=closest_dict["closest_indices"].unsqueeze(-1).expand(-1, -1, state_values.shape[-1]),
+            index=anchor_idx.unsqueeze(-1).expand(-1, -1, state_values.shape[-1]),
         )
         return selected_hidden_states

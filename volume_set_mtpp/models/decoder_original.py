@@ -91,7 +91,7 @@ class HawkesDecoder(nn.Module):
             recurrent_input = self.channel_embedding(torch.LongTensor([[]]))
         else:
             # mark_embeddings_sum = torch.unsqueeze(torch.matmul(torch.squeeze(marks, 0), self.channel_embedding.weight.data), 0)  # torch.Size([batch_size, num_events, embedding_size])
-            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight.data)  # torch.Size([batch_size, num_events, embedding_size])
+            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight)  # torch.Size([batch_size, num_events, embedding_size])
             # use mean value of the embeddings instead of sum
             mark_count = torch.unsqueeze(marks.sum(dim=-1), -1)
             recurrent_input = torch.div(mark_embeddings_sum, torch.clamp(mark_count, min=1))  # to allow empty set
@@ -103,14 +103,19 @@ class HawkesDecoder(nn.Module):
         else:
             h_d, o_t, c_bar, c, delta_t, c_d = torch.chunk(old_states, 6, -1)
 
-        # hidden_states = [torch.cat((h_d, o_t, c_bar, c, delta_t), -1)]
         hidden_states = [torch.cat((h_d, o_t, c_bar, c, delta_t, c_d), -1)]
+        zero_dur = torch.zeros_like(time_deltas[:, 0, :])
         for i in range(time_deltas.shape[1]):
             r_input, t_input = recurrent_input[:, i, :], time_deltas[:, i, :]
 
-            c, c_bar, o_t, delta_t = self.recurrence(r_input, h_d, c_d, c_bar)
+            # Neural Hawkes order: FIRST evolve the previous cells over the gap
+            # to t_i^- (decay with the CURRENT inter-event time), THEN apply the
+            # event update conditioned on that left-limit hidden state.
             c_d, h_d = self.decay(c, c_bar, o_t, delta_t, t_input)
-            # hidden_states.append(torch.cat((h_d, o_t, c_bar, c, delta_t), -1))
+            c, c_bar, o_t, delta_t = self.recurrence(r_input, h_d, c_d, c_bar)
+            # Stored h_d/c_d are the post-jump values at t_i (duration-0 decay);
+            # consumers re-decay from (c, c_bar, o_t, delta_t) with their own dt.
+            c_d, h_d = self.decay(c, c_bar, o_t, delta_t, zero_dur)
             hidden_states.append(torch.cat((h_d, o_t, c_bar, c, delta_t, c_d), -1))
 
         hidden_states = torch.stack(hidden_states, dim=1)
@@ -159,8 +164,13 @@ class HawkesDecoder(nn.Module):
 
         padded_state_values = state_values
 
+        # state_values has N+1 entries: index 0 = init, index j+1 = post-event-j.
+        # find_closest returns the ORIGINAL event index j of the last event at or
+        # before each query (-1 if none), so the matching post-event state lives
+        # at padded index j+1 (and -1 -> 0 = init state).
+        anchor_idx = (closest_dict["closest_indices"] + 1).clamp(min=0, max=padded_state_values.shape[1] - 1)
         selected_hidden_states = padded_state_values.gather(dim=1,
-                                                            index=closest_dict["closest_indices"].unsqueeze(-1).expand(
+                                                            index=anchor_idx.unsqueeze(-1).expand(
                                                                 -1, -1, padded_state_values.shape[-1]))
         # Positive elapsed time since the selected historical state.
         duration = torch.clamp(timestamps - closest_dict["closest_values"], min=0.0).unsqueeze(-1)
@@ -227,7 +237,7 @@ class RMTPPDecoder(nn.Module):
         if marks.numel() == 0:
             mark_input = self.channel_embedding(torch.LongTensor([[]]))
         else:
-            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight.data)  # torch.Size([batch_size, num_events, embedding_size])
+            mark_embeddings_sum = torch.matmul(marks, self.channel_embedding.weight)  # torch.Size([batch_size, num_events, embedding_size])
             # use mean value of the embeddings instead of sum
             mark_count = torch.unsqueeze(marks.sum(dim=-1), -1)
             mark_input = torch.div(mark_embeddings_sum, torch.clamp(mark_count, min=1))  # to allow empty set
@@ -278,7 +288,10 @@ class RMTPPDecoder(nn.Module):
 
         padded_state_values = state_values
 
-        selected_hidden_states = padded_state_values.gather(dim=1, index=closest_dict["closest_indices"].unsqueeze(
+        # Same indexing convention as HawkesDecoder: original event index j ->
+        # post-event state at padded index j+1 (-1 -> 0 = init state).
+        anchor_idx = (closest_dict["closest_indices"] + 1).clamp(min=0, max=padded_state_values.shape[1] - 1)
+        selected_hidden_states = padded_state_values.gather(dim=1, index=anchor_idx.unsqueeze(
             -1).expand(-1, -1, padded_state_values.shape[-1]))
         time_embedding = self.time_embedding(timestamps, state_times)
         # time_logits = self.time_to_intensity_logits(time_embedding).sum(dim=-1, keepdims=True)
