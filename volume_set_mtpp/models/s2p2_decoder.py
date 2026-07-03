@@ -6,6 +6,7 @@ left-limit evolution, and a HawkesDecoder-compatible interface.
 """
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 import torch
@@ -69,7 +70,15 @@ class S2P2SetDecoder(nn.Module):
         self.norms = nn.ModuleList([nn.LayerNorm(H) for _ in range(L)])
         self.dropout = nn.Dropout(self.dropout_p)
 
-        self.log_decay = nn.Parameter(torch.empty(L, H).normal_(mean=-2.0, std=0.25))
+        # S4/HiPPO-style log-spaced decay init (as the S2P2 paper prescribes):
+        # timescales 1/delta log-spaced over [0.02s, 60s] so every layer starts
+        # with genuinely slow "clock" modes alongside fast ones.  The previous
+        # normal(-2.0, 0.25) init clustered all timescales at ~4s and trained
+        # checkpoints lost all slow modes, freezing lambda(dt) beyond ~1s gaps.
+        t_min, t_max = 0.02, 60.0
+        deltas = torch.logspace(math.log10(1.0 / t_max), math.log10(1.0 / t_min), H)
+        init_row = torch.log(torch.expm1((deltas - min_decay).clamp_min(1e-4)))
+        self.log_decay = nn.Parameter(init_row.unsqueeze(0).repeat(L, 1).clone())
         if self.input_dependent_dynamics:
             self.dynamic_decay = nn.ModuleList([
                 nn.Linear(E if layer == 0 else H, H, bias=True)
