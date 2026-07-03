@@ -8,15 +8,20 @@ It reuses the S2P2 latent-linear-Hawkes backbone VERBATIM (same stacked SSM
 layers, ZOH evolution, paper-faithful LayerNorm'd output readout u = u^{(L)}),
 and replaces the two output heads:
 
-  Rate head (G1 gated bound).  From the bounded embedding u:
+  Rate head (softmin bound -- one-sided cap).  From the bounded embedding u:
         o(u) = sigmoid(W_o u + b_o)   in (0,1)^H        (gate)
         h(u) = o(u) (.) tanh(u)        in (-1,1)^H        (bounded state)
-        lambda(t) = softplus( w_eff^T h + b_lambda )
-    With ||w_eff||_1 <= cap (enforced by a soft l1 cap on w), |w^T h| < cap, so
-        lambda(t) in ( softplus(b_lambda - cap), softplus(b_lambda + cap) ),
-    a two-sided "Poisson sandwich": no runaway, no death, WITHOUT a branching
-    projection.  Calibration-free: b_lambda + the MLE's -int(lambda) term set
-    the mean (no EMA, no n_cap pin).
+        z_raw = w^T h + b              (UNCONSTRAINED readout, no l1 cap)
+        z     = c - softplus(c - z_raw)                  (smooth one-sided cap)
+        lambda(t) = scale * softplus(z)
+    z <= c always  =>  lambda <= scale*softplus(c): a HARD closed-form ceiling
+    (no runaway; exact dominating rate for thinning).  z_raw -> -inf  =>
+    z ~ z_raw  =>  lambda ~ scale*e^{z_raw} -> 0: the floor is exactly 0 and
+    log-lambda keeps unit gradient in the quiet regime.  The old G1 sandwich
+    was symmetric (lambda >= scale*softplus(b-cap) ~ 0.36 ev/s), which welded
+    the quiet floor to the burst scale and caused the quiet-regime deficit vs
+    NHP; the asymmetric requirement (ceiling for simulation stability, zero
+    floor for prediction) is now built into the asymmetric nonlinearity.
 
   Mark head (rate-neutral / decoupled).  Marks read the SAME u but never change
   the total rate:
@@ -70,15 +75,14 @@ class SS2P2SetDecoder(S2P2SetDecoder):
         self.K = int(num_channels if num_channels is not None else channel_embedding.num_embeddings)
         self.wnorm_cap = float(wnorm_cap)
 
-        # G1 gated-bounded rate head, in S2P2 "Proj&Softplus" form
-        # lambda = scale * softplus(w^T h + b): the scale carries the MAGNITUDE
-        # (target mean) and softplus(b +/- cap) carries the MULTIPLICATIVE
-        # dynamic range, so the two-sided bound is wide enough to cluster.
+        # Softmin-bounded rate head: lambda = scale * softplus(c - softplus(c - z_raw)).
+        # wnorm_cap now plays the role of the z-CEILING c (upper lip only);
+        # z_raw = w^T h + b is unconstrained, so the floor is exactly 0.
         self.gate = nn.Linear(H, H)               # o = sigmoid(W_o u + b_o)
-        self.rate_w = nn.Linear(H, 1)             # softplus(w^T h + b)
+        self.rate_w = nn.Linear(H, 1)             # z_raw = w^T h + b (uncapped)
         nn.init.zeros_(self.gate.bias)            # start with a half-open gate
         nn.init.xavier_uniform_(self.rate_w.weight, gain=0.5)
-        nn.init.zeros_(self.rate_w.bias)          # b=0 -> softplus near its exp-like (multiplicative) regime
+        nn.init.zeros_(self.rate_w.bias)
         # Learnable positive scale, init so the baseline rate ~ target_rate
         # (h->0 => softplus(0)=ln2): scale = target_rate / ln2.
         s0 = max(target_rate, 1e-3) / 0.6931471805599453
@@ -91,18 +95,18 @@ class SS2P2SetDecoder(S2P2SetDecoder):
         )
 
     # ------------------------------------------------------------- rate head
-    def _w_eff(self) -> torch.Tensor:
-        """l1-capped readout weight: ||w_eff||_1 <= wnorm_cap (sets the ceiling)."""
-        w = self.rate_w.weight                                 # [1,H]
-        wn = w.abs().sum().clamp_min(1e-6)
-        f = (self.wnorm_cap / wn).clamp(max=1.0)
-        return w * f
-
     def ground_intensity(self, u: torch.Tensor) -> torch.Tensor:
-        """G1 gated-bounded total rate lambda(t) from the embedding u. [..., ] ."""
+        """Softmin-bounded total rate lambda(t) from the embedding u. [..., ] .
+
+        z = c - softplus(c - z_raw): smooth one-sided cap.  z <= c (hard
+        ceiling, closed form); z ~ z_raw as z_raw -> -inf (floor exactly 0,
+        log-lambda keeps unit gradient in the quiet regime).
+        """
         o = torch.sigmoid(self.gate(u))                        # (0,1)^H
         h = o * torch.tanh(u)                                  # (-1,1)^H bounded state
-        z = F.linear(h, self._w_eff(), self.rate_w.bias)      # [...,1]
+        z_raw = self.rate_w(h)                                 # [...,1] unconstrained
+        c = self.wnorm_cap
+        z = c - F.softplus(c - z_raw)
         scale = F.softplus(self.raw_scale)
         return (scale * F.softplus(z)).squeeze(-1)             # [...,]
 
@@ -112,9 +116,11 @@ class SS2P2SetDecoder(S2P2SetDecoder):
 
     # ------------------------------------------------------------- diagnostics
     def rate_bounds(self):
-        """Closed-form two-sided bound (ell_-, ell_+) on lambda."""
-        b = float(self.rate_w.bias)
-        cap = self.wnorm_cap
+        """Closed-form bounds (ell_-, ell_+) on lambda.
+
+        Softmin head: z <= wnorm_cap always, so ell_+ = scale*softplus(c) is
+        EXACT (valid dominating rate for thinning); the floor is exactly 0.
+        """
         scale = float(F.softplus(self.raw_scale))
-        sp = lambda x: float(F.softplus(torch.tensor(x)))
-        return scale * sp(b - cap), scale * sp(b + cap)
+        sp = lambda x: float(F.softplus(torch.tensor(float(x))))
+        return 0.0, scale * sp(self.wnorm_cap)
