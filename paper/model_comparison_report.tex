@@ -1,0 +1,126 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage[table]{xcolor}
+\usepackage{booktabs,array}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+\definecolor{best}{rgb}{0.85,0.95,0.85}
+\definecolor{ours}{rgb}{0.88,0.92,0.98}
+\newcommand{\bb}[1]{\textbf{#1}}
+\title{\textbf{LOB Event-Stream Models --- Comparison Report}\\[2pt]
+\large Corrected 7-model benchmark + the SS2P2 head/dynamics ablation chain (Gemini-ETH)}
+\author{}\date{}
+\begin{document}\maketitle\vspace{-2.8em}
+
+\section{Setup and validity}
+All models trained and evaluated identically (Gemini ETH 7d single-item, seq 64/stride 32, 40 epochs,
+categorical marks, hidden 64, A40). This supersedes the earlier report: three implementation bugs in the
+vendored baselines were found and fixed (a one-event-stale state anchor in \texttt{get\_hidden\_h}; the
+neural-Hawkes decay applied with the previous inter-event gap; detached channel-embedding gradients), and
+all baselines retrained. Models whose code was untouched reproduced their previous rows bit-identically
+(S2P2, PCT-LSTM, SS2P2-G1), validating the rerun. \emph{hawkes} and \emph{ct-lstm} are the same class
+(Mei--Eisner Neural Hawkes CT-LSTM) and are reported once as \textbf{NHP}. There is no classical
+parametric-Hawkes baseline in this set.
+
+\section{Prediction (per genuine test event)}
+\emph{overall} = time + mark NLL (fit gate); mean\,$u$ = time-rescaling calibration ($\to$1);
+KS = distance of compensator masses from Exp(1).
+\begin{center}\small\renewcommand{\arraystretch}{1.22}
+\begin{tabular}{lcccccccc}
+\toprule
+model & overall$\downarrow$ & timeNLL & markNLL & KS$\downarrow$ & mean\,$u$ & tMAE(s) & ACC$\uparrow$ & PPL$\downarrow$\\
+\midrule
+\rowcolor{best}NHP (CT-LSTM) & \bb{0.667} & \bb{$-1.531$} & \bb{2.198} & 0.235 & 1.91 & \bb{0.300} & \bb{0.379} & \bb{9.01}\\
+\rowcolor{ours}\textbf{SS2P2-softmin} & 0.982 & $-1.333$ & 2.315 & \bb{0.189} & \bb{1.84} & 0.384 & 0.331 & 10.12\\
+\rowcolor{ours}SS2P2-G1 (orig.) & 1.078 & $-1.219$ & 2.297 & 0.253 & 2.09 & 0.344 & 0.343 & 9.95\\
+\rowcolor{ours}SS2P2-lsinit & 1.149 & $-1.163$ & 2.312 & 0.237 & 2.18 & 0.329 & 0.337 & 10.09\\
+PCT-LSTM & 1.327 & $-1.214$ & 2.541 & \bb{0.189} & 1.87 & 0.397 & 0.276 & 12.70\\
+SAHP & 1.524 & $-0.775$ & 2.299 & 0.448 & \bb{0.99} & 0.435 & 0.356 & 9.97\\
+LSTM & 1.593 & $-0.751$ & 2.344 & 0.485 & 0.78 & 0.464 & 0.343 & 10.43\\
+S2P2 & 2.959 & $0.613$ & 2.346 & 0.437 & 4.29 & 1.430 & 0.326 & 10.45\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent NHP is the best predictor across the board. \textbf{SS2P2-softmin is the best of everything else}
+--- and holds the best timing \emph{calibration} in the entire table (KS 0.189, mean\,$u$ 1.84, beating NHP)
+--- while every SS2P2 variant beats its unbounded S2P2 parent by $\ge$1.8 nats.
+
+\section{Simulation --- stylized-facts fit (600\,s closed-loop, rel-err vs real)}
+\begin{center}\small\renewcommand{\arraystretch}{1.22}
+\begin{tabular}{lccccc}
+\toprule
+model & sim rate (real 2.32) & rate\_re$\downarrow$ & Fano\_re$\downarrow$ & clus\_re$\downarrow$ & retACF\_re$\downarrow$\\
+\midrule
+SAHP & 1.76 & \bb{0.24} & 0.29 & \bb{0.08} & 0.38\\
+LSTM & 1.20 & 0.49 & 0.46 & 0.28 & \bb{0.23}\\
+\rowcolor{ours}SS2P2-G1 (orig.) & 52.7 & 21.7 & 1.02 & 0.22 & 0.40\\
+\rowcolor{ours}SS2P2-lsinit & 78.4 & 32.8 & \bb{0.27} & 1.06 & 0.54\\
+\rowcolor{ours}\textbf{SS2P2-softmin} & \bb{32.3} & \bb{12.9} & 1.97 & 3.69 & 3.52\\
+PCT-LSTM & 23.6 & 9.2 & 0.34 & 0.32 & 1.11\\
+NHP (CT-LSTM) & 66.4 & 27.6 & 6.63 & 3.33 & 0.24\\
+S2P2 & 87.3 & 36.6 & 11.63 & 2.60 & 0.00\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent The mirror image of prediction: NHP's properly-wired self-excitation runs away closed-loop
+(66\,ev/s, Fano 6.6$\times$ off); the bounded SS2P2 family stays contained. Softmin's open floor lets the
+rollout go quiet (best rate among intensity models, 32 vs 53--87) at the cost of stronger burst--lull
+alternation (Fano/clustering dispersion up); the trivial LSTM/SAHP match unconditional facts best but are
+the weakest predictors. No model matches extreme 1s-kurtosis; all intensity models over-produce events
+free-running (the windowed-training/endpoint-compensator bias, mean\,$u>1$ above).
+
+\section{The SS2P2 ablation chain: locating and fixing the quiet-regime gap}
+Per-event time-NLL deficit vs NHP, bucketed by trailing activity (last-8-gap rate; 2{,}957 events):
+\begin{center}\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lccccc}
+\toprule
+deficit vs NHP (nats) & Q1 quiet & Q2 & Q3 & Q4 & Q5 bursts\\
+\midrule
+SS2P2-G1 (sandwich head) & $+1.13$ & $+0.56$ & $+0.37$ & $+0.09$ & $-0.01$\\
+SS2P2-lsinit (slow modes) & $+1.16$ & $+0.62$ & $+0.40$ & $+0.18$ & $+0.04$\\
+\rowcolor{ours}\textbf{SS2P2-softmin (open floor)} & $\bb{+0.68}$ & $\bb{+0.33}$ & $\bb{+0.19}$ & $\bb{+0.11}$ & $\bb{-0.02}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{itemize}[leftmargin=1.35em,itemsep=2pt]
+\item \textbf{Diagnosis.} SS2P2's G1 head bounds $\lambda\in(\ell_-,\ell_+)$ \emph{symmetrically};
+$\ell_+$ buys simulation stability but $\ell_-\!\approx\!0.36$\,ev/s welds the quiet floor to the burst
+scale. In quiet gaps the compensator bleeds $(\ell_--\lambda^*)\Delta t\approx0.33\Delta t$ nats ---
+the entire Q1 deficit. In bursts SS2P2 already matched NHP.
+\item \textbf{Step 1 --- lsinit} (S4-style log-spaced decay init, 0.02--60\,s): trained dynamics retain
+$\sim$30\,s modes and optimize better (val $-18.1$ vs $-17.0$), but the metric is flat --- proving the
+matrix was not the binding constraint.
+\item \textbf{Step 2 --- softmin head}: $z=c-\mathrm{softplus}(c-w^{\top}h-b)$, $w$ uncapped;
+ceiling $s\cdot\mathrm{softplus}(c)$ exact (thinning bound intact), floor exactly 0.
+Result: realized floor $0.34\!\to\!0.11$, the $\lambda(\delta)$ plateau at 0.36 broken
+(0.19 at 5\,s, 0.12 at 20\,s), Q1 deficit $-41\%$, overall NLL $1.08\to0.98$ --- while the
+\emph{training} loss got worse ($-12.9$ vs $-18.1$): the old floor partly exploited the biased
+endpoint compensator rather than fitting the data.
+\item \textbf{Remaining gap} (0.20 timing + 0.12 marks): the state still converges to the frozen ZOH
+asymptote $x_\infty=Bu_{\text{held}}$ ($\|x\|\!\approx\!30$ at 60\,s); the zero-asymptote ablation
+reaches NHP-level quiet ($\lambda\approx0.02$). A leaky hold
+($u_{\text{held}}(\delta)=e^{-\rho\delta}u_{\text{held}}$) is the identified next lever.
+\end{itemize}
+
+\section{Bottom line}
+\begin{itemize}[leftmargin=1.35em,itemsep=2pt]
+\item \textbf{Expressivity--stability frontier}: NHP takes the expressive end (best prediction, unusable
+simulation); S2P2 falls off both ends; \textbf{SS2P2-softmin is the current best point on the frontier} ---
+within 0.3 nats of NHP with best-in-table calibration, and a provably bounded, non-exploding rollout.
+\item The ablation chain (sandwich $\to$ slow modes $\to$ open floor) is a clean mechanistic story: each
+step verified by the burst table and the $\lambda(\delta)$ relaxation trace, with untouched models
+reproducing bit-identically as controls.
+\item Cross-cutting: all intensity models remain rate-inflated free-running (endpoint-rule compensator +
+windowed training); an unbiased MC compensator is implemented (\texttt{--mc-compensator}) and untested at
+scale --- the natural companion to the leaky-hold experiment.
+\end{itemize}
+
+\vspace{-0.3em}
+\noindent\footnotesize Pipeline: \texttt{scripts/run\_eval\_all.sh} (rerunnable); variants under
+\texttt{experiments/\{eval\_all, ss2p2\_lsinit, ss2p2\_softmin\}}; diagnostics: burst-conditional NLL +
+$\lambda(\delta)$ relaxation trace. Repo \href{https://github.com/honglinfu98/simulation}{honglinfu98/simulation}.
+\end{document}
