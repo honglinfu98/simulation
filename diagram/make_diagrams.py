@@ -40,15 +40,18 @@ def _save(fig, name):
 
 
 def architecture():
-    fig, ax = plt.subplots(figsize=(9.5, 4.2)); ax.set_xlim(0, 10); ax.set_ylim(0, 4.4); ax.axis("off")
-    ax.text(5, 4.15, r"LGM:  $\lambda_k(t) = \Lambda(t)\,\cdot\,p(k\mid t)$", ha="center",
+    fig, ax = plt.subplots(figsize=(9.5, 5.6)); ax.set_xlim(0, 10); ax.set_ylim(0, 5.9); ax.axis("off")
+    ax.text(5, 5.65, r"SS2P2:  $\lambda_k(t) = \lambda(t)\,\cdot\,p^*(k\mid t)$", ha="center",
             fontsize=16, fontweight="bold", color=NAVY)
-    _box(ax, 0.3, 1.5, 4.3, 2.2, "Linear ground rate  Λ(t)",
-         "multi-timescale linear Hawkes\nΛ = μ₀ + Σₘ aₘ sₘ(t)\n\nrate-pin: μ₀ = R(1−n)  ⇒  Λ̄ = R\nbranching n = Σₘ aₘ/βₘ  (gauge-free)\nFano(∞) = 1/(1−n)²", ec=BLUE)
-    _box(ax, 5.4, 1.5, 4.3, 2.2, "Deep soft-max marks  p(k|t)",
-         "p(·|t) = softmax(z_θ(t))\non the 62-type simplex\n\nrate-neutral: Σₖ pₖ = 1\n⇒ Σₖ λₖ = Λ regardless of\nhow nonlinear the mark net is", ec=GREEN)
+    _box(ax, 2.5, 4.0, 5.0, 1.35, "S2P2 backbone (unchanged)",
+         "stacked latent-linear-Hawkes / diagonal SSM, ZOH\nLayerNorm'd stack output  u(t)  feeds BOTH heads", ec=NAVY)
+    _box(ax, 0.3, 1.5, 4.3, 2.2, "Softmin-bounded rate  λ(t)",
+         "h = σ(W₀u) ⊙ tanh(u) ∈ (−1,1)ᴴ\nz = c − softplus(c − w·h − b)\nλ = s·softplus(z)\n\nz ≤ c ⇒ HARD ceiling s·softplus(c)\n(exact thinning bound); floor exactly 0", ec=BLUE)
+    _box(ax, 5.4, 1.5, 4.3, 2.2, "Rate-neutral marks  p*(k|t)",
+         "p*(·|t) = softmax(MLP(u))\non the 62-type simplex\n\nrate-neutral: Σₖ p*ₖ = 1\n⇒ Σₖ λₖ = λ regardless of\nhow nonlinear the mark net is", ec=GREEN)
     _box(ax, 3.3, 0.15, 3.4, 0.95, "per-type intensity λ_k(t)",
-         "calibrated • certifiable • clustered", fc="#fdf6ec", ec=GREY)
+         "expressive marks on a provably bounded rate", fc="#fdf6ec", ec=GREY)
+    _arrow(ax, 3.6, 4.0, 2.45, 3.7); _arrow(ax, 6.4, 4.0, 7.55, 3.7)
     _arrow(ax, 2.45, 1.5, 4.4, 1.1); _arrow(ax, 7.55, 1.5, 5.6, 1.1)
     fig.tight_layout(); _save(fig, "architecture")
 
@@ -57,8 +60,8 @@ def pipeline():
     stages = [
         ("extract", "raw LOB / trades\n(Kaiko · GCS)"),
         ("process", "62-channel\nevent JSONL"),
-        ("models", "LGM / NMH / GMH\nptp · s2p2"),
-        ("training", "windowed train\n+ rate-pin"),
+        ("models", "SS2P2 (ours)\n+ 6 baselines"),
+        ("training", "windowed train\nidentical config"),
         ("evaluation", "genuine acc · ppl\nstylized facts · MM"),
     ]
     fig, ax = plt.subplots(figsize=(11, 2.3)); ax.set_xlim(0, 11); ax.set_ylim(0, 2.3); ax.axis("off")

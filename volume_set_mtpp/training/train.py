@@ -121,13 +121,6 @@ def train_epoch(model, train_loader, optimizer, device, epoch, writer=None, loss
                 break
             optimizer.step()
 
-            # NMH hard subcriticality projection (post-step): rescale the
-            # excitation so spectral_radius(A/delta) <= nmh_project_rho.  Robust
-            # to per-window NLL scale (long windows otherwise let rho escape).
-            proj = getattr(model, 'nmh_project_rho', 0.0)
-            if proj > 0 and hasattr(model.decoder, 'project_subcritical'):
-                model.decoder.project_subcritical(proj)
-
             total_loss += loss.item()
             pbar.set_postfix({'loss': loss.item()})
 
@@ -249,22 +242,16 @@ def main():
                         help='weight of the 3S/PIT level-calibration term (compensator moments -> Exp(1))')
     parser.add_argument('--set-loss-reduction', choices=['sum', 'mean-labels'], default='sum',
                         help='sum = paper Bernoulli likelihood; mean-labels = average BCE over labels for balancing')
-    parser.add_argument('--nmh-timescales', type=int, default=4,
-                        help='Number of decay timescales M in the LGM linear-Hawkes ground rate')
-    parser.add_argument('--nmh-project-rho', type=float, default=0.0,
-                        help='>0: hard-project the (effective) branching ratio to this value each step (LGM/s2p2)')
     parser.add_argument('--ptp-dim', type=int, default=8,
-                        help='Per-type latent dim d for the per-type s2p2 mark head (lgm / pct-lstm)')
-    parser.add_argument('--lgm-target-rate', type=float, default=1.8,
-                        help='Pinned stationary mean event rate (events/s) for --decoder-type lgm')
-    parser.add_argument('--lgm-vol-feedback', action='store_true',
-                        help='Add the mean-zero QHawkes volatility-feedback term to --decoder-type lgm')
+                        help='Per-type latent dim d for the per-type s2p2 baseline (pct-lstm)')
+    parser.add_argument('--target-rate', type=float, default=1.8, dest='target_rate',
+                        help='Target mean event rate (events/s); initializes the SS2P2 rate-head scale')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lgmssp', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
                         default='hawkes',
-                        help='Decoder/backbone: LGM (ours), or baselines: Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
-                             'RMTPP LSTM, S2P2 diagonal SSM, plain LSTM, SAHP causal attention, '
-                             'per-type parallel CT-LSTM (pct-lstm)')
+                        help='Decoder/backbone: SS2P2 (ours), or baselines: S2P2 diagonal SSM, '
+                             'Neural Hawkes CT-LSTM (hawkes/ct-lstm), RMTPP LSTM, plain LSTM, '
+                             'SAHP causal attention, per-type parallel CT-LSTM (pct-lstm)')
     parser.add_argument('--sahp-heads', type=int, default=4,
                         help='Number of attention heads for --decoder-type sahp')
     parser.add_argument('--sahp-layers', type=int, default=2,
@@ -353,11 +340,8 @@ def main():
         'set_loss_weight': args.set_loss_weight,
         'set_loss_reduction': args.set_loss_reduction,
         'decoder_type': args.decoder_type,
-        'nmh_timescales': args.nmh_timescales,
-        'nmh_project_rho': args.nmh_project_rho,
         'ptp_dim': args.ptp_dim,
-        'lgm_target_rate': args.lgm_target_rate,
-        'lgm_vol_feedback': args.lgm_vol_feedback,
+        'target_rate': args.target_rate,
         's2p2_readout': args.s2p2_readout,
         's2p2_layers': args.s2p2_layers,
         's2p2_dropout': args.s2p2_dropout,

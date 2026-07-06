@@ -2,7 +2,7 @@
 
 Synthetic data only (no cluster / no real data needed). Checks the interface contract:
 state shapes, the anti-leakage rule, intensity positivity + finiteness, gradient flow to
-all parameters, and the branching certificate (if exposed).
+all parameters, and the stability certificate (if exposed).
 
     ./setup_repo.sh  &&  . venv/bin/activate  &&  pytest tests/smoke_decoder.py
     # or, without the venv:  PYTHONPATH=. python3 tests/smoke_decoder.py
@@ -11,8 +11,8 @@ import sys
 import torch
 import torch.nn as nn
 
-from volume_set_mtpp.models.lgm_decoder import PerTypeS2P2Decoder
-from volume_set_mtpp.models.lgm_decoder import LGMDecoder
+from volume_set_mtpp.models.ptp_s2p2_decoder import PerTypeS2P2Decoder
+from volume_set_mtpp.models.ss2p2_decoder import SS2P2SetDecoder
 
 K, B, N = 62, 4, 50
 
@@ -31,9 +31,8 @@ def synth():
 
 def intensity_from_state(dec, h):
     """Per-type intensity from a head-facing state, handling both decoder styles."""
-    if hasattr(dec, "is_lgm") and dec.is_lgm:
-        gd = dec.ground_dim
-        lam = dec.ground_intensity(h[..., :gd]).unsqueeze(-1) * torch.softmax(dec.mark_score(h[..., gd:]), -1)
+    if getattr(dec, "is_ss2p2", False):
+        lam = dec.ground_intensity(h).unsqueeze(-1) * torch.softmax(dec.mark_score(h), -1)
         return lam
     return dec.type_intensities(h)
 
@@ -46,7 +45,15 @@ def check(name, dec):
     # get_hidden_h; `left` and get_hidden_h outputs are the head-facing dim D.
     assert right.shape[:2] == (B, N + 1), f"{name}: right shape {tuple(right.shape)}"
     assert left.shape == (B, N, D), f"{name}: left shape {tuple(left.shape)} != {(B, N, D)}"
-    assert torch.allclose(left[:, 0], torch.zeros_like(left[:, 0])), f"{name}: anti-leakage violated (left[:,0]!=0)"
+
+    # Anti-leakage: left[i] must depend only on events STRICTLY before t_i.
+    # Perturb the LAST event's mark; no left state may change.
+    marks2 = marks.clone()
+    marks2[:, -1] = 0.0
+    marks2[:, -1, 0] = 1.0
+    with torch.no_grad():
+        _, left2 = dec.get_states_and_event_left_states(marks2, ts)
+    assert torch.allclose(left, left2, atol=1e-6), f"{name}: anti-leakage violated (left saw current event's mark)"
 
     lam_ev = intensity_from_state(dec, left)
     assert lam_ev.shape == (B, N, K), f"{name}: lambda(events) shape {tuple(lam_ev.shape)}"
@@ -66,17 +73,24 @@ def check(name, dec):
     n_par = sum(1 for p in dec.parameters() if p.requires_grad)
     assert n_grad >= 1, f"{name}: no parameter received gradient"
 
-    rho = dec.closed_form_rho() if hasattr(dec, "closed_form_rho") else None
-    rho_s = f"rho={rho:.3f}" if rho is not None else "rho=n/a"
+    if hasattr(dec, "rate_bounds"):
+        lo, hi = dec.rate_bounds()
+        assert lam_ev.sum(-1).max() <= hi + 1e-4, f"{name}: rate exceeded its closed-form ceiling"
+        cert = f"rate in [{lo:.2f},{hi:.2f}] (hard ceiling)"
+    elif hasattr(dec, "closed_form_rho"):
+        cert = f"rho={dec.closed_form_rho():.3f}"
+    else:
+        cert = "cert=n/a"
     print(f"  PASS  {name:9s} | state_dim={D:4d} params={n_par:3d} grad={n_grad:3d} | "
-          f"lambda[{lam_ev.min():.3f},{lam_ev.max():.2f}] | {rho_s}")
+          f"lambda[{lam_ev.min():.3f},{lam_ev.max():.2f}] | {cert}")
 
 
 def build():
     emb = nn.Embedding(K, 64)
     return [
         ("ptp", PerTypeS2P2Decoder(channel_embedding=emb, num_channels=K, per_type_dim=8)),
-        ("lgm", LGMDecoder(channel_embedding=emb, num_channels=K, per_type_dim=8, num_timescales=4, target_rate=2.0)),
+        ("ss2p2", SS2P2SetDecoder(channel_embedding=emb, recurrent_hidden_size=64,
+                                  num_channels=K, num_layers=2, target_rate=2.0)),
     ]
 
 

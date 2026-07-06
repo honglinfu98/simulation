@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
   "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="676.8pt" height="294.98625pt" viewBox="0 0 676.8 294.98625" xmlns="http://www.w3.org/2000/svg" version="1.1">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="676.8pt" height="393.263504pt" viewBox="0 0 676.8 393.263504" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-06-20T16:52:13.999856</dc:date>
+    <dc:date>2026-07-07T06:11:22.077684</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -21,8 +21,8 @@
  </defs>
  <g id="figure_1">
   <g id="patch_1">
-   <path d="M 0 294.98625 
-L 676.8 294.98625 
+   <path d="M 0 393.263504 
+L 676.8 393.263504 
 L 676.8 0 
 L 0 0 
 z
@@ -30,108 +30,149 @@ z
   </g>
   <g id="axes_1">
    <g id="patch_2">
-    <path d="M 28.3968 193.407239 
-L 310.5792 193.407239 
-Q 313.2288 193.407239 313.2288 190.856455 
-L 313.2288 53.114114 
-Q 313.2288 50.56333 310.5792 50.56333 
-L 28.3968 50.56333 
-Q 25.7472 50.56333 25.7472 53.114114 
-L 25.7472 190.856455 
-Q 25.7472 193.407239 28.3968 193.407239 
+    <path d="M 174.1248 130.491174 
+L 502.6752 130.491174 
+Q 505.3248 130.491174 505.3248 127.922608 
+L 505.3248 43.802067 
+Q 505.3248 41.233501 502.6752 41.233501 
+L 174.1248 41.233501 
+Q 171.4752 41.233501 171.4752 43.802067 
+L 171.4752 127.922608 
+Q 171.4752 130.491174 174.1248 130.491174 
 z
-" clip-path="url(#p6b4aa5062e)" style="fill: #eef2f7; stroke: #2b6cb0; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#p9bd3a14dca)" style="fill: #eef2f7; stroke: #1f2d4d; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
-    <path d="M 366.2208 193.407239 
-L 648.4032 193.407239 
-Q 651.0528 193.407239 651.0528 190.856455 
-L 651.0528 53.114114 
-Q 651.0528 50.56333 648.4032 50.56333 
-L 366.2208 50.56333 
-Q 363.5712 50.56333 363.5712 53.114114 
-L 363.5712 190.856455 
-Q 363.5712 193.407239 366.2208 193.407239 
+    <path d="M 28.3968 291.026557 
+L 310.5792 291.026557 
+Q 313.2288 291.026557 313.2288 288.457991 
+L 313.2288 149.75542 
+Q 313.2288 147.186854 310.5792 147.186854 
+L 28.3968 147.186854 
+Q 25.7472 147.186854 25.7472 149.75542 
+L 25.7472 288.457991 
+Q 25.7472 291.026557 28.3968 291.026557 
 z
-" clip-path="url(#p6b4aa5062e)" style="fill: #eef2f7; stroke: #2f855a; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#p9bd3a14dca)" style="fill: #eef2f7; stroke: #2b6cb0; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
-    <path d="M 227.1168 279.496202 
-L 449.6832 279.496202 
-Q 452.3328 279.496202 452.3328 276.945418 
-L 452.3328 218.91508 
-Q 452.3328 216.364295 449.6832 216.364295 
-L 227.1168 216.364295 
-Q 224.4672 216.364295 224.4672 218.91508 
-L 224.4672 276.945418 
-Q 224.4672 279.496202 227.1168 279.496202 
+    <path d="M 366.2208 291.026557 
+L 648.4032 291.026557 
+Q 651.0528 291.026557 651.0528 288.457991 
+L 651.0528 149.75542 
+Q 651.0528 147.186854 648.4032 147.186854 
+L 366.2208 147.186854 
+Q 363.5712 147.186854 363.5712 149.75542 
+L 363.5712 288.457991 
+Q 363.5712 291.026557 366.2208 291.026557 
 z
-" clip-path="url(#p6b4aa5062e)" style="fill: #fdf6ec; stroke: #4a5568; stroke-width: 1.6; stroke-linejoin: miter"/>
+" clip-path="url(#p9bd3a14dca)" style="fill: #eef2f7; stroke: #2f855a; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
-    <path d="M 171.447122 192.51873 
-Q 234.071329 204.885634 294.940574 216.905973 
-" clip-path="url(#p6b4aa5062e)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
-    <path d="M 289.281788 212.526687 
-L 294.940574 216.905973 
-L 288.041874 218.80543 
+    <path d="M 227.1168 377.715664 
+L 449.6832 377.715664 
+Q 452.3328 377.715664 452.3328 375.147098 
+L 452.3328 316.712219 
+Q 452.3328 314.143653 449.6832 314.143653 
+L 227.1168 314.143653 
+Q 224.4672 314.143653 224.4672 316.712219 
+L 224.4672 375.147098 
+Q 224.4672 377.715664 227.1168 377.715664 
 z
-" clip-path="url(#p6b4aa5062e)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#p9bd3a14dca)" style="fill: #fdf6ec; stroke: #4a5568; stroke-width: 1.6; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
-    <path d="M 505.352878 192.51873 
-Q 442.728671 204.885634 381.859426 216.905973 
-" clip-path="url(#p6b4aa5062e)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
-    <path d="M 388.758126 218.80543 
-L 381.859426 216.905973 
-L 387.518212 212.526687 
+    <path d="M 243.725194 129.697198 
+Q 207.573982 138.839524 173.157028 147.543272 
+" clip-path="url(#p9bd3a14dca)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 180.146249 149.0765 
+L 173.157028 147.543272 
+L 178.577143 142.871832 
 z
-" clip-path="url(#p6b4aa5062e)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+" clip-path="url(#p9bd3a14dca)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 433.074806 129.697198 
+Q 469.226018 138.839524 503.642972 147.543272 
+" clip-path="url(#p9bd3a14dca)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 498.222857 142.871832 
+L 503.642972 147.543272 
+L 496.653751 149.0765 
+z
+" clip-path="url(#p9bd3a14dca)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 171.447122 290.131855 
+Q 234.071329 302.584972 294.941035 314.689197 
+" clip-path="url(#p9bd3a14dca)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 289.288054 310.30242 
+L 294.941035 314.689197 
+L 288.039825 316.579515 
+z
+" clip-path="url(#p9bd3a14dca)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 505.352878 290.131855 
+Q 442.728671 302.584972 381.858965 314.689197 
+" clip-path="url(#p9bd3a14dca)" style="fill: none; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
+    <path d="M 388.760175 316.579515 
+L 381.858965 314.689197 
+L 387.511946 310.30242 
+z
+" clip-path="url(#p9bd3a14dca)" style="fill: #1f2d4d; stroke: #1f2d4d; stroke-width: 1.6; stroke-linecap: round"/>
    </g>
    <g id="text_1">
-    <!-- LGM:  $\lambda_k(t) = \Lambda(t)\,\cdot\,p(k\mid t)$ -->
-    <g style="fill: #1f2d4d" transform="translate(233.28 23.142401)">
+    <!-- SS2P2:  $\lambda_k(t) = \lambda(t)\,\cdot\,p^*(k\mid t)$ -->
+    <g style="fill: #1f2d4d" transform="translate(219.52 23.253538)">
      <text>
-      <tspan style="font: 700 16px 'DejaVu Sans'" x="0 10.195312 23.328125 39.25 45.648438 51.21875" y="-0.65625">LGM:  </tspan>
-      <tspan style="font: oblique 16px 'DejaVu Sans'" x="56.789062 79.423438 128.767188 157.798541 174.196979 197.696979" y="-0.65625">λttpkt</tspan>
-      <tspan style="font: oblique 11.2px 'DejaVu Sans'" x="66.257812" y="1.96875">k</tspan>
-      <tspan style="font: 16px 'DejaVu Sans'" x="73.18125 85.696875 95.05625 111.579688 122.525 135.040625 146.997708 167.954791 186.579791 203.970416" y="-0.65625">()=Λ()⋅(∣)</tspan>
+      <tspan style="font: 700 16px 'DejaVu Sans'" x="0 11.523438 23.046875 34.179688 45.90625 57.039062 63.4375 69.007812" y="-0.5625">SS2P2:  </tspan>
+      <tspan style="font: oblique 16px 'DejaVu Sans'" x="74.578125 97.2125 129.36875 145.079688 174.111041 201.65625 225.15625" y="-0.5625">λtλtpkt</tspan>
+      <tspan style="font: oblique 11.2px 'DejaVu Sans'" x="84.046875" y="2.0625">k</tspan>
+      <tspan style="font: 16px 'DejaVu Sans'" x="90.970313 103.485938 112.845313 138.8375 151.353125 163.310208 195.414062 214.039062 231.429687" y="-0.5625">()=()⋅(∣)</tspan>
+      <tspan style="font: 11.2px 'DejaVu Sans'" x="187.194531" y="-6.6875">*</tspan>
      </text>
     </g>
    </g>
    <g id="text_2">
-    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="169.488" y="69.246895" transform="rotate(-0 169.488 69.246895)">Linear ground rate  Λ(t)</text>
+    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="338.4" y="59.983749" transform="rotate(-0 338.4 59.983749)">S2P2 backbone (unchanged)</text>
    </g>
    <g id="text_3">
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(106.159875 79.903074)">multi-timescale linear Hawkes</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(127.020094 89.309236)">Λ = μ₀ + Σₘ aₘ sₘ(t)</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(169.488 98.715399)"/>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(103.76325 108.121561)">rate-pin: μ₀ = R(1−n)  ⇒  Λ̄ = R</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(90.804937 117.590724)">branching n = Σₘ aₘ/βₘ  (gauge-free)</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(128.783437 126.996886)">Fano(∞) = 1/(1−n)²</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(233.2425 70.733284)">stacked latent-linear-Hawkes / diagonal SSM, ZOH</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(232.132125 80.139446)">LayerNorm'd stack output  u(t)  feeds BOTH heads</text>
    </g>
    <g id="text_4">
-    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="507.312" y="69.299395" transform="rotate(-0 507.312 69.299395)">Deep soft-max marks  p(k|t)</text>
+    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="169.488" y="165.937102" transform="rotate(-0 169.488 165.937102)">Softmin-bounded rate  λ(t)</text>
    </g>
    <g id="text_5">
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(458.747531 79.968699)">p(·|t) = softmax(z_θ(t))</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(458.664844 89.608486)">on the 62-type simplex</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(507.312 99.014649)"/>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(460.401281 108.420811)">rate-neutral: Σₖ pₖ = 1</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(454.723406 117.826974)">⇒ Σₖ λₖ = Λ regardless of</text>
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(444.234563 127.233136)">how nonlinear the mark net is</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(102.73425 176.686637)">h = σ(W₀u) ⊙ tanh(u) ∈ (−1,1)ᴴ</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(108.041344 186.092799)">z = c − softplus(c − w·h − b)</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(135.316406 195.498962)">λ = s·softplus(z)</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(169.488 204.905124)"/>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(98.41875 214.311287)">z ≤ c ⇒ HARD ceiling s·softplus(c)</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(88.712812 223.717449)">(exact thinning bound); floor exactly 0</text>
    </g>
    <g id="text_6">
-    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="338.4" y="235.047861" transform="rotate(-0 338.4 235.047861)">per-type intensity λ_k(t)</text>
+    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="507.312" y="165.989602" transform="rotate(-0 507.312 165.989602)">Rate-neutral marks  p*(k|t)</text>
    </g>
    <g id="text_7">
-    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="338.4" y="245.70404" transform="rotate(-0 338.4 245.70404)">calibrated • certifiable • clustered</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(454.010063 176.723387)">p*(·|t) = softmax(MLP(u))</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(458.664844 186.363174)">on the 62-type simplex</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(507.312 195.769337)"/>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(458.301281 205.175499)">rate-neutral: Σₖ p*ₖ = 1</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(455.110594 214.581662)">⇒ Σₖ λₖ = λ regardless of</text>
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(444.234563 223.987824)">how nonlinear the mark net is</text>
+   </g>
+   <g id="text_8">
+    <text style="fill: #1f2d4d; font: 700 12px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="338.4" y="332.893901" transform="rotate(-0 338.4 332.893901)">per-type intensity λ_k(t)</text>
+   </g>
+   <g id="text_9">
+    <text style="fill: #4a5568; font: 8.4px 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="338.4" y="343.643435" transform="rotate(-0 338.4 343.643435)">expressive marks on a provably bounded rate</text>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p6b4aa5062e">
-   <rect x="7.2" y="7.2" width="662.4" height="280.58625"/>
+  <clipPath id="p9bd3a14dca">
+   <rect x="7.2" y="7.2" width="662.4" height="378.863504"/>
   </clipPath>
  </defs>
 </svg>

@@ -33,7 +33,7 @@ case "$SGE_TASK_ID" in
   4) TAG=ct-lstm;  EXTRA="--decoder-type ct-lstm" ;;
   5) TAG=pct-lstm; EXTRA="--decoder-type pct-lstm --ptp-dim 8" ;;
   6) TAG=s2p2;     EXTRA="--decoder-type s2p2 --s2p2-layers 2 --s2p2-readout output" ;;
-  7) TAG=ss2p2;    EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --lgm-target-rate $TARGET_RATE" ;;
+  7) TAG=ss2p2;    EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate $TARGET_RATE" ;;
   *) echo "no config for task $SGE_TASK_ID"; exit 1 ;;
 esac
 

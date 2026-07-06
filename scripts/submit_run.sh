@@ -3,9 +3,9 @@
 # qsub it via the shared ControlMaster, and register the run for the watcher.
 #
 #   bash scripts/hpc-common.sh open            # once: seed the SSH master
-#   bash scripts/submit_run.sh --tag lgm086 --decoder lgm \
-#        --extra "--decoder-type lgm --nmh-timescales 4 --ptp-dim 8 \
-#                 --lgm-target-rate 2.381 --nmh-project-rho 0.86 --mark-head categorical"
+#   bash scripts/submit_run.sh --tag ss2p2 --decoder ss2p2 \
+#        --extra "--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 \
+#                 --target-rate 3.77 --mark-head categorical"
 #
 # Notes: gpu_type=h100/a100_80 are gated for this account, so the renderer forces
 # plain `-l gpu=true`. The run script itself cd's into $HPC_RUN_HOME on the cluster.

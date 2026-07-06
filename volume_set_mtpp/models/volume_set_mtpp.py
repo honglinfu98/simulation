@@ -18,17 +18,9 @@ try:
 except Exception:  # keep old checkpoints importable if optional file is absent
     S2P2SetDecoder = None
 try:
-    from .lgm_decoder import PerTypeS2P2Decoder  # folded into lgm_decoder (LGM's mark head)
+    from .ptp_s2p2_decoder import PerTypeS2P2Decoder  # per-type parallel CT-LSTM baseline
 except Exception:
     PerTypeS2P2Decoder = None
-try:
-    from .lgm_decoder import LGMDecoder
-except Exception:
-    LGMDecoder = None
-try:
-    from .lgm_ssp_decoder import LGMSSPDecoder  # LGM heads on an S2P2 state-space backbone
-except Exception:
-    LGMSSPDecoder = None
 try:
     from .ss2p2_decoder import SS2P2SetDecoder  # S2P2 backbone + G1 bounded rate x rate-neutral marks
 except Exception:
@@ -260,35 +252,13 @@ class VolumeSetMTPP(PPModel):
         """
         batch_size, num_events, state_size = h_t.shape
 
-        # Neural Multivariate Hawkes (and its gated GMH variant): the decoder
-        # exposes per-type intensities directly via type_intensities (NMH:
-        # softplus(mu+A.S); GMH: linear backbone x bounded s2p2 gate).  Ground
-        # intensity is the sum and the mark distribution is lambda_k / sum -- the
-        # categorical head falls out, so we bypass the generic split/heads.
-        # LGM: linear ground rate (exact mean) x deep softmax marks. Total
-        # intensity is the scalar ground Lambda; the mark logits feed the simplex.
         # SS2P2: decoupled (rate-neutral) heads on the S2P2 backbone embedding u.
-        # Both heads read the SAME full embedding h_t = u (no split): the G1
+        # Both heads read the SAME full embedding h_t = u (no split): the
         # gated-bounded total rate lambda(u) and the softmax mark head p*(k|u).
         # channel_intensity = lambda * p is exactly rate-neutral (sum_k = lambda).
         if getattr(self.decoder, "is_ss2p2", False):
             Lam = self.decoder.ground_intensity(h_t).unsqueeze(-1)     # [B,N,1]
             z = self.decoder.mark_score(h_t, state_features)           # [B,N,K]
-            p = torch.softmax(z, dim=-1)
-            return {
-                "total_intensity": Lam,
-                "item_logits": z,
-                "item_probability": p,
-                "channel_intensity": Lam * p,
-            }
-
-        if getattr(self.decoder, "is_lgm", False):
-            hg = h_t[..., :self.decoder.ground_dim]
-            hm = h_t[..., self.decoder.ground_dim:]
-            Lam = self.decoder.ground_intensity(hg).unsqueeze(-1)      # [B,N,1]
-            # Stage-2: book/action features (if provided) condition the mark logits
-            # only -> rate-neutral, so Lam (calibration + certificate) is untouched.
-            z = self.decoder.mark_score(hm, state_features)           # [B,N,K] mark logits
             p = torch.softmax(z, dim=-1)
             return {
                 "total_intensity": Lam,
@@ -710,7 +680,7 @@ class VolumeSetMTPP(PPModel):
 
         rho_val = None
         if getattr(self, "subcritical_weight", 0.0) > 0.0:
-            # Decoders exposing a distributed subcritical_penalty (NMH) bound
+            # Decoders exposing a distributed subcritical_penalty bound
             # every row of the branching matrix at once -- the relu wrapper below
             # only back-props to the infinity-norm argmax row (ineffective for a
             # K x K excitation matrix).  Prefer the distributed form when present.
@@ -876,19 +846,6 @@ def create_volume_set_mtpp(
         if config.get('s2p2_readout', 'state') == 'output' and config.get('subcritical_closed', False):
             raise ValueError("subcritical_closed assumes the legacy state readout; "
                              "use --subcritical-empirical with --s2p2-readout output")
-    elif decoder_type == 'lgm':
-        if LGMDecoder is None:
-            raise ImportError('LGMDecoder is unavailable')
-        decoder = LGMDecoder(
-            channel_embedding=channel_embedding,
-            time_embedding=time_embedding,
-            num_channels=num_channels,
-            per_type_dim=config.get('ptp_dim', 8),
-            num_timescales=config.get('nmh_timescales', 4),
-            target_rate=config.get('lgm_target_rate', 1.8),
-            vol_feedback=config.get('lgm_vol_feedback', False),
-            cond_dim=(config.get('lob_state_dim', 6) if config.get('lob_state_input', False) else 0),
-        )
     elif decoder_type == 'ss2p2':
         if SS2P2SetDecoder is None:
             raise ImportError('SS2P2SetDecoder is unavailable')
@@ -900,21 +857,11 @@ def create_volume_set_mtpp(
             num_layers=config.get('s2p2_layers', 2),
             dropout=config.get('s2p2_dropout', 0.0),
             input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
-            target_rate=config.get('lgm_target_rate', 40.6),
+            # 'lgm_target_rate' is the legacy config key -- kept as a fallback so
+            # checkpoints saved before the SS2P2 rename still rebuild correctly.
+            target_rate=config.get('target_rate', config.get('lgm_target_rate', 40.6)),
             wnorm_cap=config.get('ss2p2_wnorm_cap', 6.0),
             mark_hidden=config.get('ss2p2_mark_hidden', None),
-        )
-    elif decoder_type == 'lgmssp':
-        if LGMSSPDecoder is None:
-            raise ImportError('LGMSSPDecoder is unavailable')
-        decoder = LGMSSPDecoder(
-            channel_embedding=channel_embedding,
-            time_embedding=time_embedding,
-            recurrent_hidden_size=config['recurrent_hidden_size'],
-            num_channels=num_channels,
-            num_modes=config.get('llh_modes') or config['recurrent_hidden_size'],
-            target_rate=config.get('lgm_target_rate', 1.8),
-            n_cap=(config.get('nmh_project_rho') or 0.99),   # branching cap; --nmh-project-rho
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(
@@ -967,8 +914,8 @@ def create_volume_set_mtpp(
             per_type_dim=config.get('ptp_dim', 8),
         )
     else:
-        raise ValueError(f"Unknown decoder_type {decoder_type!r}; expected 'hawkes', 'rmtpp', "
-                         "'s2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', or 'nmh'")
+        raise ValueError(f"Unknown decoder_type {decoder_type!r}; expected 'ss2p2', 's2p2', "
+                         "'hawkes', 'rmtpp', 'lstm', 'sahp', 'ct-lstm', or 'pct-lstm'")
 
     # Create model
     model = VolumeSetMTPP(
@@ -1005,10 +952,6 @@ def create_volume_set_mtpp(
     # Unbiased MC compensator (Mei & Eisner style) instead of the endpoint rule.
     model.mc_compensator = bool(config.get('mc_compensator', False))
     model.mc_samples = int(config.get('mc_samples', 32))
-
-    # Hard subcriticality projection threshold for NMH (applied post-step in the
-    # training loop): 0 disables.  Robust to loss scale unlike the soft penalty.
-    model.nmh_project_rho = float(config.get('nmh_project_rho', 0.0))
 
     return model.to(device)
 

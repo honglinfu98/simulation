@@ -6,8 +6,8 @@ maker when it is mispriced. This makes **markout / adverse selection real**
 (negative), which Stage-1's unconditioned flow could not produce. It is exactly
 what an RL maker must learn to manage.
 
-Mechanism (analytical informed-flow proxy; the trained book-conditioned LGM mark
-head plugs in via `flow_fn` to make this realistic):
+Mechanism (analytical informed-flow proxy; a trained book-conditioned mark
+head, e.g. SS2P2's, plugs in via `flow_fn` to make this realistic):
 - a latent FAIR value f_t random-walks (the information the maker can't see directly);
 - the maker only sees the mid and quotes A-S around it;
 - each event, with prob `informed_frac` the aggressor is INFORMED: it buys the
@@ -65,7 +65,7 @@ def run(policy, n=20000, rate=2.4, *, tick=0.01, quote_size=1.0,
         spread_ticks = (ask - bid) / tick                          # for the informed-flow threshold
         # decide aggressor side, conditioned on the maker's quotes vs fair
         if flow_fn is not None:
-            side, informed = flow_fn(mid, fair, bid, ask, q, rng)  # external (e.g. LGM) hook
+            side, informed = flow_fn(mid, fair, bid, ask, q, rng)  # external flow-model hook
         elif rng.random() < informed_frac:
             informed = True
             if ask < fair - 0.5 * spread_ticks * tick:    side = +1   # ask too cheap -> informed buys

@@ -1,0 +1,15 @@
+\begin{abstract}
+
+
+The \acf{lob} is the core mechanism of crypto centralized exchanges by continuously recording bids and asks to facilitate price discovery and maintain liquidity, yet it is also the primary channel through which most forms of cryptocurrency market manipulation are executed. Prior studies have examined pump-and-dump schemes and wash tradings which undermine the integrity of the market, but these approaches operate at the token or exchange level, leaving open the critical question of which specific orders or order flows are manipulative. Without this granularity, regulators and exchanges lack actionable countermeasures against specific manipulators. 
+To address this gap, we introduce the \acs{tfow} framework, which constructs atomic order events from synchronized trade and order book update data, and models their dynamics with a set-valued marked temporal point process (\ac{setmtpp}). Leveraging the learned intensity function, we rescale inter-arrival times and apply the sum-of-squared-spacings (3S) statistic for principled anomaly detection at the sequence level. Detected anomalies are then localized through \ac{setmtpp}-based probabilistic queries, which  provide timestamp-level resolution and surface rare temporal motifs characteristic of manipulative behavior. 
+%results
+
+Our \ac{tfow} [PLACEHOLDER FOR RESULTS]. 
+%final takeaway
+
+Overall, \ac{tfow} delivers interpretable order-level anomaly detection and equips regulators and exchanges with actionable tools for market integrity, offering a generalizable framework for identifying anomalous event flows in continuous time.
+
+
+
+\end{abstract}

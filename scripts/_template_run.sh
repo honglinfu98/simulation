@@ -22,11 +22,11 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 DATA=/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks
 CACHE=$DATA/.tensor_cache_seq50_stride32
 SEED=1
-TAG=TAG                 # <- e.g. lgm086
-DECODER=DECODER         # <- lgm (the model) | s2p2 | hawkes | rmtpp (baselines)
+TAG=TAG                 # <- e.g. ss2p2
+DECODER=DECODER         # <- ss2p2 (the model) | s2p2 | hawkes | rmtpp (baselines)
 EXTRA="--mark-head categorical"   # <- decoder-specific flags, e.g.:
-# lgm:  --decoder-type lgm --nmh-timescales 4 --ptp-dim 8 --lgm-target-rate 2.381 --nmh-project-rho 0.86 --mark-head categorical
-# s2p2: --decoder-type s2p2 --s2p2-readout output --mark-head categorical
+# ss2p2: --decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate 3.77 --mark-head categorical
+# s2p2:  --decoder-type s2p2 --s2p2-readout output --mark-head categorical
 
 BASE="experiments/gmni_marks_${TAG}_$(date +%Y%m%d_%H%M%S)"; mkdir -p "$BASE"; M="$BASE/master.log"
 log(){ echo "$@" | tee -a "$M"; }

@@ -1,174 +1,69 @@
-\section{Method}
+\section{Method: SS2P2}
 \label{sec:method}
 
-\subsection{Stationary-Mean Calibration for Set-Valued Hawkes Ground Intensity}
-\label{subsec:hawkes_mean_calibration}
-
-We model order-book event streams as a sequence of set-valued continuous-time events
+\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
+mark distribution, both reading the \emph{same} backbone embedding $u(t)$:
 \[
-\mathcal{H}_T=\{(t_i,x_i)\}_{i=1}^{N_T},
+\lambda_k(t)\;=\;\lambda(t)\cdot p^*(k\mid t),
 \qquad
-x_i \in \mathcal{X}:=\mathcal{P}(\{1,\ldots,K\}),
+\sum_k \lambda_k(t)=\lambda(t)\ \ \text{since}\ \sum_k p^*(k\mid t)=1 .
 \]
-where $x_i$ denotes the subset of event types that occur simultaneously at time $t_i$.
-Following the set-valued temporal point process formulation of Chang, Boyd, and
-Smyth~\cite{chang2024probabilistic}, we separate the temporal arrival process from the
-conditional set distribution. Specifically, the set-specific intensity is written as
-\[
-\lambda_x^*(t)=\lambda^*(t)\,p^*(x\mid t),
-\qquad x\in\mathcal{X},
-\]
-where $\lambda^*(t)$ is the ground intensity of set-event arrivals and $p^*(x\mid t)$ is a
-normalized distribution over subsets. Thus,
-\[
-\sum_{x\in\mathcal{X}}\lambda_x^*(t)
-=\lambda^*(t)\sum_{x\in\mathcal{X}}p^*(x\mid t)
-=\lambda^*(t).
-\]
-The set head is therefore rate-neutral: it redistributes probability mass across possible
-simultaneous event sets but does not change the total arrival rate.
+The design principle is to put nonlinearity where it cannot perturb the rate.
 
-In the Dynamic Bernoulli version of Chang et al.'s set model, the conditional distribution
-over subsets is factorized as
-\[
-p_\omega(x\mid t,h_\theta(t))
-=\prod_{k=1}^{K}
-\rho_k(t)^{\mathbf{1}(k\in x)}
-\bigl(1-\rho_k(t)\bigr)^{\mathbf{1}(k\notin x)},
-\]
-where
-\[
-\rho_k(t)=\sigma\!\left(v_k^\top n(h_\theta(t))+b_k\right).
-\]
-Here, $h_\theta(t)$ summarizes the history before time $t$, $n(\cdot)$ is a feed-forward
-network, and $\rho_k(t)$ is the conditional probability that item $k$ appears in the next
-set. When set embeddings are required as recurrent inputs, Chang et al.\ represent a
-non-empty set by the average of its item embeddings:
-\[
-e(x)=\frac{1}{|x|}\sum_{k\in x}w_k,
-\qquad x\neq\emptyset,
-\]
-and set $e(\emptyset)=0$. This construction allows us to model simultaneous order-book
-events without expanding the mark space into $2^K$ independent labels.
+\subsection{Softmin-bounded rate head}
+From the LayerNorm'd (hence bounded-scale) embedding $u$, a gate produces a
+two-sided-bounded state, which is read out through a smooth one-sided cap:
+\begin{align}
+o(u) &= \sigma(W_o u + b_o)\in(0,1)^H, &
+h(u) &= o(u)\odot\tanh(u)\in(-1,1)^H,\notag\\
+z_{\mathrm{raw}} &= w^{\!\top}h+b \ \ (\text{unconstrained}), &
+z &= c-\mathrm{softplus}\bigl(c-z_{\mathrm{raw}}\bigr),\notag\\
+\lambda(t) &= s\cdot\mathrm{softplus}(z), &&
+\label{eq:softmin}
+\end{align}
+with a learnable positive scale $s$ initialized so the baseline rate matches a target
+rate ($h\!\to\!0 \Rightarrow \lambda \approx s\ln 2$).
 
-We now calibrate the ground intensity $\lambda^*(t)$, denoted below by $\Lambda(t)$, using a
-linear Hawkes process with an exponential-mixture kernel:
+Two properties follow immediately from Eq.~\eqref{eq:softmin}:
+\begin{itemize}
+\item \textbf{Hard ceiling (simulation stability).} $z\le c$ always, hence
+  $\lambda(t)\le s\cdot\mathrm{softplus}(c)$ in closed form. This is an \emph{exact}
+  dominating rate for Ogata thinning --- the roll-out cannot run away, whatever state
+  the closed loop visits.
+\item \textbf{Open floor (prediction honesty).} As $z_{\mathrm{raw}}\to-\infty$,
+  $z\to z_{\mathrm{raw}}$, so $\lambda \sim s\,e^{z_{\mathrm{raw}}}\to 0$ and
+  $\log\lambda$ keeps unit gradient in the quiet regime. The floor is exactly zero.
+\end{itemize}
+The asymmetry is the point. Our original G1 head bounded $z$ on \emph{both} sides
+(an $\ell_1$-capped readout of the gated state), giving
+$\lambda\in(\ell_-,\ell_+)$ with $\ell_-\approx 0.36$\,ev/s. The ceiling
+$\ell_+$ buys stability, but the nonzero floor welds the quiet regime to the burst
+scale: in a quiet gap of length $\Delta t$ the compensator bleeds
+$(\ell_--\lambda^{\mathrm{true}})\Delta t$ nats that no parameter setting can
+recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
+prediction --- and the softmin cap builds exactly that asymmetry into the
+nonlinearity (the ablation chain in the Experiments section quantifies the effect).
+
+\subsection{Rate-neutral mark head}
+Marks read the same $u$ but never change the total rate:
 \[
-\Lambda(t)=\mu_0+\int_0^t \varphi(t-u)\,dN(u),
+p^*(k\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(u)\bigr)_k,
 \qquad
-\varphi(\tau)=\sum_{m=1}^{M}a_m e^{-\delta_m \tau}.
+\lambda_k(t)=\lambda(t)\,p^*(k\mid t).
 \]
-Here, $N(t)$ counts set-event arrivals, i.e., $dN(t)$ increments once when a subset $x_i$
-occurs, regardless of its cardinality. Equivalently, defining the decayed trace
-\[
-s_m(t)=\sum_{t_i<t} e^{-\delta_m(t-t_i)},
-\]
-the ground intensity can be written as $\Lambda(t)=\mu_0+\sum_{m=1}^{M}a_m s_m(t)$.
+Because the soft-max lives on the simplex, the mark network can be arbitrarily deep
+--- or later conditioned on exogenous state such as an agent's resting quotes ---
+without touching $\lambda$. This decouples the two failure modes: rate stability is
+owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 
-Let $\bar{\Lambda}=\mathbb{E}[\Lambda(t)]$ denote the stationary mean ground rate. Under
-stationarity, $\mathbb{E}[dN(u)]=\bar{\Lambda}\,du$. Taking expectations in the Hawkes
-intensity equation gives the fixed-point relation
-\[
-\bar{\Lambda}
-=\mu_0+\int_0^\infty \varphi(\tau)\,\bar{\Lambda}\,d\tau
-=\mu_0+\bar{\Lambda}\,n,
-\]
-where
-\[
-n:=\int_0^\infty \varphi(\tau)\,d\tau
-=\sum_{m=1}^{M}a_m\int_0^\infty e^{-\delta_m\tau}\,d\tau
-=\sum_{m=1}^{M}\frac{a_m}{\delta_m}
-\]
-is the branching ratio. Solving the fixed-point equation yields
-\[
-\bar{\Lambda}=\frac{\mu_0}{1-n},\qquad n<1.
-\]
-Therefore, if we set $\mu_0=R_{\mathrm{target}}(1-n)$, then
-\[
-\bar{\Lambda}=\frac{R_{\mathrm{target}}(1-n)}{1-n}=R_{\mathrm{target}}.
-\]
-The stationary mean ground rate is therefore pinned exactly to the target rate
-$R_{\mathrm{target}}$, provided the process remains subcritical.
-
-In implementation, the excitation parameters are constrained to be non-negative, e.g.,
-$a_m=\operatorname{softplus}(\tilde{a}_m)$, and the branching ratio is computed on each
-forward pass as
-\[
-n=\sum_{m=1}^{M}\frac{\operatorname{softplus}(\tilde{a}_m)}{\delta_m}.
-\]
-We then set $\mu_0=R_{\mathrm{target}}(1-n)$ after projecting or clipping $n$ below one.
-This makes the base rate a deterministic function of the excitation mass rather than an
-independently learned parameter. Consequently, the optimizer can learn the temporal
-clustering shape through $a_m/\delta_m$, but it cannot inflate the long-run mean event
-rate. Since the Chang-style conditional set distribution is normalized over subsets, the
-set head changes only the composition of simultaneous events and leaves the scalar Hawkes
-mean calibration unchanged.
-
-\subsection{Set-Valued and Single-Item Output as a Mark-Head Choice}
-\label{subsec:mark_head_choice}
-
-A useful consequence of the factorization $\lambda_x^*(t)=\Lambda(t)\,p^*(x\mid t)$ is that
-the timing model and the calibration are \emph{agnostic} to the support of the mark
-distribution $p^*(\cdot\mid t)$. The ground rate $\Lambda(t)$ counts set-event arrivals
-(one increment per timestamp, irrespective of cardinality), so the branching ratio $n$ and
-the rate pin $\mu_0=R_{\mathrm{target}}(1-n)$ are defined entirely on the arrival clock and
-are untouched by how the mark mass is distributed. The single-item versus set-valued
-distinction is therefore a localized \emph{mark-head} choice over the support of $p^*$.
-
-Write $\mathcal{X}=\mathcal{P}(\{1,\ldots,K\})$. Both heads consume the same per-type
-logits $z_k=z_k(h_\theta(t))$ and differ only in the final normalization and likelihood:
-
-\paragraph{Single-item (categorical) head.} The support is restricted to the singletons
-$\{k\}$, and $p^*$ is a soft-max over types,
-\[
-p^*(\{k\}\mid t)=\frac{e^{z_k}}{\sum_{j=1}^{K}e^{z_j}},
-\qquad
-\sum_{k=1}^{K}p^*(\{k\}\mid t)=1,
-\]
-trained by categorical cross-entropy. Each arrival is one event type.
-
-\paragraph{Set-valued (Dynamic Bernoulli) head.} The support is the full power set, and
-$p^*$ factorizes into independent per-type Bernoullis with $\rho_k=\sigma(z_k)$,
-\[
-p^*(x\mid t)=\prod_{k\in x}\rho_k\prod_{k\notin x}\bigl(1-\rho_k\bigr),
-\]
-trained by the summed per-type Bernoulli log-likelihood. Each arrival is a subset of
-event types, modelling genuine simultaneity.
-
-\paragraph{Both heads are rate-neutral, so calibration is preserved either way.}
-Rate-neutrality is the statement $\sum_{x}p^*(x\mid t)=1$ over the chosen support, which
-holds in both cases: the soft-max sums to one over the $K$ singletons, while the
-product-of-Bernoullis sums to one over the entire power set,
-\[
-\sum_{x\subseteq\{1,\ldots,K\}}\;\prod_{k\in x}\rho_k\prod_{k\notin x}(1-\rho_k)
-=\prod_{k=1}^{K}\bigl(\rho_k+(1-\rho_k)\bigr)=1.
-\]
-In either case $\sum_{x}\lambda_x^*(t)=\Lambda(t)$, so the stationary-mean pin
-$\bar{\Lambda}=R_{\mathrm{target}}$ and the branching certificate are independent of the
-mark-head choice. A single event is simply the singleton $x=\{k\}$ ($|x|=1$), so the
-set-valued formulation subsumes single-item output as a special case, and the multi-hot
-event encoding represents it natively.
-
-The practical guidance follows directly: pick the head to match the data, not the timing
-model. When arrivals are effectively atomic, the categorical head is exact and economical;
-when simultaneity ($|x|>1$) is material, the Dynamic Bernoulli head represents it
-faithfully, while the categorical head must collapse each set to a single representative
-type and is then a lossy approximation. Crucially, switching between the two changes only
-the mark head's activation and likelihood---never the ground rate, its calibration, or the
-set-valued input encoding.
-
-\paragraph{The mark head and the PCT-LSTM ablation.}
-Concretely, \textsc{lgm}'s mark logits $z_k(t)$ are produced by a \emph{per-type
-parallel} recurrent network---each event type carries its own decaying latent with a
-weight-shared nonlinear read-out (the per-type continuous-time structure of Shi and
-Cartlidge~\cite{Shi2022StateSimulation}). \textsc{lgm} uses this network for the marks
-\emph{only}: its scores are placed on the simplex by the soft-max and multiplied by the
-separate linear, rate-pinned ground rate $\Lambda(t)$, so the network never touches the
-total rate. Running the \emph{same} per-type network standalone---letting it drive the
-rate as well, via $\lambda_k=\operatorname{softplus}(z_k)$ with
-$\Lambda=\sum_k\lambda_k$ rather than the rate-neutral soft-max---recovers exactly the
-\textsc{pct-lstm} baseline. The \textsc{lgm}-vs-\textsc{pct-lstm} comparison is therefore
-a controlled ablation of the factorization itself: identical mark network, with versus
-without the linear rate-pinned ground rate. Any gain in calibration, branching-ratio
-certifiability, or closed-loop stability is attributable to the rate pin, not to the mark
-parameterization.
+\subsection{Likelihood and sampling}
+Training maximizes the standard MTPP likelihood with the compensator evaluated on the
+training window; the mark term is a categorical cross-entropy on $p^*(k_i\mid t_i)$,
+decoupled from the rate term. Closed-loop sampling uses thinning with the exact
+dominating rate $s\cdot\mathrm{softplus}(c)$. Two further training-side options are
+kept from the benchmark harness: an S4-style log-spaced initialization of the
+backbone decay spectrum (timescales $0.02$--$60$\,s), and an unbiased Monte-Carlo
+compensator estimate in place of the endpoint rule (\texttt{--mc-compensator});
+the ablation chain evaluates the former, and the latter is identified as the
+companion lever for the residual rate inflation shared by all windowed-trained
+intensity models.

@@ -3,15 +3,16 @@ name: nmh-world-model-sim
 description: Briefing on the TFOW/VolumeSetMTPP world-model SIMULATION problem and the Neural Multivariate Hawkes (NMH) investigation on crypto LOB data. Use when working on why neural MTPP models (s2p2, NMH) fail to simulate realistic order-flow (Fano/stylized-facts), how the branching-ratio certificate works, the windowed-training-vs-free-rollout mismatch, or the next model toward a market-making world model on Hyperliquid. Covers the full experiment arc, exact results, code locations on the UCL HPC cluster, and open next steps.
 ---
 
-# NMH / World-Model Simulation — situation briefing
+# NMH / World-Model Simulation — situation briefing (historical)
 
-> **STATUS (2026-06-22): LGM is the locked model.** NMH and GMH were our own diagnostic
-> constructions on the path to LGM and have been **removed from the codebase**; the
-> proposed model is **LGM** (linear rate-pinned ground × deep soft-max marks), compared
-> against other papers' models (Compound Hawkes, s2p2, RMTPP, MT-Hawkes). This briefing is
-> retained as the *diagnostic narrative* — the "why LGM" motivation (windowed neural Hawkes
-> mis-calibrate/explode; the branching-ratio certificate; the calibration fix) — not as a
-> menu of candidate models. See `ROADMAP.md` for LGM's open directions.
+> **STATUS (2026-07-07): SS2P2 is the locked model** (S2P2 backbone + softmin-bounded
+> rate × rate-neutral marks — see `RESULTS.md` for the corrected 7-model benchmark and
+> `ROADMAP.md` for open directions). The LGM line described below was the previous
+> generation and is retired to `archive/` (decoders, sweeps, paper notes); NMH and GMH
+> were diagnostic constructions on the path to LGM, removed earlier still. This briefing
+> is retained as the *diagnostic narrative* — why windowed neural Hawkes mis-calibrate or
+> explode in free roll-out, the branching-ratio certificate, and the calibration fixes —
+> the lessons that motivated both LGM's rate-pin and SS2P2's bounded rate head.
 
 This skill is a complete hand-off briefing. Read it end-to-end before touching the
 simulation problem. Numbers and file paths are as of 2026-06-15 (verify against

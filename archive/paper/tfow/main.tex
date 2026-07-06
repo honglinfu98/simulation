@@ -14,17 +14,9 @@
 \setlength{\pdfpagewidth}{8.5in} % DO NOT CHANGE THIS
 \setlength{\pdfpageheight}{11in} % DO NOT CHANGE THIS
 
-% Project packages (AAAI-safe; no hyperref/float/geometry).
-\usepackage{amsmath}
-\usepackage{amsfonts}
-\usepackage{booktabs}
-\usepackage{bm}
-\usepackage{xspace}
-
-% Macros
-\newcommand{\ssppp}{\textsc{ss2p2}\xspace}
-\newcommand{\sppp}{\textsc{s2p2}\xspace}
-\newcommand{\nhp}{\textsc{nhp}\xspace}
+% Project packages / macros / acronyms (AAAI-safe; no hyperref/float/geometry).
+\input{header}
+\input{generated/numbers} % auto-generated result macros (tools/make_assets.py)
 
 \pdfinfo{
 /TemplateVersion (2026.1)
@@ -33,7 +25,7 @@
 \setcounter{secnumdepth}{0} % no section numbers (AAAI default)
 
 % Title in Title Case.
-\title{SS2P2: A Stable State-Space Point Process for Limit-Order-Book Simulation}
+\title{TFOW: Detecting Anomalous Order Flow in Crypto Limit Order Books}
 \author{Anonymous Submission}
 \affiliations{}
 
@@ -46,9 +38,13 @@
 \input{section/intro}
 \input{section/background}
 \input{section/method}
-\input{section/experiments}
+\input{section/empirical_analysis}
+\input{section/system_design}
+\input{section/evaluation}
+\input{section/ablation}
 \input{section/related}
-\input{section/conclusion}
+\input{section/discussion_conclusion}
+\input{section/Acknowledgment}
 
 \bibliography{orderbook_references,references}
 

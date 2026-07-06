@@ -21,8 +21,8 @@ capture); optimum inventory skew ≈ 0.5.
 The flow is **unconditioned** — the aggressor side does not depend on the maker's
 quotes — so there is **no informed flow and markout ≈ 0** (adverse selection is
 under-modelled, metrics optimistic). This is the explicit motivation for **Stage-2**:
-make the flow **action-conditional** (the maker's resting quotes feed the LGM mark
-channel, so incoming MOs selectively pick off mis-priced quotes). Then markout
+make the flow **action-conditional** (the maker's resting quotes feed the flow
+model's mark channel, so incoming MOs selectively pick off mis-priced quotes). Then markout
 becomes realistic and the harness — unchanged — yields trustworthy metrics and an
 RL-trainable world model. See `../docs/ROADMAP.md`.
 
@@ -40,7 +40,7 @@ the SAME world (same seed) and tabulates the maker battery (PnL attribution,
 markout, Sharpe, inventory). Example result under adverse-selection flow: A-S
 inventory dominates on Sharpe (controls inventory) while naive/wide get run over.
 This is the **agent-comparison framework** (RL vs A-S vs heuristics).
-`flow_fn` hook accepts the trained book-conditioned LGM for realistic adverse selection.
+`flow_fn` hook accepts a trained book-conditioned flow model (e.g. SS2P2) for realistic adverse selection.
 
 ## `rl_maker.py` — RL maker vs A-S (agent comparison)
 
@@ -55,7 +55,7 @@ selection) and is competitive with the hand-designed A-S inventory baseline
 Note: undertrained / weak inventory-penalty RL underperforms A-S — tuning
 (episodes, inv_pen) matters; PPO would be the next step.
 
-## Plugging in LGM flow (next)
-Generate `(dt, aggr, size)` from a trained LGM rollout (map event types → aggressor
+## Plugging in model flow (next)
+Generate `(dt, aggr, size)` from a trained SS2P2 rollout (map event types → aggressor
 sign via the stylized-facts `build_sign_vectors`, sizes from the volume head), then
 feed to `backtest(...)`. The harness is generator-agnostic.

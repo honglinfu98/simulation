@@ -1,0 +1,15 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We showed that the prediction--simulation tension in neural LOB models is a property
+of the output heads, not the backbone. Keeping the \sppp{} state-space backbone
+verbatim and transplanting a softmin-bounded rate head and a rate-neutral mark head
+yields \ssppp: within 0.3 nats of the best predictor, best-in-table timing
+calibration, $\ge$1.8 nats better than its unbounded parent, and a roll-out bounded
+by a hard closed-form ceiling that doubles as an exact thinning rate. The ablation
+chain turns the remaining gap into mechanism: a welded rate floor (fixed by the
+softmin head) and a frozen ZOH state asymptote plus endpoint-compensator bias (the
+identified next levers: leaky hold and Monte-Carlo compensator). Because the mark
+head is rate-neutral, conditioning it on exogenous state --- an agent's resting
+quotes --- cannot destabilize the rate, making \ssppp{} a suitable environment model
+for market-making world models; that action-conditioned extension is future work.

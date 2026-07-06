@@ -1,9 +1,66 @@
-Intention, for market making, it is essential to have a stable simulation model. If we can predict well, we can also use the model in prediction to better capture the fill probability and adversary events
-2. s2p2 has achieved state of art in per event total log-likelihood, RMSE of the next event time prediction, and next mark classificcation accuracy. But no stability, 
+\section{Introduction}
+\label{sec:intro}
 
+The limit order book (LOB) is the core mechanism of electronic markets: a
+continuous-time stream of order placements, cancellations, and trades whose fine
+structure drives price discovery and liquidity. Two tasks are asked of a generative
+model of this stream. The first is \emph{prediction}: given the event history, score
+the time and type of the next event. The second is \emph{simulation}: roll the model
+forward freely, feeding its own samples back as history, and reproduce the stylized
+facts of real order flow --- calibrated event rates, burst--lull clustering, and
+heavy-tailed returns \citep{cont2001empirical}. Simulation is the harder and, for
+downstream use (market-making world models, agent training, counterfactual analysis),
+the more valuable of the two.
 
+Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview} excel at
+prediction, and state-space variants specialized to LOB streams
+\citep{Shi2022StateSimulation} push accuracy further. But the very self-excitation
+that wins the one-step likelihood becomes a liability closed-loop: each sampled event
+raises the intensity, which produces more events, and with no mechanism bounding the
+rate the roll-out runs away. In our benchmark the best predictor --- the Neural Hawkes
+continuous-time LSTM (\nhp) --- free-runs at $66$ events/s against a real rate of
+$2.3$, with the Fano factor $6.6\times$ off; its unbounded state-space cousin \sppp{}
+reaches $87$ events/s. The field thus faces an \emph{expressivity--stability
+frontier}: expressive intensities predict but explode; trivially stable models (an
+unconditional LSTM sampler) simulate innocuously but predict poorly.
 
+\ssppp{} is a head transplant, not a new backbone. We keep the stacked
+latent-linear-Hawkes state-space backbone of \sppp{} verbatim --- its diagonal
+zero-order-hold (ZOH) dynamics, parallel-scan computability, and LayerNorm'd stack
+output $u(t)$ --- and replace only what comes after $u(t)$:
+\begin{itemize}
+\item a \textbf{softmin-bounded rate head}: a gated bounded state
+  $h=\sigma(W_o u)\odot\tanh(u)$ is read out through a smooth one-sided cap
+  $z = c-\mathrm{softplus}(c-w^{\!\top}h-b)$, so
+  $\lambda = s\cdot\mathrm{softplus}(z) \le s\cdot\mathrm{softplus}(c)$ is a
+  \emph{hard closed-form ceiling} --- an exact dominating rate for Ogata thinning ---
+  while $z\to z_{\text{raw}}$ as $z_{\text{raw}}\to-\infty$, so the floor is exactly
+  zero and log-intensity keeps unit gradient in the quiet regime;
+\item a \textbf{rate-neutral mark head}: $p^*(k\mid t)=\mathrm{softmax}(\mathrm{MLP}(u))_k$
+  lives on the probability simplex, so $\sum_k \lambda_k = \lambda$ holds regardless
+  of how nonlinear the mark network is --- expressiveness goes where it cannot
+  destabilize the rate.
+\end{itemize}
 
-
-
-
+Because the backbone is identical, differences against \sppp{} are attributable to
+the heads. Our contributions:
+\begin{enumerate}
+\item \textbf{The \ssppp{} head pair} (softmin-bounded rate $\times$ rate-neutral
+  marks): a provably bounded, thinning-exact intensity on an unmodified
+  state-of-the-art backbone.
+\item \textbf{A corrected, identically-configured seven-model benchmark} on Gemini
+  ETH-USD order flow (62 event types), covering both per-event prediction (NLL split,
+  accuracy, time-rescaling calibration) and closed-loop simulation (stylized-facts
+  fit). Three implementation bugs found in vendored baselines were fixed and all
+  baselines retrained; untouched models reproduced bit-identically as controls.
+\item \textbf{A mechanistic ablation chain.} The original two-sided (G1) bound,
+  an S4-style log-spaced decay initialization, and the open-floor softmin head are
+  compared through burst-conditional NLL and the intensity relaxation trace
+  $\lambda(\delta)$, localizing \ssppp{}'s deficit to the quiet regime and cutting it
+  by 41\%.
+\item \textbf{A diagnosis of what remains}: the frozen ZOH input-hold asymptote keeps
+  the state (and hence the rate) elevated in long gaps, and the endpoint-rule
+  compensator biases all windowed-trained intensity models toward over-firing ---
+  identifying the leaky hold and the unbiased Monte-Carlo compensator as the next
+  levers.
+\end{enumerate}

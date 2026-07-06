@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Train a Volume-Set MTPP model (training stage).
 
-    python scripts/train.py --decoder-type lgm --data-dir <events> \
-        --lgm-target-rate 2.381 --nmh-project-rho 0.86 --mark-head categorical --epochs 40
+    python scripts/train.py --decoder-type ss2p2 --data-dir <events> \
+        --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate 3.77 --mark-head categorical --epochs 40
 
 Run `python scripts/train.py --help` for the full flag list.
 """

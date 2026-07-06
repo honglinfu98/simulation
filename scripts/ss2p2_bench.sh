@@ -25,7 +25,7 @@ SEQ="${SEQ:-64}"; STRIDE="${STRIDE:-32}"
 ROOT="${ROOT:-$REPO/experiments/ss2p2_bench}"
 
 case "$SGE_TASK_ID" in
-  1) TAG=ss2p2; EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --lgm-target-rate $TARGET_RATE" ;;
+  1) TAG=ss2p2; EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate $TARGET_RATE" ;;
   2) TAG=s2p2;  EXTRA="--decoder-type s2p2 --s2p2-layers 2 --s2p2-readout output" ;;
   *) echo "no config for task $SGE_TASK_ID"; exit 1 ;;
 esac

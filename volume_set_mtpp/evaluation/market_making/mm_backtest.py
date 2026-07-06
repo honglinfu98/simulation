@@ -1,7 +1,7 @@
 """Stage-1 market-making backtest harness.
 
 Runs a baseline (simplified Avellaneda-Stoikov) maker against an EXOGENOUS
-order-flow stream (from LGM, replayed real data, or synthetic) and reports the
+order-flow stream (from a trained model rollout, replayed real data, or synthetic) and reports the
 metrics that define a good market maker: PnL attribution (spread vs inventory),
 markout / adverse selection, inventory control, fill rate, Sharpe.
 

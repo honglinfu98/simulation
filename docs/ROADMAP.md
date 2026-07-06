@@ -1,33 +1,41 @@
-# Roadmap — open directions for LGM
+# Roadmap — open directions for SS2P2
 
-LGM is the locked model: a linear, rate-pinned multi-timescale Hawkes ground rate
-`Λ(t) = μ₀ + Σ_m a_m s_m(t)` (with `μ₀ = R(1−n)` ⇒ `Λ̄ = R` exactly, gauge-free
-branching ratio `n = Σ_m a_m/δ_m`) × a deep, rate-neutral soft-max mark head. It is
-simultaneously **calibrated** (free-roll rate within ~7% of real), a **competitive
-predictor**, **clustered** (correct Fano-vs-scale), and **certifiable**. The prior
-"next model = GMH" plan is retired (GMH/NMH were diagnostic constructions, now removed;
-see `RESULTS.md` for the motivation they provided).
+SS2P2 is the locked model: the S2P2 latent-linear-Hawkes backbone kept verbatim, with
+a **softmin-bounded rate head** (hard closed-form ceiling `s·softplus(c)`, floor
+exactly 0) × a **rate-neutral soft-max mark head** on the shared LayerNorm'd embedding
+`u(t)`. On the corrected 7-model benchmark it is the best point on the
+expressivity–stability frontier: within 0.3 nats of NHP with the best timing
+calibration in the table and a provably bounded rollout (`RESULTS.md`). The prior
+LGM model line is retired to `archive/`.
 
-## Open directions
+## Open directions (priority order)
 
-1. **Action-conditioning → market-making world model.** Feed the maker's resting quotes
-   into the mark head so incoming MOs selectively pick off mispriced quotes (real adverse
-   selection). The book-conditioning hook exists (`cond_dim` in `lgm_decoder.py`); the
-   `mm/` Stage-2 world model + RL maker are built. Empirically the learned book→MO-direction
-   signal plateaus at the noise floor (MO sparsity); the productive target is conditioning
-   the **ground rate** (book → activity level), which is far less sparse and still
-   rate-neutral-safe. See `MODEL_NOTES.md`.
+1. **Leaky hold — close the quiet-regime gap.** The remaining 0.32-nat deficit vs NHP
+   traces to the frozen ZOH asymptote: between events the state converges to
+   `x∞ = B·u_held` (‖x‖ ≈ 30 at 60 s), keeping λ elevated in long gaps. The
+   zero-asymptote ablation reaches NHP-level quiet (λ ≈ 0.02), so the fix is a decayed
+   held input `u_held(δ) = e^{−ρδ}·u_held` in `_evolve_layer`/`get_hidden_h` — one
+   learnable ρ per layer, ZOH becomes exponential-hold. This is the identified next
+   lever from the ablation chain.
 
-2. **Heavier return tails.** LGM's tails are ~2× lighter than the robust empirical target.
-   A one-sided, mean-zero QHawkes volatility-feedback term on the ground rate (rate spikes
-   during directional runs, mean-corrected so the rate-pin survives) is scaffolded behind
-   `--lgm-vol-feedback`; tune/validate it.
+2. **Unbiased MC compensator at scale.** All intensity models over-produce events
+   free-running because the endpoint-rule compensator + windowed training bias the
+   integral (mean rescaled mass u > 1). The Mei–Eisner-style Monte-Carlo compensator
+   is implemented (`--mc-compensator`, `--mc-samples`) and smoke-tested but untrained
+   at benchmark scale — the natural companion to the leaky-hold experiment, and the
+   likely fix for the 32 ev/s vs 2.32 ev/s roll-out inflation.
 
-3. **Stateful / full-sequence (TBPTT) training — alternative to the pin.** The rate-pin
-   sidesteps windowed cold-start μ-inflation analytically. A contiguous-stream loader
-   (carry state across windows, no `S=0` reset) would let `μ₀` be *learned* from warmed-up
-   states instead of imposed — keep the linear ground + certificate, drop the pin. Trades
-   exact calibration for emergent calibration at real loader cost. (Tracked separately.)
+3. **Action-conditioning → market-making world model.** Feed the maker's resting
+   quotes into the mark head so incoming MOs selectively pick off mispriced quotes
+   (real adverse selection). The `mm/` Stage-2 world model + RL maker are built
+   (`volume_set_mtpp/evaluation/market_making/`); the mark head is rate-neutral, so
+   conditioning it cannot destabilize the bounded rate. The book→activity-level
+   channel (conditioning the *rate* within its ceiling) is the less-sparse target.
 
-4. **Robust stylized-facts reporting.** Raw 1 s kurtosis/skew are outlier-dominated; always
-   report winsorized or at ≥5 s buckets (see `RESULTS.md`).
+4. **Long-memory |r|-ACF is still open.** No model in the benchmark reproduces the
+   slow power-law decay of volatility autocorrelation (F6/F8). The bounded rate head
+   caps runaway but does not create long memory; multi-timescale state (lsinit showed
+   ~30 s modes survive training) is necessary but not sufficient.
+
+5. **Robust stylized-facts reporting.** Raw 1 s kurtosis/skew are outlier-dominated;
+   always report winsorized or at ≥5 s buckets (see `RESULTS.md`).
