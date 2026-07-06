@@ -35,6 +35,19 @@ if ! timeout 20 ls "$SAN_CHECK" >/dev/null 2>&1; then
   echo "NO_SAN_MOUNT on \$(hostname)"
   exit 99
 fi
+# Under qrsh the SGE prolog does NOT bind CUDA_VISIBLE_DEVICES (unlike qsub),
+# so on shared nodes we must pick an idle GPU ourselves or we collide with
+# exclusive-mode jobs ("CUDA-capable device(s) is/are busy or unavailable").
+if [ -z "\${CUDA_VISIBLE_DEVICES:-}" ]; then
+  FREE=\$(nvidia-smi --query-gpu=index,memory.used,utilization.gpu --format=csv,noheader,nounits 2>/dev/null \
+          | awk -F', *' '\$2 < 300 && \$3 < 5 {print \$1; exit}')
+  if [ -z "\$FREE" ]; then
+    echo "NO_IDLE_GPU on \$(hostname)"
+    exit 98
+  fi
+  export CUDA_VISIBLE_DEVICES="\$FREE"
+  echo "PAYLOAD_GPU=\$CUDA_VISIBLE_DEVICES"
+fi
 export SGE_TASK_ID=$TASK
 exec bash "$WORKER"
 EOF
@@ -62,6 +75,10 @@ while true; do
     if [ $rc -eq 99 ]; then
       echo "[$(date '+%F %T')] tier $t: granted but /SAN not visible -> released + blacklisted"
       BAD[$t]=1
+      continue
+    fi
+    if [ $rc -eq 98 ]; then
+      echo "[$(date '+%F %T')] tier $t: granted but no idle GPU on node (exclusive-mode collision) -> released, will retry"
       continue
     fi
     # Trust artifacts, not exit codes: qrsh has returned rc=0 without running.
