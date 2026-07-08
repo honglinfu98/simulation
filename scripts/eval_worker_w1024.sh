@@ -2,8 +2,8 @@
 #$ -S /bin/bash
 #$ -cwd
 #$ -j y
-#$ -N eval_worker
-#$ -l h_rt=8:00:00
+#$ -N eval_w1024
+#$ -l h_rt=16:00:00
 #$ -l tmem=32G
 #$ -l gpu=true
 #$ -l gpu_type=h100
@@ -17,6 +17,11 @@ set -o pipefail
 #            kurtosis, aggregational kurtosis, vol-clustering, return-ACF).
 # Baselines: Hawkes, LSTM, SAHP, CT-LSTM, PCT-LSTM, S2P2; proposed: SS2P2.
 # Identical config for every model so prediction + simulation are comparable.
+#
+# w1024 variant: LONG-CONTEXT training (seq 1024 ~ 4-7 min of market time,
+# stride 512, batch 64) + CARRIED-STATE free rollout (--context-mode carried:
+# O(1)/step incremental state, unbounded memory -- exact for S2P2/SS2P2/PCT-LSTM;
+# window-attention/LSTM baselines fall back to window mode with a log line).
 REPO="${REPO:-$HOME/simulation}"
 DATA="${DATA:-/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks}"
 MAXFILES="${MAXFILES:-7}"
@@ -64,6 +69,7 @@ python3 -u -m volume_set_mtpp.evaluation.genuine_eval --checkpoint "$CKPT" --dat
 log "SF $(date)"
 python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/stylized_facts" --device cuda --sampler inversion \
+  --context-mode carried \
   --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
   --rollout-seed 1 --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf.log" 2>&1
 log "DONE $(date) SF_RC=$?"

@@ -105,9 +105,42 @@ def real_stream(loader, stride: int, max_windows: int) -> Tuple[np.ndarray, np.n
 ROLLOUT_HARD_CAP = 40000  # absolute step cap for duration-based rollouts
 
 
+# ---------------------------------------------------------------------------
+# Carried-state rollout support (O(1)/step incremental state updates)
+# ---------------------------------------------------------------------------
+
+def _carry_supported(decoder) -> bool:
+    """S2P2-family decoders (incl. SS2P2) and PTP have Markovian recurrences
+    reachable through `old_states`; window-attention/LSTM baselines do not."""
+    return (hasattr(decoder, "_initial_layer_states")
+            or bool(getattr(decoder, "is_ptp", False)))
+
+
+def _carry_step(decoder, packed: torch.Tensor, new_marks: torch.Tensor,
+                new_dt: torch.Tensor) -> torch.Tensor:
+    """Advance the packed decoder state by ONE event; exact for SSM recursions.
+
+    The S2P2 'output' readout packs [L layer states | L-1 held inter-layer
+    inputs].  Only the layer states are the Markov state (the held anchors are
+    recomputed by the event pass), so restore them as [B, L, H] for
+    `_initial_layer_states`; PTP's flat [B, K*d] state is consumed directly.
+    Returns the new packed right state [B, D*] (query anchor for get_hidden_h).
+    """
+    b = new_dt.shape[0]
+    old = packed
+    n_layers = getattr(decoder, "num_layers", None)
+    hidden = getattr(decoder, "recurrent_hidden_size", 0)
+    if n_layers is not None and packed.shape[-1] == (2 * n_layers - 1) * hidden:
+        old = packed[:, :n_layers * hidden].reshape(b, n_layers, hidden)
+    right = decoder.get_states_and_event_left_states(
+        new_marks.unsqueeze(1), new_dt.unsqueeze(1), old_states=old)[0]
+    return right[:, -1]
+
+
 def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float,
                     n_grid: int, seed: int, duration: float = 0.0,
-                    vocab=None, depth_profile=None, bps_per_level: float = 1.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                    vocab=None, depth_profile=None, bps_per_level: float = 1.0,
+                    carried: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Closed-loop rollout recording full sampled sets.
 
     If ``duration`` > 0, runs in fixed-DURATION mode: keeps stepping until
@@ -136,17 +169,26 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
     pot_loop = bool(getattr(model, "potential_head_enabled", False))
     pa = torch.zeros(n, device=device)
     pm = torch.zeros(n, device=device)
+    last_dt = dts[:, -1].clone()
     with torch.no_grad():
+        if carried:
+            # encode the warm-start context ONCE; afterwards the packed state is
+            # advanced per event (exact for the SSM recursion; unbounded memory).
+            packed = model.decoder.get_states(marks, torch.cumsum(dts, dim=1))[:, -1]
+            zbuf = torch.zeros(n, 1, device=device)   # queries are event-relative
         for _ in range(max_steps):
-            timestamps = torch.cumsum(dts, dim=1)
-            states = model.decoder.get_states(marks, timestamps)
+            if carried:
+                states, timestamps = packed.unsqueeze(1), zbuf
+            else:
+                timestamps = torch.cumsum(dts, dim=1)
+                states = model.decoder.get_states(marks, timestamps)
             sf = None
             if state_loop:
                 sf = torch.tensor([b.features(bps_per_level) for b in books],
                                   device=device, dtype=torch.float32).unsqueeze(1)
             pf = None
             if pot_loop:
-                pa, pm = model._potential_step(pa, pm, dts[:, -1])
+                pa, pm = model._potential_step(pa, pm, last_dt)
                 pf = torch.stack([pa, pm], dim=-1).unsqueeze(1)
             grid, lam, big_lambda, _, _ = _survival_quadrature(model, states, timestamps, horizon, n_grid, state_feats=sf, pot_feats=pf)
             u = -torch.log(torch.rand(n, device=device).clamp_min(1e-12))
@@ -200,8 +242,12 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
                             vol = float(depth_profile[min(v[2], 10) - 1] / 5.0)
                         items.append((v[0], v[1], v[2], vol))
                     books[si].apply_event_set(items)
-            marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
-            dts = torch.cat([dts[:, 1:], new_dt.unsqueeze(1)], dim=1)
+            if carried:
+                packed = _carry_step(model.decoder, packed, new_set, new_dt)
+            else:
+                marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
+                dts = torch.cat([dts[:, 1:], new_dt.unsqueeze(1)], dim=1)
+            last_dt = new_dt
             cum_time = cum_time + new_dt
             if duration > 0 and bool((cum_time >= duration).all().item()):
                 break
@@ -211,7 +257,8 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
 
 def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed: int,
                              duration: float = 0.0, over_sample: float = 1.0,
-                             max_inner: int = 200) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                             max_inner: int = 200,
+                             carried: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Closed-loop rollout via Ogata's thinning with SS2P2's EXACT closed-form bound.
 
     SS2P2's total rate is two-sided bounded, lambda(t) in (ell_-, ell_+), with
@@ -246,9 +293,15 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
     cum_time = torch.zeros(n, device=device)
     n_prop = n_acc = 0
     with torch.no_grad():
+        if carried:
+            packed = model.decoder.get_states(marks, torch.cumsum(dts, dim=1))[:, -1]
+            zbuf = torch.zeros(n, 1, device=device)   # queries are event-relative
         for _ in range(max_steps):
-            timestamps = torch.cumsum(dts, dim=1)
-            states = model.decoder.get_states(marks, timestamps)   # fixed during the inner thinning loop
+            if carried:
+                states, timestamps = packed.unsqueeze(1), zbuf
+            else:
+                timestamps = torch.cumsum(dts, dim=1)
+                states = model.decoder.get_states(marks, timestamps)   # fixed during the inner thinning loop
             t_cand = torch.zeros(n, device=device)
             dt_out = torch.zeros(n, device=device)
             accepted = torch.zeros(n, dtype=torch.bool, device=device)
@@ -275,8 +328,11 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
             idx = torch.multinomial(probs.clamp_min(1e-12), 1).squeeze(1)
             new_set = torch.zeros_like(probs); new_set.scatter_(1, idx.unsqueeze(1), 1.0)
             rec_marks.append(new_set.bool().cpu().numpy()); rec_dt.append(dt_out.cpu().numpy())
-            marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
-            dts = torch.cat([dts[:, 1:], dt_out.unsqueeze(1)], dim=1)
+            if carried:
+                packed = _carry_step(model.decoder, packed, new_set, dt_out)
+            else:
+                marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
+                dts = torch.cat([dts[:, 1:], dt_out.unsqueeze(1)], dim=1)
             cum_time = cum_time + dt_out
             if duration > 0 and bool((cum_time >= duration).all().item()):
                 break
@@ -542,6 +598,11 @@ def main():
                          "thinning = Ogata thinning with SS2P2's exact closed-form upper bound")
     ap.add_argument("--over-sample-rate", type=float, default=1.0,
                     help="thinning safety multiplier on lambda* (SS2P2 bound is exact, so 1.0)")
+    ap.add_argument("--context-mode", choices=["window", "carried"], default="window",
+                    help="window = sliding seq-length window re-encoded from a cold state "
+                         "each step (training-faithful; memory truncated to the window); "
+                         "carried = O(1)/step incremental state updates via old_states "
+                         "(exact for S2P2/SS2P2/PTP recursions; unbounded memory)")
     args = ap.parse_args()
 
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
@@ -587,18 +648,25 @@ def main():
         print("STATE_LOOP enabled bps_per_level", round(sf_bps, 6), flush=True)
 
     # Simulated stream
+    carried = args.context_mode == "carried"
+    if carried and not _carry_supported(model.decoder):
+        print("CONTEXT_MODE carried UNSUPPORTED for this decoder -> falling back to window", flush=True)
+        carried = False
+    print("CONTEXT_MODE", "carried (O(1)/step incremental state, unbounded memory)"
+          if carried else f"window ({args.seq_length} events, cold-start re-encode per step)", flush=True)
     first_batch = move_batch(next(iter(test_loader)), device)
     if args.sampler == "thinning":
         print("SAMPLER thinning (Ogata, SS2P2 closed-form bound)", flush=True)
         sim_marks, sim_dt, sim_cum = simulate_stream_thinning(
             model, first_batch, device, args.rollout_steps, args.rollout_sequences,
-            args.rollout_seed, duration=args.rollout_duration, over_sample=args.over_sample_rate)
+            args.rollout_seed, duration=args.rollout_duration, over_sample=args.over_sample_rate,
+            carried=carried)
     else:
         sim_marks, sim_dt, sim_cum = simulate_stream(model, first_batch, device, args.rollout_steps,
                                                      args.rollout_sequences, args.dt_horizon,
                                                      args.dt_grid_points, args.rollout_seed,
                                                      vocab=sf_vocab, depth_profile=sf_depth, bps_per_level=sf_bps,
-                                                     duration=args.rollout_duration)
+                                                     duration=args.rollout_duration, carried=carried)
     r_chunks, a_chunks = [], []
     n_sim_events = 0
     sim_time = 0.0
@@ -647,6 +715,8 @@ def main():
         "checkpoint": args.checkpoint,
         "bucket_seconds": args.bucket_seconds,
         "rollout_duration": args.rollout_duration,
+        "sampler": args.sampler,
+        "context_mode": "carried" if carried else "window",
         "return_proxy": "signed order flow of MO_* and IS_*_L1 per bucket (side b/a = bid/ask)",
         "headline": headline,
         "facts_real": facts_real,

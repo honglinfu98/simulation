@@ -13,7 +13,7 @@ root, importable once the root is on `PYTHONPATH` (run `./setup_repo.sh` locally
 - SSH multiplexing from the Mac uses a single ControlMaster (`scripts/hpc-common.sh open`). Never run 2+ heavy concurrent SSH sessions over it.
 
 ## Package map (`volume_set_mtpp/`)
-- `models/` — `ss2p2_decoder.py` (**the model**: S2P2 backbone verbatim + softmin-bounded rate `λ(t)` × rate-neutral softmax marks `p*(k|t)`, hard closed-form rate ceiling), its parent `s2p2_decoder.py`, and the literature baselines `decoder_original.py` (`HawkesDecoder`=NHP, `RMTPPDecoder`), `lstm_decoder.py`, `sahp_decoder.py`, `ptp_s2p2_decoder.py` (PCT-LSTM), plus the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, `ppmodel_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`). Interface contract: `models/ARCHITECTURE.md`.
+- `models/` — `ss2p2_decoder.py` (**the model**: S2P2 backbone verbatim + softmin-bounded rate `λ(t)` × rate-neutral softmax marks `p*(k|t)`, hard closed-form rate ceiling), its parent `s2p2_decoder.py`, and the literature baselines `decoder_original.py` (`HawkesDecoder`=NHP, `RMTPPDecoder`), `lstm_decoder.py`, `sahp_decoder.py`, `ptp_s2p2_decoder.py` (PCT-LSTM), plus the framework (`volume_set_mtpp.py` factory + `get_total_intensity_and_items` `is_*` branches, `ppmodel_original`, `volume_core`, `time_embedding`, `utils`). Interface contract: `models/ARCHITECTURE.md`.
 - `training/` — `train.py` (`--decoder-type`, `--mark-head`, `--target-rate`, `--ss2p2-wnorm-cap`, `--mc-compensator`), `data_loader.py` (windowed, cold-start S=0 per window — the sim-mismatch cause).
 - `process/` — `event_construction_chunked.py`, `process_all_events_chunked.py`. **Single source of truth:** `event_construction_chunked.py` here is the *only* canonical event-construction module. Build event data by deploying this repo (clone/pull) and running `python -m volume_set_mtpp.process.process_all_events_chunked` — never by copying the file into another tree. The old `volume-set-mtpp` repo's `event_construction{,_fixed,_new,_new_complete,_production}.py` forks are deprecated and unused.
 - `extract/` — cluster-only downloaders (credentialed stubs; see `extract/README.md`).
@@ -31,6 +31,7 @@ Entry-point CLIs live in `scripts/` (e.g. `python scripts/train.py`, `python scr
 ## Run scripts (`scripts/`, `qsub run_*.sh`)
 - `_template_run.sh` — train → `genuine_eval` → `stylized_facts`; the canonical template. Copy for a new variant.
 - `run_eval_all.sh` — **the full 7-model benchmark**: submits the `eval_worker.sh` GPU array (NHP, LSTM, SAHP, CT-LSTM, PCT-LSTM, S2P2, SS2P2) + a held collector job (`eval_collect.py`) that prints the report tables.
+- `run_eval_w1024.sh` — **the long-context experiment**: same 7-model array but trained at seq 1024 / stride 512 / batch 64 and rolled out with `--context-mode carried` (O(1)/step incremental state, unbounded memory — exact for S2P2/SS2P2/PCT-LSTM; other baselines fall back to window mode). Results in `experiments/ss2p2_w1024/`; the delta vs `experiments/eval_all/` isolates training-context length + rollout memory truncation.
 - `ss2p2_bench.sh` — the focused SS2P2-vs-S2P2 pair (identical config, task 1/2).
 
 ### Single-item comparison sweep (SS2P2 + baselines)
