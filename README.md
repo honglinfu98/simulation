@@ -56,8 +56,9 @@ model).
 - `docs/`: `RUNBOOK.md`, `ADDING_A_MODEL.md`, `RESULTS.md`, `ROADMAP.md`, `MODEL_NOTES.md`.
 - `diagram/`: README/paper figures (regenerate with `make_diagrams.py`).
 - `tests/`: `smoke_decoder.py` (interface-contract check), `verify_baselines.py`.
-- `archive/`: retired generations (TFOW anomaly-detection paper, the LGM model line);
-  see `archive/README.md`.
+
+Retired generations (the TFOW anomaly-detection paper, the LGM model line and its
+sweeps) were removed from the working tree; they remain in git history.
 
 ## **Quick Start**
 

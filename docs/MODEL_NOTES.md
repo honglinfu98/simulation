@@ -8,7 +8,8 @@ description: Briefing on the TFOW/VolumeSetMTPP world-model SIMULATION problem a
 > **STATUS (2026-07-07): SS2P2 is the locked model** (S2P2 backbone + softmin-bounded
 > rate × rate-neutral marks — see `RESULTS.md` for the corrected 7-model benchmark and
 > `ROADMAP.md` for open directions). The LGM line described below was the previous
-> generation and is retired to `archive/` (decoders, sweeps, paper notes); NMH and GMH
+> generation and is retired (decoders, sweeps, and paper notes removed from the tree,
+> recoverable from git history); NMH and GMH
 > were diagnostic constructions on the path to LGM, removed earlier still. This briefing
 > is retained as the *diagnostic narrative* — why windowed neural Hawkes mis-calibrate or
 > explode in free roll-out, the branching-ratio certificate, and the calibration fixes —

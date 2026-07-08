@@ -16,8 +16,8 @@ no separate mark head, no empty-target pathology.
 Readout is nonlinear (LayerNorm/GELU), so -- as in s2p2 -- the branching ratio
 is gauge-dependent (LayerNorm scale-invariance) and NOT honestly certifiable.
 `branching_proxy` is a weight-norm monitor only (not a gauge-free certificate).
-Exposed as `decoder_type 'pct-lstm'` (historically also LGM's rate-neutral mark
-head via `per_type_score`; the retired LGM decoder lives in archive/models/).
+Exposed as `decoder_type 'pct-lstm'` (historically also the retired LGM decoder's
+rate-neutral mark head, via `per_type_score`).
 """
 from __future__ import annotations
 

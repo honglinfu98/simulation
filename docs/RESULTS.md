@@ -93,5 +93,6 @@ Per-event time-NLL deficit vs NHP, bucketed by trailing activity (last-8-gap rat
   implemented (`--mc-compensator`) and untested at scale — the natural companion to
   the leaky-hold experiment.
 
-*Historical (NMH/LGM-era) tables live in `archive/` — `archive/results/comparison_table.json`
-and `archive/docs/LGM_SWEEP.md`; the narrative is in `MODEL_NOTES.md`.*
+*Historical (NMH/LGM-era) tables were removed from the working tree (recoverable from
+git history — `results/comparison_table.json`, `docs/LGM_SWEEP.md`); the narrative
+survives in `MODEL_NOTES.md`.*

@@ -73,7 +73,7 @@ read from `left`; the post-event impulse only enters `right`. Verified by the sm
 | `is_ptp` | `ptp_s2p2_decoder.py` | per-type parallel CT-LSTM, weight-shared nonlinear readout | monitor only (`branching_proxy`) | **baseline** (`pct-lstm`) |
 
 `volume_set_mtpp.py` (here) and `../training/train.py` are the framework files (the
-factory + the `is_*` branches + training flags). Retired decoders: `archive/models/`.
+factory + the `is_*` branches + training flags). Retired decoders (LGM, LGM-SSP) are in git history.
 
 ## Where a new decoder wires in (5 touch-points)
 

@@ -6,7 +6,7 @@ exactly 0) × a **rate-neutral soft-max mark head** on the shared LayerNorm'd em
 `u(t)`. On the corrected 7-model benchmark it is the best point on the
 expressivity–stability frontier: within 0.3 nats of NHP with the best timing
 calibration in the table and a provably bounded rollout (`RESULTS.md`). The prior
-LGM model line is retired to `archive/`.
+LGM model line is retired (removed from the tree; recoverable from git history).
 
 ## Open directions (priority order)
 

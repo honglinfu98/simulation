@@ -20,9 +20,9 @@ This is the `models` subpackage of the installable `volume_set_mtpp` package
 | `volume_set_mtpp.py` | The framework: the `create_volume_set_mtpp` factory + the `is_*` intensity branches. | — |
 
 `volume_set_mtpp.py` builds on the framework files in this folder (`ppmodel_original`,
-`decoder_original`, `volume_core`, `time_embedding`, `utils`, `marks_with_volume`); the
-trainer + data loader live in the sibling `training/` subpackage. The decoders need only
-PyTorch and each other, and are covered by the repo-root `tests/smoke_decoder.py` +
-`tests/verify_baselines.py`. Retired decoders (LGM, LGM-SSP) live in `archive/models/`.
+`decoder_original`, `volume_core`, `time_embedding`, `utils`); the trainer + data
+loader live in the sibling `training/` subpackage. The decoders need only PyTorch and
+each other, and are covered by the repo-root `tests/smoke_decoder.py` +
+`tests/verify_baselines.py`. Retired decoders (LGM, LGM-SSP) are in git history.
 
 Interface contract for new decoders: see [`ARCHITECTURE.md`](ARCHITECTURE.md) (in this folder).
