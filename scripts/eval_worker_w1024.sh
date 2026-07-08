@@ -6,7 +6,6 @@
 #$ -l h_rt=16:00:00
 #$ -l tmem=32G
 #$ -l gpu=true
-#$ -l gpu_type=h100
 #$ -pe gpu 1
 #$ -t 1-7
 set -o pipefail
