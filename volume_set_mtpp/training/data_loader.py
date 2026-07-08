@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -292,9 +293,17 @@ def load_bfnx_tensors(
         "source_files": [os.path.basename(f) for f in files],
         "file_lengths": torch.from_numpy(file_lengths_np),
     }
-    tmp_file = f"{cache_file}.tmp"
-    torch.save(payload, tmp_file)
-    os.replace(tmp_file, cache_file)
+    # Unique tmp per writer: concurrent builders (e.g. 7 array tasks sharing one
+    # cache dir) each write their own file, then atomically publish via
+    # os.replace -- last writer wins with identical content. A fixed .tmp name
+    # would interleave concurrent writers into one corrupt file.
+    tmp_file = f"{cache_file}.tmp.{os.getpid()}.{uuid.uuid4().hex[:8]}"
+    try:
+        torch.save(payload, tmp_file)
+        os.replace(tmp_file, cache_file)
+    finally:
+        if os.path.exists(tmp_file):  # only on failure; replace consumes it on success
+            os.remove(tmp_file)
     print(f"Built tensor cache in {time.time() - start:.2f}s: {cache_file}")
     return (payload["time_deltas"], payload["marks"], payload["volumes"], payload["lob_states"],
             payload["lob_features"], event_mapping, payload["file_lengths"])

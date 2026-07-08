@@ -34,8 +34,12 @@ cd "$REPO"
 source /share/apps/source_files/python/python-3.11.9.source 2>/dev/null || true
 source "$HOME/volume-set-mtpp/venv/bin/activate" 2>/dev/null || true
 export PYTHONPATH="$REPO" PYTHONUNBUFFERED=1 TQDM_DISABLE=1 OMP_NUM_THREADS=4
-B="$ROOT/$TAG"; mkdir -p "$B/stylized_facts"; ML="$B/master.log"
+B="$ROOT/$TAG"
+# Fresh outputs every run: never reuse a stale checkpoint or old eval JSONs.
+rm -rf "$B"
+mkdir -p "$B/stylized_facts"; ML="$B/master.log"
 log(){ echo "$@" | tee -a "$ML"; }
+fail(){ log "DONE $(date) STATUS=1 stage=$1 rc=$2 BASE=$B"; exit 1; }
 log "START $(date) TAG=$TAG host=$(hostname)"; nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tee -a "$ML"
 CKPT="$B/train/best_model.pt"
 
@@ -46,16 +50,22 @@ python3 -u -m volume_set_mtpp.training.train --data-dir "$DATA" --max-files "$MA
   --seq-length "$SEQ" --stride "$STRIDE" --num-workers 0 --save-every "$EPOCHS" \
   --mark-head categorical --set-loss-reduction sum --no-volume-input-scaling --allow-tf32 --seed 1 \
   $EXTRA --output-dir "$B/train" --log-dir "$B/train/logs" > "$B/train.log" 2>&1
-log "TRAIN_RC=$?"
-[ -s "$CKPT" ] || { log "NO_CKPT"; tail -25 "$B/train.log" | tee -a "$ML"; exit 1; }
+TRAIN_RC=$?
+log "TRAIN_RC=$TRAIN_RC"
+{ [ "$TRAIN_RC" -eq 0 ] && [ -s "$CKPT" ]; } || { tail -25 "$B/train.log" | tee -a "$ML"; fail train "$TRAIN_RC"; }
 
 log "GENUINE $(date)"
 python3 -u -m volume_set_mtpp.evaluation.genuine_eval --checkpoint "$CKPT" --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
   --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --device cuda --label "$TAG" --output "$B/genuine_${TAG}.json" 2>&1 | tee -a "$ML"
+GEN_RC=$?
+{ [ "$GEN_RC" -eq 0 ] && [ -s "$B/genuine_${TAG}.json" ]; } || fail genuine "$GEN_RC"
 
 log "SF $(date)"
 python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
   --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/stylized_facts" --device cuda \
   --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
   --rollout-seed 1 --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf.log" 2>&1
-log "DONE $(date) SF_RC=$?"
+SF_RC=$?
+{ [ "$SF_RC" -eq 0 ] && [ -s "$B/stylized_facts/stylized_facts_${TAG}.json" ]; } \
+  || { tail -25 "$B/sf.log" | tee -a "$ML"; fail sf "$SF_RC"; }
+log "DONE $(date) STATUS=0 BASE=$B"
