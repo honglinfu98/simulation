@@ -93,6 +93,73 @@ Per-event time-NLL deficit vs NHP, bucketed by trailing activity (last-8-gap rat
   implemented (`--mc-compensator`) and untested at scale — the natural companion to
   the leaky-hold experiment.
 
+# Long-context / stateful-training arc (2026-07-09/10)
+
+Three experiments in the seq-1024 regime (stride 512 or 1024, batch 64, 40 epochs,
+seed 1; test-slice real rate 3.48 ev/s; rollout = 600 s × 32 sequences with
+`--context-mode carried` for the S2P2 family). NOTE: ~4× fewer gradient steps than
+the seq-64 benchmark above — absolute numbers are not cross-comparable to it.
+Raw tables: `experiments/{ss2p2_w1024,mc_ablation,tbptt_ablation}/REPORT.txt`.
+
+## 1. w1024 benchmark (`ss2p2_w1024`, 4/7 — sahp/ct-lstm/pct-lstm died on a broken
+GPU node and were not rerun)
+
+| model | overall↓ | ACC | mean_u | sim rate | F6 (real 0.056) |
+|---|---|---|---|---|---|
+| NHP | **0.822** | **0.366** | 1.58 | 25.4 | 0.074* |
+| ss2p2 | 1.606 | 0.329 | 2.34 | 29.3 | 0.018 |
+| lstm | 1.643 | 0.337 | 0.82 | **1.0** | 0.007 |
+| s2p2 | 1.950 | 0.300 | 2.89 | 50.5 | 0.040 |
+
+First carried-state result: **F6 long memory finally moved** (s2p2 0.040 ≈ 72% of
+real; window-mode capped everyone at ~0.01–0.03) — memory truncation, not model
+class, was blocking it. Rate inflation unchanged. (*NHP F6 on a 7× over-firing
+stream; read skeptically.)
+
+## 2. MC-compensator ablation (`mc_ablation`) — NEGATIVE result, kept for the paper
+
+{ss2p2, s2p2} × {endpoint, MC-32-global}. The unbiased global-span MC estimator
+**collapsed both models** (mean_u 2.24→0.35, free-run 30→0.05 ev/s, overall NLL
+7–10): unbiased-in-expectation ≠ robust under clip_grad(0.5)+Adam — the estimator's
+heavy-tailed penalty gets trimmed, and MLE games the sparse audit (spiky λ at
+events, crushed baseline). Diagnostic on the trained control confirmed the
+estimator's arithmetic is right (MC/endpoint = 6.4×, matching the model's true
+mass). Fix identified but not yet run: **stratified per-gap MC** (one sample per
+gap — every gap audited, variance from within-gap variation only).
+
+## 3. TBPTT ablation (`tbptt_ablation`) — stateful training works; rate is not a
+state problem
+
+{ss2p2, s2p2} × {cold-start, TBPTT}, stride=seq=1024 both arms, endpoint
+compensator both arms:
+
+| pair | overall↓ | tMAE(s) | ACC | mean_u | sim rate | clus_re↓ | retACF_re↓ |
+|---|---|---|---|---|---|---|---|
+| s2p2 cold→tbptt | 1.386→**1.295** | **15.6→2.65** | .278→.290 | 1.91→1.86 | 27.6→28.0 | 14.9→**0.12** | 26.8→**0.43** |
+| ss2p2 cold→tbptt | 1.672→**1.428** | 0.49→0.49 | .314→.322 | 2.20→1.96 | 22.4→23.6 | 9.8→8.2 | 17.6→9.3 |
+
+TBPTT improves prediction across the board and **transforms simulated temporal
+structure** — s2p2-tbptt hits real-level volatility clustering (clus_re 0.12,
+best Fano_re 0.23) — but **does not touch the rate inflation** (mean_u ~1.9,
+rate ~7× hot).
+
+## Factor decomposition (what owns what)
+
+- **State regime (cold vs TBPTT)**: owns prediction quality and the temporal
+  *structure* of simulated flow (clustering/long memory). Does NOT own the rate.
+- **Rollout memory (window vs carried)**: owns whether long memory is expressible
+  at simulation time; O(1)/step as a bonus.
+- **Compensator estimator**: owns rate/mass calibration (mean_u); the naive global
+  MC form is unusable at its variance; **stratified per-gap MC on top of TBPTT is
+  the open finisher experiment** for the last blocking issue (≈2× intensity-mass
+  over-charge → ~7× compounded free-run rate).
+- SS2P2's bounded head keeps every rollout tractable/exact-to-sample (thinning
+  ceiling); notable that plain s2p2+TBPTT currently leads the structure metrics —
+  the bound's value is safety + samplability, not facts-fit, in this regime.
+
+Caveats: single seed, one asset, 4/7 benchmark coverage, seq-1024 arms
+undertrained vs the seq-64 table.
+
 *Historical (NMH/LGM-era) tables were removed from the working tree (recoverable from
 git history — `results/comparison_table.json`, `docs/LGM_SWEEP.md`); the narrative
 survives in `MODEL_NOTES.md`.*
