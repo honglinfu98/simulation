@@ -342,6 +342,73 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
     return np.stack(rec_marks, axis=1), dt_arr, np.cumsum(dt_arr, axis=1)
 
 
+# ---------------------------------------------------------------------------
+# Post-hoc rate calibration (SS2P2-family: lambda = s * softplus(z), EXACTLY
+# linear in the learnable scale s, so rescaling s rescales the instantaneous
+# rate and the thinning ceiling together -- certificate preserved)
+# ---------------------------------------------------------------------------
+
+def _set_rate_scale(decoder, s_new: torch.Tensor) -> None:
+    decoder.raw_scale.data = torch.log(torch.expm1(s_new.clamp_min(1e-8)))
+
+
+def _measured_rate(marks, dt, cum, duration: float) -> float:
+    n_ev, t_tot = 0, 0.0
+    for i in range(marks.shape[0]):
+        keep = cum[i] <= duration if duration > 0 else np.ones(len(dt[i]), bool)
+        n_ev += int(keep.sum()); t_tot += float(dt[i][keep].sum())
+    return n_ev / max(t_tot, 1e-9)
+
+
+def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
+                   probe_duration: float = 120.0, probe_seq: int = 8,
+                   tol: float = 0.05, max_iter: int = 8) -> float:
+    """Bisect a multiplier k on the ORIGINAL scale s0 until the free-run rate
+    matches `target`. The closed-loop rate is monotone in k (higher scale ->
+    more events -> more excitation), but not linear, hence root-finding on
+    short probe rollouts. Leaves the decoder at the calibrated scale; returns k.
+    """
+    dec = model.decoder
+    if not hasattr(dec, "raw_scale"):
+        raise ValueError("--calibrate-rate needs a decoder with a scalar rate scale "
+                         "(SS2P2.raw_scale); this decoder has none")
+    s0 = F.softplus(dec.raw_scale.detach()).clone()
+
+    def probe(k: float) -> float:
+        _set_rate_scale(dec, s0 * k)
+        m, d, c = simulate_stream(model, batch, device, steps=0, n_seq=probe_seq,
+                                  duration=probe_duration, seed=777, **sampler_kwargs)
+        r = _measured_rate(m, d, c, probe_duration)
+        print(f"  CAL probe k={k:.4f} -> rate {r:.3f} (target {target:.3f})", flush=True)
+        return r
+
+    lo, hi = 1.0, 1.0
+    r1 = probe(1.0)
+    if abs(r1 - target) / target <= tol:
+        return 1.0
+    if r1 > target:                       # over-firing: bracket downward
+        while probe(lo := lo / 4.0) > target and lo > 1e-4:
+            pass
+    else:                                 # under-firing: bracket upward
+        while probe(hi := hi * 4.0) < target and hi < 256.0:
+            pass
+    for _ in range(max_iter):
+        mid = math.sqrt(lo * hi)          # geometric bisection (k is a scale)
+        r = probe(mid)
+        if abs(r - target) / target <= tol:
+            lo = hi = mid
+            break
+        if r > target:
+            hi = mid
+        else:
+            lo = mid
+    k = math.sqrt(lo * hi)
+    _set_rate_scale(dec, s0 * k)
+    print(f"CALIBRATED rate scale k={k:.4f}  (s {float(s0):.4f} -> {float(s0)*k:.4f}; "
+          f"thinning ceiling scales identically)", flush=True)
+    return k
+
+
 def bucketize(marks: np.ndarray, dt: np.ndarray, sign: np.ndarray, moving: np.ndarray,
               bucket: float) -> Tuple[np.ndarray, np.ndarray]:
     """Aggregate one contiguous stream into (r [T], activity [T]) per time bucket."""
@@ -598,6 +665,11 @@ def main():
                          "thinning = Ogata thinning with SS2P2's exact closed-form upper bound")
     ap.add_argument("--over-sample-rate", type=float, default=1.0,
                     help="thinning safety multiplier on lambda* (SS2P2 bound is exact, so 1.0)")
+    ap.add_argument("--calibrate-rate", type=float, default=0.0,
+                    help="post-hoc rate calibration (SS2P2-family): bisect a multiplier k on "
+                         "the rate-head scale s (lambda linear in s; thinning ceiling scales "
+                         "with it) until the free-run rate matches this target. "
+                         "-1 = calibrate to the measured real-stream rate; 0 = off")
     ap.add_argument("--context-mode", choices=["window", "carried"], default="window",
                     help="window = sliding seq-length window re-encoded from a cold state "
                          "each step (training-faithful; memory truncated to the window); "
@@ -627,7 +699,8 @@ def main():
     # Real stream
     marks_r, dt_r = real_stream(test_loader, args.stride, args.max_real_windows)
     r_real, a_real = bucketize(marks_r, dt_r, sign, moving, args.bucket_seconds)
-    print("REAL events", len(dt_r), "buckets", len(r_real), flush=True)
+    real_rate = len(dt_r) / max(float(dt_r.sum()), 1e-9)
+    print("REAL events", len(dt_r), "buckets", len(r_real), "real_rate", round(real_rate, 4), flush=True)
 
     # Closed-loop book feedback for state-conditioned models: vocab + depth
     # profile + tick scale from the v2 events themselves.
@@ -655,6 +728,15 @@ def main():
     print("CONTEXT_MODE", "carried (O(1)/step incremental state, unbounded memory)"
           if carried else f"window ({args.seq_length} events, cold-start re-encode per step)", flush=True)
     first_batch = move_batch(next(iter(test_loader)), device)
+    rate_scale_k = 1.0
+    if args.calibrate_rate != 0.0:
+        cal_target = real_rate if args.calibrate_rate < 0 else args.calibrate_rate
+        print(f"CALIBRATE_RATE target {cal_target:.4f} ev/s "
+              f"({'measured real rate' if args.calibrate_rate < 0 else 'user target'})", flush=True)
+        rate_scale_k = calibrate_rate(
+            model, first_batch, device, cal_target,
+            sampler_kwargs=dict(horizon=args.dt_horizon, n_grid=args.dt_grid_points,
+                                carried=carried))
     if args.sampler == "thinning":
         print("SAMPLER thinning (Ogata, SS2P2 closed-form bound)", flush=True)
         sim_marks, sim_dt, sim_cum = simulate_stream_thinning(
@@ -684,7 +766,6 @@ def main():
     # Mean-rate fit gate: simulated vs real event rate (ev/s). If these diverge,
     # every downstream stylized fact is computed on a mis-scaled stream.
     sim_rate = n_sim_events / max(sim_time, 1e-9)
-    real_rate = len(dt_r) / max(float(dt_r.sum()), 1e-9)
     print("SIM events", n_sim_events, "buckets", len(r_sim),
           "sim_rate", round(sim_rate, 4), "real_rate", round(real_rate, 4), flush=True)
 
@@ -717,6 +798,8 @@ def main():
         "rollout_duration": args.rollout_duration,
         "sampler": args.sampler,
         "context_mode": "carried" if carried else "window",
+        "calibrate_rate_target": (real_rate if args.calibrate_rate < 0 else args.calibrate_rate) if args.calibrate_rate != 0.0 else None,
+        "rate_scale_k": rate_scale_k,
         "return_proxy": "signed order flow of MO_* and IS_*_L1 per bucket (side b/a = bid/ask)",
         "headline": headline,
         "facts_real": facts_real,
