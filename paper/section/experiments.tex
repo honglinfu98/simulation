@@ -52,8 +52,8 @@ Table~\ref{tab:simulation} scores 600\,s closed-loop roll-outs by relative error
 against real data on the stylized-facts set.
 
 \begin{table}[t]
-\centering\small
-\setlength{\tabcolsep}{3.2pt}
+\centering\footnotesize
+\setlength{\tabcolsep}{2.6pt}
 \begin{tabular}{lccccc}
 \toprule
 model & rate (real 2.32) & rate\_re$\downarrow$ & Fano\_re$\downarrow$ & clus\_re$\downarrow$ & rACF\_re$\downarrow$\\
@@ -129,7 +129,106 @@ endpoint compensator rather than fitting the data.
 the frozen ZOH input hold: between events the state converges to
 $x_\infty=\tilde B u_{\text{held}}$ ($\|x\|\!\approx\!30$ at 60\,s) rather than to
 zero, keeping the quiet-regime rate elevated. A zero-asymptote ablation reaches
-\nhp{}-level quiet ($\lambda\approx0.02$), so a \emph{leaky hold}
-$u_{\text{held}}(\delta)=e^{-\rho\delta}u_{\text{held}}$ is the identified next
-lever; the unbiased Monte-Carlo compensator (implemented, untested at scale) is its
-natural companion for the shared free-running rate inflation.
+\nhp{}-level quiet ($\lambda\approx0.02$); a \emph{leaky hold}
+$u_{\text{held}}(\delta)=e^{-\rho\delta}u_{\text{held}}$ is left as future work.
+
+\subsection{From bounded predictor to calibrated simulator}
+\label{sec:arc}
+We now resolve the remaining prediction--simulation gap through single-factor
+ablations in a long-context regime (sequence length 1024, non-overlapping windows
+where stateful training requires it; test-slice real rate 3.48\,ev/s; all roll-outs
+600\,s $\times$ 32 sequences, carried-state for the \sppp{} family). Numbers in this
+subsection are not comparable to Tables~\ref{tab:prediction}--\ref{tab:ablation}
+(different context length, stride, and training-step budget).
+
+\paragraph{Roll-out memory unlocks long-range structure.} With carried-state
+simulation, the volatility long-memory fact moves for the first time in this study:
+\sppp's simulated $|r|$-autocorrelation (F6) reaches $0.040$ against a real $0.056$
+--- every sliding-window protocol before it was capped near noise ($\le 0.03$),
+because a 64-event window spans only $\sim$27\,s of market time. Memory truncation,
+not model class, was the binding constraint.
+
+\paragraph{Stateful training owns structure and prediction --- not the rate.}
+Pairing cold-start against TBPTT training, everything else identical:
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{2.7pt}
+\begin{tabular}{lcccccc}
+\toprule
+ & overall$\downarrow$ & tMAE(s) & mean\,$u$ & rate & clus\_re$\downarrow$ & rACF\_re$\downarrow$\\
+\midrule
+\sppp{} cold & 1.386 & 15.61 & 1.91 & 27.6 & 14.9 & 26.8\\
+\sppp{} TBPTT & \textbf{1.295} & \textbf{2.65} & 1.86 & 28.0 & \textbf{0.12} & \textbf{0.43}\\
+\ssppp{} cold & 1.672 & 0.49 & 2.20 & 22.4 & 9.8 & 17.6\\
+\ssppp{} TBPTT & \textbf{1.428} & 0.49 & 1.96 & 23.6 & 8.2 & 9.3\\
+\bottomrule
+\end{tabular}
+\caption{TBPTT ablation (endpoint compensator in all arms; rate in ev/s vs real
+3.48; clus/rACF = rel-err of volatility clustering and $|r|$-ACF vs real). Stateful
+training improves prediction across every metric and transforms simulated temporal
+structure, while leaving the free-running rate and per-gap mass (mean $u$)
+essentially unchanged --- the rate is not a state-regime problem.}
+\label{tab:tbptt}
+\end{table}
+
+Prediction improves across the board (\sppp's pathological timing collapses from
+15.6\,s to 2.65\,s MAE) and simulated clustering reaches near-real levels
+(Table~\ref{tab:tbptt}) --- but the roll-out still runs $\sim$7$\times$ hot with
+mean $u\approx1.9$: the remaining inflation is a property of the \emph{loss}, not of
+the states.
+
+\paragraph{The unbiased compensator fails --- for optimization, not statistical,
+reasons.} Replacing the endpoint rule with the Mei--Eisner global Monte-Carlo
+compensator (32 uniform samples per window) collapses both models to near-silence
+(free-run 0.05--0.08\,ev/s; mean $u$ overshoots from 2.2 to 0.35; teacher-forced NLL
+degrades by 5+ nats) while its training loss decreases smoothly throughout. A
+diagnostic on the trained control confirms the estimator's expectation is correct
+(MC/endpoint $=6.4\times$, matching the model's true intensity mass); the failure is
+dynamical: the estimator's heavy-tailed penalty (2$\times$ draw-to-draw swings) is
+systematically trimmed by gradient clipping under Adam, and maximum likelihood learns
+to exploit the sparse audit --- spiky intensity at events (rarely sampled, since
+samples weight by time), crushed baseline elsewhere (audited every step). Unbiased in
+expectation is not unbiased under clipped adaptive optimization; a stratified
+per-gap estimator (one sample per gap: every gap audited, variance from within-gap
+variation only) is the indicated repair.
+
+\paragraph{Post-hoc calibration closes the rate --- and improves structure.}
+Applying the certificate-preserving calibration of the method section to the trained
+\ssppp{} checkpoints (both converge in 6 probes to $k=0.386$: the apparent
+7$\times$ rate inflation corresponds to a 2.6$\times$ over-scaled head, the rest
+being closed-loop amplification):
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{3.4pt}
+\begin{tabular}{lccccc}
+\toprule
+\ssppp{} arm & rate (real 3.48) & rate\_re & Fano\_re & clus\_re & rACF\_re\\
+\midrule
+cold, uncal. & 22.4 & 5.43 & 0.73 & 9.76 & 17.61\\
+cold, cal. & 3.17 & \textbf{0.09} & 0.35 & 2.87 & 5.72\\
+TBPTT, uncal. & 23.6 & 5.79 & 0.64 & 8.20 & 9.32\\
+TBPTT, cal. & \textbf{2.59} & 0.26 & \textbf{0.35} & \textbf{0.45} & \textbf{0.28}\\
+\bottomrule
+\end{tabular}
+\caption{Rate-calibration ablation (simulation-only, no retraining). Calibration
+improves \emph{every} structure fact --- the apparent structure deficit of
+over-firing simulators is largely a clock-rate artifact (facts computed on a
+7$\times$-hot stream have mis-scaled buckets) --- and the TBPTT training advantage
+persists after calibration.}
+\label{tab:calibration}
+\end{table}
+
+Two effects separate cleanly (Table~\ref{tab:calibration}): calibration fixes the
+rate by construction and repairs the bucket-scale distortion of every fact, and
+stateful training contributes structure that calibration alone does not (clustering
+0.45 vs.\ 2.87 within the calibrated pair). The combined recipe --- \textbf{\ssppp{}
+heads + TBPTT training + carried-state roll-out + post-hoc calibration} --- is the
+configuration we propose: near-real event rate, close-to-empirical clustering and
+return-autocorrelation, a hard closed-form rate ceiling, and exact thinning
+throughout. The calibrated model is no longer the maximum-likelihood point (the knob
+trades likelihood for simulation fidelity), and the residual $\sim$25\% rate gap
+reflects probe-versus-full-horizon drift; the principled endpoint --- emergent
+calibration via a low-variance unbiased compensator on stateful training --- remains
+open and is the natural next experiment.

@@ -60,10 +60,48 @@ owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 Training maximizes the standard MTPP likelihood with the compensator evaluated on the
 training window; the mark term is a categorical cross-entropy on $p^*(k_i\mid t_i)$,
 decoupled from the rate term. Closed-loop sampling uses thinning with the exact
-dominating rate $s\cdot\mathrm{softplus}(c)$. Two further training-side options are
-kept from the benchmark harness: an S4-style log-spaced initialization of the
-backbone decay spectrum (timescales $0.02$--$60$\,s), and an unbiased Monte-Carlo
-compensator estimate in place of the endpoint rule (\texttt{--mc-compensator});
-the ablation chain evaluates the former, and the latter is identified as the
-companion lever for the residual rate inflation shared by all windowed-trained
-intensity models.
+dominating rate $s\cdot\mathrm{softplus}(c)$. An S4-style log-spaced initialization
+of the backbone decay spectrum (timescales $0.02$--$60$\,s) is kept as a training
+option and evaluated in the head-ablation chain.
+
+\subsection{Carried-state simulation}
+The standard roll-out protocol re-encodes a sliding window of the last $W$ events
+from a zero state at every step. This is faithful to windowed training but has two
+costs: $O(W)$ work per simulated event, and a hard memory ceiling --- nothing older
+than $W$ events can influence the future, so long-memory stylized facts (the slow
+decay of $|r|$ autocorrelation) are \emph{architecturally} unreachable regardless of
+the model. Because the backbone is a state-space recursion, both costs vanish: we
+carry the packed decoder state and advance it with only the new event, which is
+mathematically identical to encoding the entire history from the seed ($10^{-5}$
+agreement in float32) at $O(1)$ per event --- $31\times$ faster at $W{=}1024$ and
+memory-unbounded. Attention- and window-shaped baselines have no such Markov state
+and retain the sliding window.
+
+\subsection{Stateful (TBPTT) training}
+Windowed maximum likelihood encodes every training window from a cold initial state,
+so the model only ever trains in a ``history just began'' transient and MLE explains
+the observed rate with an inflated baseline --- the free roll-out, whose state is
+warm, then double-counts. We train instead with truncated backpropagation through
+time: batch lanes walk contiguous stretches of the stream in order, and the decoder
+state at the end of window $t$ is passed --- \emph{detached} --- as the initial state
+of window $t{+}1$ (resets only at genuine stream boundaries, to the learned initial
+state). Gradients remain window-local; state values flow from the start of the
+stream. This makes the training regime consistent with carried-state simulation, at
+unchanged per-step cost; it requires non-overlapping windows (stride $=$ window
+length), so our controls match that setting.
+
+\subsection{Post-hoc rate calibration}
+\label{sec:calibration}
+The factorization buys one more property: $\lambda = s\cdot\mathrm{softplus}(z)$ is
+\emph{exactly linear} in the learnable scale $s$, the thinning ceiling
+$s\cdot\mathrm{softplus}(c)$ scales with it, and the mark head is untouched by
+construction. The free-running rate --- which is monotone but nonlinear in $s$
+through the closed-loop feedback --- can therefore be calibrated by a one-dimensional
+geometric bisection on a multiplier $k$: roll out briefly at $k\,s$, compare the
+realized rate to the target, and iterate ($\sim$6 probe roll-outs in practice). The
+result is a certificate-preserving, sampling-exact simulator at any prescribed mean
+rate. Coupled-head models (\nhp, \sppp) admit no such knob: their marks and rate
+share parameters, so rescaling the intensity distorts the type distribution. We use
+this as a \emph{post-hoc} correction for the residual rate inflation caused by the
+biased endpoint-rule compensator (the experiments quantify the alternative of fixing
+the estimator itself, and why its naive form fails).

@@ -43,7 +43,11 @@ output $u(t)$ --- and replace only what comes after $u(t)$:
 \end{itemize}
 
 Because the backbone is identical, differences against \sppp{} are attributable to
-the heads. Our contributions:
+the heads. The heads, however, are only the first ingredient: we show that the
+prediction--simulation gap decomposes into \emph{independent} causes --- what the
+model can remember (roll-out memory), what states it trains on (cold-start windows
+vs.\ warm streams), and how the likelihood measures intensity mass (the compensator
+estimator) --- and we resolve each with a single-factor ablation. Our contributions:
 \begin{enumerate}
 \item \textbf{The \ssppp{} head pair} (softmin-bounded rate $\times$ rate-neutral
   marks): a provably bounded, thinning-exact intensity on an unmodified
@@ -51,16 +55,28 @@ the heads. Our contributions:
 \item \textbf{A corrected, identically-configured seven-model benchmark} on Gemini
   ETH-USD order flow (62 event types), covering both per-event prediction (NLL split,
   accuracy, time-rescaling calibration) and closed-loop simulation (stylized-facts
-  fit). Three implementation bugs found in vendored baselines were fixed and all
-  baselines retrained; untouched models reproduced bit-identically as controls.
-\item \textbf{A mechanistic ablation chain.} The original two-sided (G1) bound,
-  an S4-style log-spaced decay initialization, and the open-floor softmin head are
-  compared through burst-conditional NLL and the intensity relaxation trace
-  $\lambda(\delta)$, localizing \ssppp{}'s deficit to the quiet regime and cutting it
-  by 41\%.
-\item \textbf{A diagnosis of what remains}: the frozen ZOH input-hold asymptote keeps
-  the state (and hence the rate) elevated in long gaps, and the endpoint-rule
-  compensator biases all windowed-trained intensity models toward over-firing ---
-  identifying the leaky hold and the unbiased Monte-Carlo compensator as the next
-  levers.
+  fit), plus a mechanistic head-ablation chain (two-sided bound $\to$ slow-mode
+  initialization $\to$ open-floor softmin) that localizes and cuts the quiet-regime
+  deficit by 41\%.
+\item \textbf{Carried-state simulation and stateful (TBPTT) training.} Sliding-window
+  roll-out architecturally truncates memory to the window span; an $O(1)$-per-event
+  carried-state roll-out (exactly equivalent to encoding the full history, for
+  state-space recursions) unlocks long-memory volatility clustering. Training with
+  state carried across windows (detached at boundaries) improves prediction across
+  every metric and brings simulated clustering and return-autocorrelation structure
+  to near-real levels --- while leaving the free-running rate unchanged, cleanly
+  isolating the rate from the state regime.
+\item \textbf{Exact post-hoc rate calibration.} Because the \ssppp{} rate head is
+  linear in its learnable scale and the thinning ceiling scales with it, the
+  free-running rate can be calibrated by a one-dimensional root-find on short probe
+  roll-outs --- certificate-preserving, mark-distribution-preserving, and unavailable
+  to coupled-head models. Calibration \emph{improves} every structure fact: the
+  apparent structure deficit of over-firing simulators is largely a clock-rate
+  artifact.
+\item \textbf{A cautionary negative result on unbiased compensators.} The
+  Mei--Eisner-style global Monte-Carlo compensator, though verifiably unbiased,
+  collapses training under gradient clipping and adaptive optimization: its
+  heavy-tailed penalty is systematically trimmed and maximum likelihood learns to
+  exploit the sparse audit. Estimator variance, not bias alone, decides whether
+  likelihood-level calibration succeeds.
 \end{enumerate}

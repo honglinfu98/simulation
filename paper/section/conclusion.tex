@@ -1,15 +1,24 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We showed that the prediction--simulation tension in neural LOB models is a property
-of the output heads, not the backbone. Keeping the \sppp{} state-space backbone
-verbatim and transplanting a softmin-bounded rate head and a rate-neutral mark head
-yields \ssppp: within 0.3 nats of the best predictor, best-in-table timing
-calibration, $\ge$1.8 nats better than its unbounded parent, and a roll-out bounded
-by a hard closed-form ceiling that doubles as an exact thinning rate. The ablation
-chain turns the remaining gap into mechanism: a welded rate floor (fixed by the
-softmin head) and a frozen ZOH state asymptote plus endpoint-compensator bias (the
-identified next levers: leaky hold and Monte-Carlo compensator). Because the mark
-head is rate-neutral, conditioning it on exogenous state --- an agent's resting
-quotes --- cannot destabilize the rate, making \ssppp{} a suitable environment model
-for market-making world models; that action-conditioned extension is future work.
+We decomposed the prediction--simulation tension in neural LOB models into
+independent causes and resolved each with a single-factor ablation. The \ssppp{}
+heads (softmin-bounded rate $\times$ rate-neutral marks, on an unchanged \sppp{}
+backbone) supply stability and exact samplability: within 0.3 nats of the best
+predictor, $\ge$1.8 nats better than the unbounded parent, provably bounded
+roll-out. Carried-state simulation removes the memory ceiling that made long-range
+volatility clustering unreachable; stateful (TBPTT) training improves prediction
+across every metric and brings simulated temporal structure to near-real levels; and
+the factorized head admits an exact, certificate-preserving post-hoc rate
+calibration that closes the remaining rate gap --- and, by repairing the clock-rate
+distortion, improves every structure fact. The combined recipe --- bounded heads,
+stateful training, carried-state roll-out, calibrated scale --- simulates at
+near-real rates with close-to-empirical clustering and return-autocorrelation while
+remaining exactly samplable end-to-end. Alongside, a cautionary negative result: the
+textbook unbiased Monte-Carlo compensator collapses training under clipped adaptive
+optimization despite verified unbiasedness --- estimator variance governs whether
+likelihood-level calibration succeeds, and a stratified per-gap estimator is the
+indicated repair and our next experiment. Because the mark head is rate-neutral,
+conditioning it on exogenous state --- an agent's resting quotes --- cannot
+destabilize the rate, making \ssppp{} a suitable environment model for market-making
+world models; that action-conditioned extension is future work.

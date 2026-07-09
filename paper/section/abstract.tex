@@ -11,11 +11,19 @@ mark head that can be arbitrarily deep without perturbing the total rate. Becaus
 backbone is unchanged, every behavioural difference is attributable to the heads. On a
 corrected seven-model benchmark on Gemini ETH-USD order flow (identical training
 configuration for all models), \ssppp{} comes within 0.3 nats of the best predictor
-(the Neural Hawkes CT-LSTM) while holding the best timing calibration in the table,
-beats its unbounded \sppp{} parent by more than 1.8 nats, and is the only
-intensity-based model whose free-running roll-out is bounded by construction. An
-ablation chain (two-sided bound $\to$ slow-mode initialization $\to$ open-floor
-softmin head) localizes the remaining gap to the quiet regime and identifies its
-mechanism --- compensator mass leaked by a welded rate floor and a frozen
-zero-order-hold state asymptote --- yielding concrete, testable next steps.
+(the Neural Hawkes CT-LSTM) while holding the best timing calibration in the table and
+beats its unbounded \sppp{} parent by more than 1.8 nats. We then show, through a
+chain of single-factor ablations, how to turn the bounded predictor into a
+\emph{calibrated simulator}: carried-state (unbounded-memory) roll-out unlocks
+long-memory volatility clustering that sliding-window simulation architecturally
+truncates; truncated-backpropagation-through-time (TBPTT) training on warm states
+improves prediction and brings simulated clustering to near-real levels; and the
+factorized rate head admits an \emph{exact, certificate-preserving post-hoc rate
+calibration} --- a one-dimensional root-find on its scale --- that no coupled-head
+model supports. The full recipe simulates at near-real event rates with
+close-to-empirical clustering and return-autocorrelation structure while remaining
+provably bounded and exactly samplable. A negative result completes the picture: the
+textbook unbiased Monte-Carlo compensator, despite correct expectation, collapses
+training under clipped adaptive optimization --- estimator variance, not bias alone,
+governs whether likelihood-based calibration succeeds.
 \end{abstract}
