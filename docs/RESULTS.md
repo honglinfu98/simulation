@@ -143,6 +143,32 @@ structure** — s2p2-tbptt hits real-level volatility clustering (clus_re 0.12,
 best Fano_re 0.23) — but **does not touch the rate inflation** (mean_u ~1.9,
 rate ~7× hot).
 
+## 4. Post-hoc rate calibration (`rate_cal`, Route 1) — SS2P2 calibrated,
+structure IMPROVES at the correct clock rate
+
+SS2P2's rate head is exactly linear in its scale s (ceiling scales along →
+certificate preserved), so the free-run rate is calibrated by geometric
+bisection on k with short probe rollouts (`--calibrate-rate -1`). Simulation-
+only, on the trained tbptt_ablation checkpoints; both converged in 6 probes to
+**k = 0.386** (the closed-loop inflation factor in scale units):
+
+| arm | sim rate (real 3.48) | rate_re↓ | Fano_re↓ | clus_re↓ | retACF_re↓ |
+|---|---|---|---|---|---|
+| tbptt-uncal | 23.6 | 5.79 | 0.64 | 8.20 | 9.32 |
+| **tbptt-cal** | **2.59** | **0.26** | **0.35** | **0.45** | **0.28** |
+| cold-uncal | 22.4 | 5.43 | 0.73 | 9.76 | 17.61 |
+| cold-cal | 3.17 | 0.09 | 0.35 | 2.87 | 5.72 |
+
+Every structure fact improved at the calibrated rate (they were previously
+computed on a ~7×-hot stream with mis-scaled buckets), and the TBPTT training
+advantage persists after calibration (clus 0.45 vs 2.87, retACF 0.28 vs 5.72).
+**TBPTT + carried rollout + calibration is the best SS2P2 simulator
+configuration measured to date** — near-real rate with the thinning
+certificate intact. Caveats: the calibrated model is no longer the MLE
+(teacher-forced NLL not re-evaluated); probe-vs-600s drift leaves the tbptt-cal
+final rate ~26% under target (longer probes would tighten it); k is a
+per-checkpoint constant, not a guarantee across regimes.
+
 ## Factor decomposition (what owns what)
 
 - **State regime (cold vs TBPTT)**: owns prediction quality and the temporal
@@ -152,7 +178,10 @@ rate ~7× hot).
 - **Compensator estimator**: owns rate/mass calibration (mean_u); the naive global
   MC form is unusable at its variance; **stratified per-gap MC on top of TBPTT is
   the open finisher experiment** for the last blocking issue (≈2× intensity-mass
-  over-charge → ~7× compounded free-run rate).
+  over-charge → ~7× compounded free-run rate). Post-hoc scale calibration
+  (exp 4) now provides a certificate-preserving workaround for SS2P2
+  specifically — emergent calibration via the estimator remains the principled
+  fix (and the only route for models without a scalar rate head).
 - SS2P2's bounded head keeps every rollout tractable/exact-to-sample (thinning
   ceiling); notable that plain s2p2+TBPTT currently leads the structure metrics —
   the bound's value is safety + samplability, not facts-fit, in this regime.
