@@ -457,16 +457,21 @@ class VolumeSetMTPP(PPModel):
                      / delta[:, : self.half_h_size].clamp_min(1e-4)).sum(dim=1)
         return rho.mean()
 
-    def compute_loss(self, batch, device):
+    def compute_loss(self, batch, device, old_states=None):
         """
         Compute negative log-likelihood loss for a batch.
 
         Args:
             batch: Dictionary containing batch data
             device: Device to run on
+            old_states: Optional initial decoder states for TBPTT training
+                (form accepted by the decoder's get_states_and_event_left_states,
+                e.g. [B, L, H] for the S2P2 family). None = cold start.
 
         Returns:
-            loss tensor, metrics dictionary
+            loss tensor, metrics dictionary.  Side effect: stashes the batch's
+            final right state (detached) on self._last_final_state [B, D*] so a
+            TBPTT loop can carry it into the next batch.
         """
         # Move batch to device
         input_times = batch['input_times'].to(device)
@@ -487,17 +492,20 @@ class VolumeSetMTPP(PPModel):
             states, event_states = self.decoder.get_states_and_event_left_states(
                 marks=input_marks,
                 timestamps=timestamps,
-                old_states=None
+                old_states=old_states
             )
         else:
             states = self.decoder.get_states(
                 marks=input_marks,
                 timestamps=timestamps,
-                old_states=None
+                old_states=old_states
             )
             # Fallback for legacy decoders: use previous states for event likelihood
             # rather than post-current-event states to avoid current-label leakage.
             event_states = states[:, :-1, :]
+        # TBPTT hand-off: the packed post-window state, value only (gradients
+        # truncate at the window boundary).
+        self._last_final_state = states[:, -1].detach()
         # states shape: [batch_size, seq_len+1, state_size]
         # The +1 is because decoder returns initial state + states after each event
         input_state_feats = None

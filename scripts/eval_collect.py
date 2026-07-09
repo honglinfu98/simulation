@@ -17,7 +17,15 @@ import os
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/simulation/experiments/eval_all")
-ORDER = ["hawkes", "lstm", "sahp", "ct-lstm", "pct-lstm", "s2p2", "ss2p2"]
+# Canonical benchmark order first; any OTHER tag directory under ROOT (e.g.
+# ablation arms like ss2p2-mc, s2p2-tbptt) is appended alphabetically, so the
+# collector works for ablation roots too instead of printing an empty report.
+_CANON = ["hawkes", "lstm", "sahp", "ct-lstm", "pct-lstm", "s2p2", "ss2p2"]
+_found = sorted(d for d in os.listdir(ROOT)
+                if os.path.isdir(os.path.join(ROOT, d))
+                and (os.path.exists(os.path.join(ROOT, d, f"genuine_{d}.json"))
+                     or os.path.isdir(os.path.join(ROOT, d, "stylized_facts")))) if os.path.isdir(ROOT) else []
+ORDER = [t for t in _CANON if t in _found] + [t for t in _found if t not in _CANON]
 
 
 def relerr(m, r):

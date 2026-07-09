@@ -138,6 +138,60 @@ def train_epoch(model, train_loader, optimizer, device, epoch, writer=None, loss
     return avg_loss
 
 
+def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None, loss_writer=None):
+    """One epoch of TBPTT training: batches arrive in stream order (lane
+    batching, StatefulBFNXLoader) and the decoder state is CARRIED across
+    batches -- detached, so gradients truncate at window boundaries while the
+    state values flow from the start of each lane's stream. Lanes flagged in
+    reset_mask (lane start / zone boundary) restart from the decoder's learned
+    init_state instead of a mid-stream carried state."""
+    model.train()
+    dec = model.decoder
+    L, H = dec.num_layers, dec.recurrent_hidden_size
+    init = dec.init_state.detach()                        # [L, H] learned cold-start state
+    carried = None                                        # [B, L, H]
+    total_loss = 0.0
+    n_batches = 0
+    pbar = tqdm(train_loader, desc=f"Epoch {epoch} [Train TBPTT]", total=len(train_loader))
+
+    for batch_idx, batch in enumerate(pbar):
+        reset = batch.pop("reset_mask").to(device)
+        b = int(reset.shape[0])
+        if carried is None:
+            carried = init.unsqueeze(0).expand(b, -1, -1).clone().to(device)
+        old = carried.clone()
+        old[reset] = init.to(device)
+        loss, _ = model.compute_loss(batch, device, old_states=old)
+
+        if not torch.isfinite(loss):
+            print(f"Non-finite loss at batch {batch_idx}: {loss.item()}")
+            break
+        optimizer.zero_grad()
+        loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+        if not torch.isfinite(grad_norm):
+            print(f"Non-finite grad norm at batch {batch_idx}: {grad_norm}")
+            optimizer.zero_grad(set_to_none=True)
+            break
+        optimizer.step()
+
+        # hand-off: packed [B, D*] -> layer states [B, L, H] (held anchors are
+        # recomputed by the next window's event pass; see ARCHITECTURE.md)
+        packed = model._last_final_state
+        carried = packed[:, :L * H].reshape(b, L, H)
+
+        total_loss += loss.item()
+        n_batches += 1
+        pbar.set_postfix({'loss': loss.item()})
+        global_step = epoch * len(train_loader) + batch_idx
+        if writer:
+            writer.add_scalar('Train/Loss', loss.item(), global_step)
+        if loss_writer:
+            loss_writer.writerow({'split': 'train', 'epoch': epoch, 'batch': batch_idx, 'global_step': global_step, 'loss': float(loss.item())})
+
+    return total_loss / max(n_batches, 1)
+
+
 def evaluate(model, val_loader, device, epoch, writer=None, loss_writer=None):
     """Evaluate model on validation set"""
     model.eval()
@@ -242,6 +296,10 @@ def main():
                         help='weight of the 3S/PIT level-calibration term (compensator moments -> Exp(1))')
     parser.add_argument('--set-loss-reduction', choices=['sum', 'mean-labels'], default='sum',
                         help='sum = paper Bernoulli likelihood; mean-labels = average BCE over labels for balancing')
+    parser.add_argument('--tbptt', action='store_true',
+                        help='Stateful (TBPTT) training: batches walk the stream in order and the '
+                             'decoder state is carried across windows (detached at boundaries). '
+                             'Forces stride = seq-length; S2P2-family decoders only.')
     parser.add_argument('--ptp-dim', type=int, default=8,
                         help='Per-type latent dim d for the per-type s2p2 baseline (pct-lstm)')
     parser.add_argument('--target-rate', type=float, default=1.8, dest='target_rate',
@@ -342,6 +400,7 @@ def main():
         'decoder_type': args.decoder_type,
         'ptp_dim': args.ptp_dim,
         'target_rate': args.target_rate,
+        'tbptt': args.tbptt,
         's2p2_readout': args.s2p2_readout,
         's2p2_layers': args.s2p2_layers,
         's2p2_dropout': args.s2p2_dropout,
@@ -382,6 +441,11 @@ def main():
 
     # Create dataloaders
     print("\nLoading BFNX data...")
+    if args.tbptt and args.stride != args.seq_length:
+        print(f"TBPTT: forcing stride {args.stride} -> {args.seq_length} (non-overlapping windows; "
+              "end-state of window t = start-state of window t+1)")
+        args.stride = args.seq_length
+        config['stride'] = args.seq_length
     train_loader, val_loader, test_loader, event_mapping = create_bfnx_dataloaders(
         data_dir=args.data_dir,
         batch_size=args.batch_size,
@@ -390,7 +454,8 @@ def main():
         max_files=args.max_files,
         num_workers=(args.num_workers if args.num_workers is not None else (2 if device.type != 'cpu' else 0)),
         cache_dir=args.cache_dir,
-        rebuild_cache=args.rebuild_cache
+        rebuild_cache=args.rebuild_cache,
+        stateful_train=args.tbptt
     )
 
     print(f"\nDataset Statistics:")
@@ -402,6 +467,10 @@ def main():
     # Create model
     print("\nCreating model...")
     model = create_model(event_mapping.num_events, config, device)
+    if args.tbptt and not (hasattr(model.decoder, 'init_state')
+                           and hasattr(model.decoder, '_initial_layer_states')):
+        raise SystemExit(f"--tbptt requires an S2P2-family decoder (state hand-off via "
+                         f"old_states); decoder_type={args.decoder_type!r} is unsupported")
 
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -445,7 +514,8 @@ def main():
         print(f"{'=' * 50}")
 
         # Train
-        train_loss = train_epoch(model, train_loader, optimizer, device, epoch, writer, loss_writer)
+        train_fn = train_epoch_tbptt if args.tbptt else train_epoch
+        train_loss = train_fn(model, train_loader, optimizer, device, epoch, writer, loss_writer)
         loss_writer.writerow({'split': 'train_epoch', 'epoch': epoch, 'batch': -1, 'global_step': epoch, 'loss': float(train_loss)})
         loss_history_file.flush()
         print(f"Average train loss: {train_loss:.4f}")

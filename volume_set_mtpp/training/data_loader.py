@@ -448,6 +448,55 @@ class TensorBFNXEventDataset(Dataset):
 BFNXEventDataset = TensorBFNXEventDataset
 
 
+class StatefulBFNXLoader:
+    """Stream-order lane batching for TBPTT training.
+
+    The dataset's window starts are already ordered (zones in order, stride
+    steps within a zone).  This loader splits that ordered list into
+    ``batch_size`` contiguous LANES; batch t stacks the t-th window of every
+    lane, so each batch lane walks its own contiguous stretch of the stream in
+    order and the caller can carry decoder state across batches.
+
+    Each batch dict additionally carries ``reset_mask`` [B] bool: True where
+    the lane's state must be re-initialised (first batch, or the lane's next
+    window is NOT stream-contiguous with the previous one -- a zone/file
+    boundary).  Contiguity means start_{t+1} - start_t == sequence_length,
+    i.e. TBPTT requires stride == sequence_length (non-overlapping windows;
+    the end-state of window t is exactly the start-state of window t+1).
+    """
+
+    def __init__(self, dataset: TensorBFNXEventDataset, batch_size: int):
+        if dataset.stride != dataset.sequence_length:
+            raise ValueError(
+                f"TBPTT needs stride == sequence_length (non-overlapping windows); "
+                f"got stride={dataset.stride}, seq={dataset.sequence_length}")
+        self.dataset = dataset
+        self.batch_size = int(batch_size)
+        starts = dataset.starts.tolist()
+        if len(starts) < self.batch_size:
+            raise ValueError(f"only {len(starts)} windows for {self.batch_size} lanes")
+        per_lane = len(starts) // self.batch_size          # equal-length lanes (tail dropped)
+        self.per_lane = per_lane
+        self.lanes = [starts[b * per_lane:(b + 1) * per_lane] for b in range(self.batch_size)]
+
+    def __len__(self):
+        return self.per_lane
+
+    def __iter__(self):
+        seq = self.dataset.sequence_length
+        idx_of = {int(s): i for i, s in enumerate(self.dataset.starts.tolist())}
+        for t in range(self.per_lane):
+            items, resets = [], []
+            for b in range(self.batch_size):
+                s = self.lanes[b][t]
+                items.append(self.dataset[idx_of[s]])
+                contiguous = t > 0 and (s - self.lanes[b][t - 1] == seq)
+                resets.append(not contiguous)
+            batch = {k: torch.stack([it[k] for it in items]) for k in items[0]}
+            batch["reset_mask"] = torch.tensor(resets, dtype=torch.bool)
+            yield batch
+
+
 def create_bfnx_dataloaders(
     data_dir: str,
     batch_size: int = 32,
@@ -457,9 +506,14 @@ def create_bfnx_dataloaders(
     num_workers: int = 0,
     cache_dir: Optional[str] = None,
     rebuild_cache: bool = False,
+    stateful_train: bool = False,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, EventMapping]:
     """
     Create train, validation, and test dataloaders for BFNX data.
+
+    stateful_train: return a StatefulBFNXLoader (stream-order lane batching +
+    reset masks, for TBPTT) as the train loader instead of a shuffled
+    DataLoader.  Val/test loaders are unchanged either way.
     """
     time_deltas, marks, volumes, lob_states, lob_features, event_mapping, file_lengths = load_bfnx_tensors(
         data_dir=data_dir,
@@ -491,10 +545,13 @@ def create_bfnx_dataloaders(
             "prefetch_factor": 4,
         })
 
-    train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True,
-        **loader_kwargs
-    )
+    if stateful_train:
+        train_loader = StatefulBFNXLoader(train_dataset, batch_size)
+    else:
+        train_loader = DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=True,
+            **loader_kwargs
+        )
     val_loader = DataLoader(
         val_dataset, batch_size=batch_size, shuffle=False,
         **loader_kwargs
