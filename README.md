@@ -122,26 +122,40 @@ bash scripts/watch_runs.sh
 ```
 See `docs/RUNBOOK.md` for the unattended (launchd) setup.
 
+## **The model (locked recipe)**
+
+**SS2P2 heads + TBPTT training + carried-state rollout + post-hoc rate calibration.**
+Each component was isolated by a single-factor ablation (full arc in `docs/RESULTS.md`):
+
+```
+python scripts/train.py --decoder-type ss2p2 --tbptt \
+    --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate 3.77 \
+    --seq-length 1024 --stride 1024 --mark-head categorical --epochs 40 ...
+python scripts/evaluate.py facts --checkpoint <ckpt> --data-dir <events> \
+    --context-mode carried --calibrate-rate -1 ...
+```
+
 ## **Results**
 
-Gemini ETH-USD, 62 event types, identical config for all models (seq 64 / stride 32,
-40 epochs, categorical marks). Full tables: `docs/RESULTS.md` and
-`paper/reports/model_comparison_report.pdf`.
+Head benchmark (seq 64, identical config, 7 models): SS2P2-softmin is the best
+point on the expressivity–stability frontier — within 0.3 nats of NHP with the best
+timing calibration in the table, ≥1.8 nats better than its unbounded S2P2 parent,
+bounded rollout by construction.
 
-| Model | overall NLL ↓ | ACC ↑ | KS ↓ | sim rate (real 2.32) | sim status |
-|---|---|---|---|---|---|
-| NHP (CT-LSTM) | **0.667** | **0.379** | 0.235 | 66.4 | runs away closed-loop |
-| **SS2P2-softmin** | 0.982 | 0.331 | **0.189** | **32.3** | **bounded by construction** |
-| S2P2 (parent) | 2.959 | 0.326 | 0.437 | 87.3 | falls off both ends |
+The full recipe (seq-1024 arc; real rate 3.48 ev/s on that test slice):
 
-SS2P2-softmin is the current best point on the **expressivity–stability frontier**:
-within 0.3 nats of NHP with the best timing *calibration* in the entire table (KS
-0.189, mean rescaled mass 1.84), every SS2P2 variant beats its unbounded S2P2 parent by
-≥1.8 nats, and the roll-out rate carries a hard closed-form ceiling. *Honest caveats
-(see `docs/RESULTS.md`):* all intensity models remain rate-inflated free-running (the
-windowed-training / endpoint-compensator bias) — the unbiased MC compensator
-(`--mc-compensator`) and the leaky-hold state are the identified next levers
-(`docs/ROADMAP.md`).
+| SS2P2 configuration | sim rate | Fano_re↓ | clus_re↓ | retACF_re↓ |
+|---|---|---|---|---|
+| cold-start training, uncalibrated | 22.4 | 0.73 | 9.76 | 17.61 |
+| + TBPTT | 23.6 | 0.64 | 8.20 | 9.32 |
+| + TBPTT + calibration | **2.59** | **0.35** | **0.45** | **0.28** |
+
+TBPTT owns prediction + temporal structure; the certificate-preserving scale
+calibration (unique to the factorized bounded head) owns the rate — and repairing
+the clock rate improves every structure fact. *Caveats* (`docs/RESULTS.md`): single
+seed, one asset; the calibrated model is no longer the MLE; the principled
+alternative (stratified per-gap MC compensator → emergent calibration) is the open
+finisher experiment.
 
 ## **License**
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

@@ -1,14 +1,27 @@
 # Roadmap — open directions for SS2P2
 
-SS2P2 is the locked model: the S2P2 latent-linear-Hawkes backbone kept verbatim, with
-a **softmin-bounded rate head** (hard closed-form ceiling `s·softplus(c)`, floor
-exactly 0) × a **rate-neutral soft-max mark head** on the shared LayerNorm'd embedding
-`u(t)`. On the corrected 7-model benchmark it is the best point on the
-expressivity–stability frontier: within 0.3 nats of NHP with the best timing
-calibration in the table and a provably bounded rollout (`RESULTS.md`). The prior
-LGM model line is retired (removed from the tree; recoverable from git history).
+**The locked recipe (2026-07-10): SS2P2 heads + TBPTT training + carried-state
+rollout + post-hoc rate calibration.** Heads: softmin-bounded rate (hard ceiling
+`s·softplus(c)`, floor exactly 0) × rate-neutral softmax marks on the shared S2P2
+backbone. Training: `--tbptt` (state carried across windows, detached at
+boundaries). Simulation: `--context-mode carried` + `--calibrate-rate -1`
+(certificate-preserving bisection on the rate scale). Each component isolated by a
+single-factor ablation — see `RESULTS.md` §"Long-context/stateful-training arc".
+The paper (`paper/main.tex`) tells this story. The prior LGM model line is retired
+(recoverable from git history).
 
 ## Open directions (priority order)
+
+0. **Stratified per-gap MC compensator** (the principled calibration): one uniform
+   sample per gap — every gap audited each step, variance from within-gap variation
+   only — on top of TBPTT. Predicted to make calibration *emergent* (mean_u → 1, no
+   knob). The global-MC form is a documented negative result (collapse under
+   clip+Adam); do NOT re-run it as-is.
+0b. **Paper-completeness items**: genuine_eval on the calibrated checkpoint (report
+   the NLL cost of the knob); rerun the 3 baselines lost to the broken GPU node
+   (`qsub -t 3-5 -l h='!hoots-207-1*' scripts/eval_worker_w1024.sh`); a multi-seed
+   pass on the headline configuration; longer calibration probes (the 600s rollout
+   lands ~25% under the probe-calibrated target).
 
 1. **Leaky hold — close the quiet-regime gap.** The remaining 0.32-nat deficit vs NHP
    traces to the frozen ZOH asymptote: between events the state converges to
