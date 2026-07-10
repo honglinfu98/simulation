@@ -7,8 +7,10 @@ All models are trained and evaluated identically: Gemini ETH-USD event-driven or
 flow (62 event types, single-item categorical marks, real rate $\approx 2.32$
 events/s), sequence length 64 / stride 32, 40 epochs, hidden size 64, one A40 GPU per
 model. The zoo covers seven models: \nhp{} (the Mei--Eisner neural Hawkes CT-LSTM;
-\emph{hawkes} and \emph{ct-lstm} are the same class and reported once), plain LSTM,
-SAHP \citep{zhang2020self}, PCT-LSTM (a per-type parallel CT-LSTM), \sppp{}, and
+\emph{hawkes} and \emph{ct-lstm} are the same class and reported once), an LSTM
+decoder and a SAHP-style causal-attention decoder \citep{zhang2020self} --- both
+\emph{adapted generic backbones} over our shared input embedding, not paper-faithful
+re-implementations --- PCT-LSTM (a per-type parallel CT-LSTM), \sppp{}, and
 \ssppp{} variants. Three implementation bugs found in the vendored baselines --- a
 one-event-stale state anchor in the query path, the neural-Hawkes decay applied with
 the previous inter-event gap, and detached channel-embedding gradients --- were fixed
