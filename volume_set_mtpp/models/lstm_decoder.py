@@ -73,16 +73,25 @@ class LSTMDecoder(nn.Module):
         return recurrent_input
 
     def get_states(self, marks, timestamps, old_states=None):
-        """Produce hidden states: [B, N+1, H], init state followed by post-event states."""
+        """Produce hidden states: [B, N+1, H], init state followed by post-event states.
+
+        old_states: optional (h, c) tuple (each [num_layers, B, H]) to continue
+        the recurrence from -- the streaming-evaluation carry.  The final (h, c)
+        is stashed on ``self._last_carry`` for the caller to hand forward.
+        """
         recurrent_input = self._recurrent_input(marks, timestamps)
 
-        init_state = self.get_init_states(recurrent_input.shape[0])
-        # head-facing init state = top-layer h_0 (zeros)
+        if isinstance(old_states, tuple):
+            init_state = old_states
+        else:
+            init_state = self.get_init_states(recurrent_input.shape[0])
+        # head-facing init state = top-layer h at the window start
         hidden_states = [init_state[0][-1].unsqueeze(1)]
-        output_hidden_states, _ = self.recurrent_net(recurrent_input, init_state)
-        hidden_states.append(output_hidden_states)
+        output_hidden_states, final_state = self.recurrent_net(recurrent_input, init_state)
+        self._last_carry = (final_state[0].detach(), final_state[1].detach())
 
         hidden_states = torch.cat(hidden_states, dim=1)
+        hidden_states = torch.cat([hidden_states, output_hidden_states], dim=1)
         return hidden_states
 
     def get_states_and_event_left_states(self, marks, timestamps, old_states=None):

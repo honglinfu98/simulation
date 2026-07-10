@@ -28,16 +28,26 @@ set -o pipefail
 #   - EVERY model is rate-calibrated (--calibrate-rate -1): the sim-time
 #     intensity scale k is mark-preserving for all decoders; SS2P2 additionally
 #     keeps an exact thinning bound under k. Calibration target + probe
-#     warm-starts come from the VALIDATION split (--calibrate-split val).
-#   - Prediction scored on EVERY test event with the streaming evaluator
-#     (--streaming: state carried across windows where supported).
+#     warm-starts come from the VALIDATION split; the bisection FAILS the task
+#     if the target cannot be bracketed or the tolerance is missed, and the
+#     final full rollout must land within --calibrate-final-tol of the target.
+#   - Prediction scored on EVERY test event, losslessly: the streaming
+#     evaluator iterates raw test segments (remainders included), cold-starts
+#     only at genuine segment boundaries, and carries state across chunks for
+#     all recurrent decoders (S2P2 family, PCT-LSTM, NHP, LSTM via (h,c));
+#     SAHP is fixed-context by architecture. The evaluator hard-fails if the
+#     scored event count differs from the segment event count.
 #   - Real-vs-sim facts on EQUAL-DURATION bootstrap segments (--match-durations).
-#   - 3 rollout seeds per checkpoint; report aggregates with 95% CIs
-#     (scripts/final_report.py).
-#   - Training/eval are strict: any batch failure or non-finite value aborts
-#     the task; the collector fails on missing models.
+#   - 3 training seeds x 3 rollout seeds; final_report.py averages rollout
+#     seeds WITHIN each checkpoint, reports 95% CIs across checkpoints (no
+#     pseudoreplication) + rollout MC sd separately, and verifies every
+#     (seed x rollout) output file exists with finite metrics.
+#   - SS2P2's rate-head init uses --target-rate -1 = measured on the TRAIN
+#     split only (no val/test leakage into initialization).
+#   - Training/eval are strict: any batch failure or non-finite value aborts.
 # Shared config: seq 1024 / stride 1024 / batch 64 / 40 epochs / endpoint
-# compensator (identical windows + gradient-step count for all).
+# compensator. Step counts are EXACTLY equal: the standard train loader now
+# drops its partial final batch, matching the TBPTT lane loader's floor.
 REPO="${REPO:-$HOME/simulation}"
 DATA="${DATA:-/SAN/medic/TFOW/data/events/gmni_eth_7_v2_marks}"
 MAXFILES="${MAXFILES:-7}"
@@ -58,7 +68,7 @@ case "$MODEL" in
   sahp)       EXTRA="--decoder-type sahp --sahp-layers 2 --sahp-heads 4" ;;
   pct-lstm)   EXTRA="--decoder-type pct-lstm --ptp-dim 8" ;;
   s2p2)       EXTRA="--decoder-type s2p2 --s2p2-layers 2 --s2p2-readout output" ;;
-  ss2p2-full) EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate $TARGET_RATE --tbptt" ;;
+  ss2p2-full) EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate -1 --tbptt" ;;
 esac
 TAG="${MODEL}-s${SEED}"
 
@@ -97,7 +107,8 @@ for R in $ROLLOUT_SEEDS; do
   mkdir -p "$B/sf_r$R"
   python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
     --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler inversion \
-    --context-mode carried --calibrate-rate -1 --calibrate-split val --match-durations \
+    --context-mode carried --calibrate-rate -1 --calibrate-split val \
+    --calibrate-probe-duration 240 --calibrate-final-tol 0.15 --match-durations \
     --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
     --rollout-seed "$R" --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf_r$R.log" 2>&1
   SF_RC=$?

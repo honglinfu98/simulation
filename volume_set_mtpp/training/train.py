@@ -295,7 +295,9 @@ def main():
     parser.add_argument('--ptp-dim', type=int, default=8,
                         help='Per-type latent dim d for the per-type s2p2 baseline (pct-lstm)')
     parser.add_argument('--target-rate', type=float, default=1.8, dest='target_rate',
-                        help='Target mean event rate (events/s); initializes the SS2P2 rate-head scale')
+                        help='Target mean event rate (events/s); initializes the SS2P2 rate-head '
+                             'scale. -1 = measure it from the TRAIN split only (no val/test '
+                             'leakage into the initialization)')
     parser.add_argument('--decoder-type',
                         choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
                         default='hawkes',
@@ -455,6 +457,17 @@ def main():
     print(f"  Train batches: {len(train_loader)}")
     print(f"  Val batches: {len(val_loader)}")
     print(f"  Test batches: {len(test_loader)}")
+
+    # Train-split-only target rate (no leakage into the rate-head init)
+    if args.target_rate is not None and args.target_rate < 0:
+        ds = getattr(train_loader, 'dataset', None)
+        if ds is None or not hasattr(ds, 'split_rate'):
+            raise SystemExit('--target-rate -1 needs the train dataset to expose split_rate()')
+        args.target_rate = float(ds.split_rate())
+        config['target_rate'] = args.target_rate
+        with open(config_path, 'w') as f:      # re-save: config.json was written pre-loaders
+            json.dump(config, f, indent=2)
+        print(f"Target rate measured from TRAIN split: {args.target_rate:.4f} ev/s")
 
     # Create model
     print("\nCreating model...")

@@ -31,10 +31,11 @@ def _stream_old_states(decoder, right_last: torch.Tensor):
     """Convert the last packed right state into the decoder's old_states form.
 
     S2P2-family 'output' readout packs [L layer states | L-1 held anchors]:
-    restore layer states [B, L, H]. NHP's packed 6H state passes through.
-    Decoders whose get_states ignores old_states (LSTM/SAHP) return None --
-    they are evaluated per fresh window (fixed context = their training and
-    simulation regime), but still on EVERY event.
+    restore layer states [B, L, H]. NHP's packed 6H state passes through; PTP's
+    flat state passes through. LSTM carries its (h, c) tuple via
+    decoder._last_carry (stashed by get_states). Decoders with no recurrent
+    state (SAHP) return None -- scored per fresh chunk (fixed context), still
+    on every event.
     """
     if hasattr(decoder, "_initial_layer_states"):
         L, H = decoder.num_layers, decoder.recurrent_hidden_size
@@ -45,51 +46,67 @@ def _stream_old_states(decoder, right_last: torch.Tensor):
         return right_last
     if hasattr(decoder, "decay") and hasattr(decoder, "recurrence"):   # NHP packed 6H
         return right_last
+    if hasattr(decoder, "init_carry"):                                 # LSTM (h, c)
+        return getattr(decoder, "_last_carry", None)
     return None
 
 
 def streaming_metrics(model, dataset, batch_size: int, device,
-                      dt_horizon: float, dt_grid: int, max_windows: int = 0):
-    """Score EVERY event of the (test) stream with carried decoder state.
+                      dt_horizon: float, dt_grid: int, chunk_events: int = 1024):
+    """Score EVERY event of the test split, losslessly, with carried state.
 
-    Lanes walk contiguous stretches of the stream in order (StatefulBFNXLoader,
-    stride == seq); for state-carrying decoders the state is handed across
-    windows, so event i is scored with the FULL stream history behind it.
-    Per event: mark CE/acc at the anti-leakage left state, one-step time NLL
-    -log lambda(t_i^-) + Lambda(gap_i) (endpoint rule per gap), compensator
-    masses u_i for KS/mean_u, and E[dt] time-MAE via per-event survival
-    quadrature. Returns aggregate dict + number of events scored.
+    Iterates the split's RAW zones (one contiguous test segment per source
+    file) directly -- not through fixed-length window samples -- so remainder
+    events at segment ends are scored too, and the ONLY cold starts are the
+    genuine segment beginnings (one per file). Each zone is a batch lane;
+    zones are walked in chunks of `chunk_events`, the final chunk zero-padded
+    (padding is masked out of every metric and only pollutes post-segment
+    states that are never read). State is carried across chunks for every
+    decoder with a recurrent state (S2P2 family, PTP, NHP, LSTM via (h,c));
+    `batch_size` is unused (lanes = zones) and kept for CLI compatibility.
+
+    Per event: mark CE/acc at the anti-leakage left state, time NLL
+    -log lambda(t_i^-) + Lambda(gap_i) with per-gap quadrature, compensator
+    masses u_i for KS/mean_u, and E[dt] time-MAE (leak-free anchoring).
     """
-    loader = StatefulBFNXLoader(dataset, batch_size)
+    zones = list(getattr(dataset, "zones", []))
+    if not zones:
+        raise RuntimeError("dataset has no split zones recorded; rebuild loaders")
+    Bz = len(zones)
+    lens = [hi - lo for lo, hi in zones]
+    n_steps = max((l + chunk_events - 1) // chunk_events for l in lens)
+    td, mk = dataset.time_deltas, dataset.marks
+    K = mk.shape[1]
+    n_expected = sum(int(mk[lo:hi].sum(dim=-1).gt(0).sum()) for lo, hi in zones)
+    print(f"STREAMING zones={Bz} events={sum(lens)} genuine={n_expected} "
+          f"chunks/lane<= {n_steps} chunk={chunk_events}", flush=True)
+
     n_ev = correct = 0
     nll_sum = time_nll_sum = dt_err_sum = logdt_err_sum = 0.0
     u_all = []
     carried = None
-    n_win = 0
     with torch.no_grad():
-        for batch in loader:
-            n_win += 1
-            if max_windows and n_win > max_windows:
-                break
-            reset = batch.pop("reset_mask").to(device)
-            im = batch["input_marks"].to(device).float()
-            it = batch["input_times"].to(device).float()
+        for t in range(n_steps):
+            im = torch.zeros(Bz, chunk_events, K, device=device)
+            it = torch.zeros(Bz, chunk_events, device=device)
+            valid = torch.zeros(Bz, chunk_events, dtype=torch.bool, device=device)
+            for z, (lo, hi) in enumerate(zones):
+                a = lo + t * chunk_events
+                b = min(a + chunk_events, hi)
+                if a >= b:
+                    continue
+                n = b - a
+                im[z, :n] = mk[a:b].to(device)
+                it[z, :n] = td[a:b].to(device)
+                valid[z, :n] = True
             ts = torch.cumsum(it, dim=1)
-            old = None
-            if carried is not None:
-                old = carried
-                if torch.is_tensor(old) and reset.any():   # zone/file boundaries restart cold
-                    old = old.clone()
-                    if hasattr(model.decoder, "init_state") and old.dim() == 3:
-                        old[reset] = model.decoder.init_state.detach().to(old.device, old.dtype)
-                    else:
-                        old[reset] = 0.0
+            old = carried if t > 0 else None            # cold ONLY at segment starts
             states, left = model.decoder.get_states_and_event_left_states(im, ts, old_states=old)
             d = model.get_total_intensity_and_items(left)
             lam_ev = d["total_intensity"].squeeze(-1).clamp_min(1e-8)     # [B,N]
             logits = d["item_logits"]                                     # [B,N,K]
 
-            ev = im.sum(dim=-1) > 0                                       # genuine events [B,N]
+            ev = (im.sum(dim=-1) > 0) & valid                             # genuine events, padding excluded
             tgt = im.argmax(dim=-1)
             lg = logits[ev]
             tg = tgt[ev]
@@ -150,10 +167,16 @@ def streaming_metrics(model, dataset, batch_size: int, device,
             u_all.append(u_i[ev].detach().cpu())
             n_ev += int(ev.sum().item())
 
-            nxt = _stream_old_states(model.decoder, states[:, -1].detach())
-            carried = nxt
-    return dict(n_ev=n_ev, correct=correct, nll_sum=nll_sum, time_nll_sum=time_nll_sum,
-                dt_err_sum=dt_err_sum, logdt_err_sum=logdt_err_sum,
+            # carry from the last VALID position per lane (padding pollutes only
+            # post-segment states; exhausted lanes' carries are never scored)
+            last_idx = valid.long().cumsum(dim=1).argmax(dim=1)            # [B]
+            packed_last = states.gather(
+                1, (last_idx + 1).view(-1, 1, 1).expand(-1, 1, states.shape[-1])).squeeze(1)
+            carried = _stream_old_states(model.decoder, packed_last.detach())
+    if n_ev != n_expected:
+        raise RuntimeError(f"streaming evaluator lost events: scored {n_ev} of {n_expected}")
+    return dict(n_ev=n_ev, n_expected=n_expected, correct=correct, nll_sum=nll_sum,
+                time_nll_sum=time_nll_sum, dt_err_sum=dt_err_sum, logdt_err_sum=logdt_err_sum,
                 u=torch.cat(u_all).numpy() if u_all else np.array([]))
 
 
@@ -216,12 +239,15 @@ def main():
     if args.streaming:
         dec = model.decoder
         state_carried = (hasattr(dec, "_initial_layer_states") or getattr(dec, "is_ptp", False)
-                         or (hasattr(dec, "decay") and hasattr(dec, "recurrence")))
-        print("STREAMING evaluator: every test event scored; state "
-              + ("CARRIED across windows" if state_carried else "per fresh window (no old_states path)"),
+                         or (hasattr(dec, "decay") and hasattr(dec, "recurrence"))
+                         or hasattr(dec, "init_carry"))                    # LSTM (h,c)
+        print("STREAMING evaluator: every test event scored (lossless segment iterator; "
+              "one cold start per test segment); state "
+              + ("CARRIED across chunks" if state_carried else "per fresh chunk (no recurrent state)"),
               flush=True)
         agg = streaming_metrics(model, test_loader.dataset, args.batch_size, device,
-                                args.dt_horizon, args.dt_grid_points)
+                                args.dt_horizon, args.dt_grid_points,
+                                chunk_events=args.seq_length)
         ne = max(agg["n_ev"], 1)
         u = agg["u"]
         res = {"label": args.label, "checkpoint": args.checkpoint, "evaluator": "streaming",

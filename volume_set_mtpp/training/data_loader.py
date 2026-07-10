@@ -398,6 +398,7 @@ class TensorBFNXEventDataset(Dataset):
 
         gap = self.sequence_length + 1  # events skipped between partitions
         starts_chunks: List[torch.Tensor] = []
+        self.zones: List[Tuple[int, int]] = []   # this split's [lo, hi) event ranges
         seg_start = 0
         for seg_len in segments:
             seg_end = seg_start + seg_len
@@ -409,6 +410,8 @@ class TensorBFNXEventDataset(Dataset):
                 zone_lo, zone_hi = min(train_end + gap, seg_end), val_end
             else:
                 zone_lo, zone_hi = min(val_end + gap, seg_end), seg_end
+            if zone_hi > zone_lo:
+                self.zones.append((int(zone_lo), int(zone_hi)))
             # Window [s, s + seq_length] (target at s + seq_length) must lie
             # fully inside [zone_lo, zone_hi).
             last_valid_start = zone_hi - self.sequence_length - 1
@@ -423,6 +426,16 @@ class TensorBFNXEventDataset(Dataset):
         else:
             self.starts = torch.empty(0, dtype=torch.long)
         print(f"Created {len(self.starts)} {split} sequences")
+
+    def split_rate(self) -> float:
+        """Mean event rate (events/s) of THIS split's zones -- e.g. a train-only
+        target-rate estimate with no val/test leakage."""
+        n_ev, t_tot = 0, 0.0
+        for lo, hi in self.zones:
+            n_ev += hi - lo
+            # first event's dt belongs to the pre-zone gap; exclude it
+            t_tot += float(self.time_deltas[lo + 1:hi].sum())
+        return n_ev / max(t_tot, 1e-9)
 
     def __len__(self):
         return int(self.starts.numel())
@@ -548,8 +561,11 @@ def create_bfnx_dataloaders(
     if stateful_train:
         train_loader = StatefulBFNXLoader(train_dataset, batch_size)
     else:
+        # drop_last: the TBPTT lane loader floors windows/batch_size, so the
+        # standard loader drops its partial final batch too -- gradient-step
+        # counts are then EXACTLY equal across stateful and shuffled training.
         train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True,
+            train_dataset, batch_size=batch_size, shuffle=True, drop_last=True,
             **loader_kwargs
         )
     val_loader = DataLoader(

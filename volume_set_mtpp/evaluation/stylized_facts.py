@@ -383,12 +383,16 @@ def _measured_rate(marks, dt, cum, duration: float) -> float:
 
 def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
                    probe_duration: float = 120.0, probe_seq: int = 8,
-                   tol: float = 0.05, max_iter: int = 8) -> float:
+                   tol: float = 0.05, max_iter: int = 10) -> float:
     """Bisect the sim-time multiplier k until the free-run rate matches
     `target`. The closed-loop rate is monotone in k (higher rate -> more events
     -> more excitation), but not linear, hence root-finding on short probe
     rollouts. Leaves model._sim_rate_k at the calibrated value; returns k.
     `batch` should come from the CALIBRATION split (validation), never test.
+
+    STRICT: raises RuntimeError if the target cannot be bracketed within
+    k in [1e-4, 256] or if the accepted k's probe rate misses the tolerance --
+    a calibration constant is never silently accepted.
     """
     def probe(k: float) -> float:
         model._sim_rate_k = k
@@ -404,25 +408,41 @@ def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
         model._sim_rate_k = 1.0
         return 1.0
     if r1 > target:                       # over-firing: bracket downward
-        while probe(lo := lo / 4.0) > target and lo > 1e-4:
-            pass
+        r_lo = r1
+        while r_lo > target:
+            lo = lo / 4.0
+            if lo < 1e-4:
+                raise RuntimeError(f"calibration failed to bracket target {target:.3f} "
+                                   f"from above: rate {r_lo:.3f} at k={lo * 4:.2e}")
+            r_lo = probe(lo)
+        hi = lo * 4.0
     else:                                 # under-firing: bracket upward
-        while probe(hi := hi * 4.0) < target and hi < 256.0:
-            pass
+        r_hi = r1
+        while r_hi < target:
+            hi = hi * 4.0
+            if hi > 256.0:
+                raise RuntimeError(f"calibration failed to bracket target {target:.3f} "
+                                   f"from below: rate {r_hi:.3f} at k={hi / 4:.2e}")
+            r_hi = probe(hi)
+        lo = hi / 4.0
+    k, ok = math.sqrt(lo * hi), False
     for _ in range(max_iter):
-        mid = math.sqrt(lo * hi)          # geometric bisection (k is a scale)
-        r = probe(mid)
+        k = math.sqrt(lo * hi)            # geometric bisection (k is a scale)
+        r = probe(k)
         if abs(r - target) / target <= tol:
-            lo = hi = mid
+            ok = True
             break
         if r > target:
-            hi = mid
+            hi = k
         else:
-            lo = mid
-    k = math.sqrt(lo * hi)
+            lo = k
+    if not ok:
+        raise RuntimeError(f"calibration did not converge to {tol:.0%} of target "
+                           f"{target:.3f} within {max_iter} bisection steps "
+                           f"(bracket [{lo:.4f}, {hi:.4f}])")
     model._sim_rate_k = k
-    print(f"CALIBRATED sim-time rate scale k={k:.4f} (mark distribution unchanged; "
-          f"SS2P2 thinning ceiling scales identically)", flush=True)
+    print(f"CALIBRATED sim-time rate scale k={k:.4f} (probe within {tol:.0%} of target; "
+          f"mark distribution unchanged; SS2P2 thinning ceiling scales identically)", flush=True)
     return k
 
 
@@ -690,6 +710,12 @@ def main():
     ap.add_argument("--calibrate-split", choices=["val", "test"], default="val",
                     help="split providing the calibration TARGET rate and probe warm-starts "
                          "(default val: no test leakage into the calibration constant)")
+    ap.add_argument("--calibrate-probe-duration", type=float, default=120.0,
+                    help="probe rollout duration (s) per bisection step; longer probes "
+                         "reduce probe-vs-full-horizon drift")
+    ap.add_argument("--calibrate-final-tol", type=float, default=0.0,
+                    help=">0: REQUIRE the final full rollout's rate to be within this "
+                         "relative error of the calibration target (else exit 3); 0 = report only")
     ap.add_argument("--match-durations", action="store_true",
                     help="score REAL facts on bootstrap segments matching the simulated "
                          "sequences in count and duration (equal-duration comparison), "
@@ -769,6 +795,7 @@ def main():
               flush=True)
         rate_scale_k = calibrate_rate(
             model, cal_batch, device, cal_target,
+            probe_duration=args.calibrate_probe_duration,
             sampler_kwargs=dict(horizon=args.dt_horizon, n_grid=args.dt_grid_points,
                                 carried=carried))
     if args.sampler == "thinning":
@@ -800,6 +827,14 @@ def main():
     # Mean-rate fit gate: simulated vs real event rate (ev/s). If these diverge,
     # every downstream stylized fact is computed on a mis-scaled stream.
     sim_rate = n_sim_events / max(sim_time, 1e-9)
+    if cal_target is not None and args.calibrate_final_tol > 0:
+        rel = abs(sim_rate - cal_target) / max(cal_target, 1e-9)
+        if rel > args.calibrate_final_tol:
+            print(f"CAL_FINAL_FAIL full-rollout rate {sim_rate:.3f} misses calibration "
+                  f"target {cal_target:.3f} by {rel:.1%} (> {args.calibrate_final_tol:.0%})", flush=True)
+            raise SystemExit(3)
+        print(f"CAL_FINAL_OK full-rollout rate {sim_rate:.3f} within "
+              f"{rel:.1%} of target {cal_target:.3f}", flush=True)
     print("SIM events", n_sim_events, "buckets", len(r_sim),
           "sim_rate", round(sim_rate, 4), "real_rate", round(real_rate, 4), flush=True)
 
