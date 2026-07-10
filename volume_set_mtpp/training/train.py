@@ -106,33 +106,27 @@ def train_epoch(model, train_loader, optimizer, device, epoch, writer=None, loss
     for batch_idx, batch in enumerate(pbar):
         optimizer.zero_grad()
 
-        try:
-            loss = compute_loss(model, batch, device)
+        # STRICT: any batch failure or non-finite value aborts the run with a
+        # nonzero exit -- a silently skipped batch or a truncated epoch must
+        # never masquerade as a successful training run.
+        loss = compute_loss(model, batch, device)
+        if not torch.isfinite(loss):
+            raise RuntimeError(f"Non-finite loss at epoch {epoch} batch {batch_idx}: {loss.item()}")
 
-            if not torch.isfinite(loss):
-                print(f"Non-finite loss at batch {batch_idx}: {loss.item()}")
-                break
+        loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+        if not torch.isfinite(grad_norm):
+            raise RuntimeError(f"Non-finite grad norm at epoch {epoch} batch {batch_idx}: {grad_norm}")
+        optimizer.step()
 
-            loss.backward()
-            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
-            if not torch.isfinite(grad_norm):
-                print(f"Non-finite grad norm at batch {batch_idx}: {grad_norm}")
-                optimizer.zero_grad(set_to_none=True)
-                break
-            optimizer.step()
+        total_loss += loss.item()
+        pbar.set_postfix({'loss': loss.item()})
 
-            total_loss += loss.item()
-            pbar.set_postfix({'loss': loss.item()})
-
-            global_step = epoch * len(train_loader) + batch_idx
-            if writer:
-                writer.add_scalar('Train/Loss', loss.item(), global_step)
-            if loss_writer:
-                loss_writer.writerow({'split': 'train', 'epoch': epoch, 'batch': batch_idx, 'global_step': global_step, 'loss': float(loss.item())})
-
-        except Exception as e:
-            print(f"Error in batch {batch_idx}: {e}")
-            continue
+        global_step = epoch * len(train_loader) + batch_idx
+        if writer:
+            writer.add_scalar('Train/Loss', loss.item(), global_step)
+        if loss_writer:
+            loss_writer.writerow({'split': 'train', 'epoch': epoch, 'batch': batch_idx, 'global_step': global_step, 'loss': float(loss.item())})
 
     avg_loss = total_loss / len(train_loader)
     return avg_loss
@@ -163,16 +157,14 @@ def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None
         old[reset] = init.to(device)
         loss, _ = model.compute_loss(batch, device, old_states=old)
 
+        # STRICT: non-finite values abort with nonzero exit (see train_epoch).
         if not torch.isfinite(loss):
-            print(f"Non-finite loss at batch {batch_idx}: {loss.item()}")
-            break
+            raise RuntimeError(f"Non-finite loss at epoch {epoch} batch {batch_idx}: {loss.item()}")
         optimizer.zero_grad()
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
         if not torch.isfinite(grad_norm):
-            print(f"Non-finite grad norm at batch {batch_idx}: {grad_norm}")
-            optimizer.zero_grad(set_to_none=True)
-            break
+            raise RuntimeError(f"Non-finite grad norm at epoch {epoch} batch {batch_idx}: {grad_norm}")
         optimizer.step()
 
         # hand-off: packed [B, D*] -> layer states [B, L, H] (held anchors are
@@ -200,15 +192,15 @@ def evaluate(model, val_loader, device, epoch, writer=None, loss_writer=None):
     with torch.no_grad():
         pbar = tqdm(val_loader, desc=f"Epoch {epoch} [Val]")
         for batch_idx, batch in enumerate(pbar):
-            try:
-                loss = compute_loss(model, batch, device)
-                total_loss += loss.item()
-                pbar.set_postfix({'loss': loss.item()})
-                if loss_writer:
-                    loss_writer.writerow({'split': 'val_batch', 'epoch': epoch, 'batch': batch_idx, 'global_step': epoch * len(val_loader) + batch_idx, 'loss': float(loss.item())})
-            except Exception as e:
-                print(f"Error during validation: {e}")
-                continue
+            # STRICT: validation failures abort too -- a val loss averaged over
+            # a silently reduced batch set corrupts model selection.
+            loss = compute_loss(model, batch, device)
+            if not torch.isfinite(loss):
+                raise RuntimeError(f"Non-finite val loss at epoch {epoch} batch {batch_idx}")
+            total_loss += loss.item()
+            pbar.set_postfix({'loss': loss.item()})
+            if loss_writer:
+                loss_writer.writerow({'split': 'val_batch', 'epoch': epoch, 'batch': batch_idx, 'global_step': epoch * len(val_loader) + batch_idx, 'loss': float(loss.item())})
 
     avg_loss = total_loss / len(val_loader)
 

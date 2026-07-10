@@ -119,16 +119,29 @@ def get_target_volumes(batch: Dict) -> torch.Tensor | None:
 # ---------------------------------------------------------------------------
 
 def _distribution_at_dts(model, states: torch.Tensor, timestamps: torch.Tensor, query_dts: torch.Tensor, state_feats=None, pot_feats=None) -> Dict[str, torch.Tensor]:
-    """Evaluate the model at history-relative offsets query_dts [B,Q]."""
+    """Evaluate the model at history-relative offsets query_dts [B,Q].
+
+    Honors `model._sim_rate_k` (simulation-time rate calibration): total and
+    per-channel intensities are scaled by k, leaving the mark distribution
+    (item_probability / item_logits) untouched -- uniform intensity scaling is
+    mark-preserving for every decoder in this harness. Evaluation code that
+    never sets the attribute is unaffected (k defaults to 1)."""
     query_timestamps = timestamps[:, -1:] + query_dts.float().clamp_min(0.0)
     h_t = model.decoder.get_hidden_h(state_values=states, state_times=timestamps, timestamps=query_timestamps)
     pf = None
     if pot_feats is not None:
         pf = pot_feats if pot_feats.shape[1] == h_t.shape[1] else pot_feats.expand(-1, h_t.shape[1], -1)
     try:
-        return model.get_total_intensity_and_items(h_t, None, state_features=state_feats, potential_feats=pf)
+        d = model.get_total_intensity_and_items(h_t, None, state_features=state_feats, potential_feats=pf)
     except TypeError:
-        return model.get_total_intensity_and_items(h_t)
+        d = model.get_total_intensity_and_items(h_t)
+    k = float(getattr(model, "_sim_rate_k", 1.0))
+    if k != 1.0:
+        d = dict(d)
+        d["total_intensity"] = d["total_intensity"] * k
+        if "channel_intensity" in d:
+            d["channel_intensity"] = d["channel_intensity"] * k
+    return d
 
 
 def _total_intensity_at_dts(model, states, timestamps, query_dts, state_feats=None, pot_feats=None) -> torch.Tensor:

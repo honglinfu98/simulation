@@ -94,6 +94,22 @@ class LSTMDecoder(nn.Module):
         states = self.get_states(marks, timestamps, old_states=old_states)
         return states, states[:, :-1, :]
 
+    # -- carried-rollout API (opaque (h, c) carry; the packed head state exposes
+    #    only the top-layer h, so the LSTM cell state must be carried explicitly)
+    def init_carry(self, marks, timestamps):
+        """Encode a warm-start context; return (carry, head_state [B, H])."""
+        ri = self._recurrent_input(marks.float(), timestamps)
+        out, carry = self.recurrent_net(ri, self.get_init_states(ri.shape[0]))
+        return carry, out[:, -1]
+
+    def step_carry(self, carry, new_marks, new_dt):
+        """Advance the recurrence by ONE event. The time embedding receives the
+        inter-event gap as its timestamp (single-event window); the sequence
+        memory lives in (h, c). Returns (carry, head_state [B, H])."""
+        ri = self._recurrent_input(new_marks.float().unsqueeze(1), new_dt.unsqueeze(1))
+        out, carry = self.recurrent_net(ri, carry)
+        return carry, out[:, -1]
+
     def get_event_left_states(self, marks, timestamps, old_states=None):
         _, left_states = self.get_states_and_event_left_states(marks, timestamps, old_states=old_states)
         return left_states

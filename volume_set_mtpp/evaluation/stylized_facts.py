@@ -110,31 +110,51 @@ ROLLOUT_HARD_CAP = 40000  # absolute step cap for duration-based rollouts
 # ---------------------------------------------------------------------------
 
 def _carry_supported(decoder) -> bool:
-    """S2P2-family decoders (incl. SS2P2) and PTP have Markovian recurrences
-    reachable through `old_states`; window-attention/LSTM baselines do not."""
+    """Decoders with a Markovian recurrence reachable across windows: the
+    S2P2 family (via `old_states` layer restore), PTP (flat state), the Neural
+    Hawkes CT-LSTM (packed 6H state honored by `old_states`), and the plain
+    LSTM (explicit (h, c) carry API).  Attention decoders (SAHP) have no
+    recurrent state and keep the fixed-context sliding window."""
     return (hasattr(decoder, "_initial_layer_states")
-            or bool(getattr(decoder, "is_ptp", False)))
+            or bool(getattr(decoder, "is_ptp", False))
+            or hasattr(decoder, "init_carry")                                    # LSTM
+            or (hasattr(decoder, "decay") and hasattr(decoder, "recurrence")))   # NHP
 
 
-def _carry_step(decoder, packed: torch.Tensor, new_marks: torch.Tensor,
-                new_dt: torch.Tensor) -> torch.Tensor:
-    """Advance the packed decoder state by ONE event; exact for SSM recursions.
+def _carry_init(decoder, marks: torch.Tensor, timestamps: torch.Tensor):
+    """Encode the warm-start context ONCE -> (carry, query_states [B,1,D])."""
+    if hasattr(decoder, "init_carry"):
+        carry, head = decoder.init_carry(marks, timestamps)
+        return (carry, head), head.unsqueeze(1)
+    packed = decoder.get_states(marks, timestamps)[:, -1]
+    return packed, packed.unsqueeze(1)
 
-    The S2P2 'output' readout packs [L layer states | L-1 held inter-layer
-    inputs].  Only the layer states are the Markov state (the held anchors are
-    recomputed by the event pass), so restore them as [B, L, H] for
-    `_initial_layer_states`; PTP's flat [B, K*d] state is consumed directly.
-    Returns the new packed right state [B, D*] (query anchor for get_hidden_h).
+
+def _carry_step(decoder, carry, new_marks: torch.Tensor, new_dt: torch.Tensor):
+    """Advance the carried decoder state by ONE event; exact for the SSM /
+    CT-LSTM recursions.
+
+    S2P2 'output' readout packs [L layer states | L-1 held anchors]; only the
+    layer states are the Markov state, restored as [B, L, H] for
+    `_initial_layer_states`.  PTP's flat [B, K*d] and NHP's packed [B, 6H]
+    states are consumed by their `old_states` paths directly.  LSTM uses its
+    explicit (h, c) carry API.  Returns (carry, query_states [B,1,D]).
     """
+    if hasattr(decoder, "init_carry"):
+        c, head = decoder.step_carry(carry[0], new_marks, new_dt)
+        return (c, head), head.unsqueeze(1)
+    packed = carry
     b = new_dt.shape[0]
     old = packed
     n_layers = getattr(decoder, "num_layers", None)
     hidden = getattr(decoder, "recurrent_hidden_size", 0)
-    if n_layers is not None and packed.shape[-1] == (2 * n_layers - 1) * hidden:
+    if (hasattr(decoder, "_initial_layer_states") and n_layers is not None
+            and packed.shape[-1] == (2 * n_layers - 1) * hidden):
         old = packed[:, :n_layers * hidden].reshape(b, n_layers, hidden)
     right = decoder.get_states_and_event_left_states(
         new_marks.unsqueeze(1), new_dt.unsqueeze(1), old_states=old)[0]
-    return right[:, -1]
+    packed = right[:, -1]
+    return packed, packed.unsqueeze(1)
 
 
 def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float,
@@ -172,13 +192,13 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
     last_dt = dts[:, -1].clone()
     with torch.no_grad():
         if carried:
-            # encode the warm-start context ONCE; afterwards the packed state is
-            # advanced per event (exact for the SSM recursion; unbounded memory).
-            packed = model.decoder.get_states(marks, torch.cumsum(dts, dim=1))[:, -1]
+            # encode the warm-start context ONCE; afterwards the carried state is
+            # advanced per event (exact for the recurrences; unbounded memory).
+            carry, qstates = _carry_init(model.decoder, marks, torch.cumsum(dts, dim=1))
             zbuf = torch.zeros(n, 1, device=device)   # queries are event-relative
         for _ in range(max_steps):
             if carried:
-                states, timestamps = packed.unsqueeze(1), zbuf
+                states, timestamps = qstates, zbuf
             else:
                 timestamps = torch.cumsum(dts, dim=1)
                 states = model.decoder.get_states(marks, timestamps)
@@ -243,7 +263,7 @@ def simulate_stream(model, batch, device, steps: int, n_seq: int, horizon: float
                         items.append((v[0], v[1], v[2], vol))
                     books[si].apply_event_set(items)
             if carried:
-                packed = _carry_step(model.decoder, packed, new_set, new_dt)
+                carry, qstates = _carry_step(model.decoder, carry, new_set, new_dt)
             else:
                 marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
                 dts = torch.cat([dts[:, 1:], new_dt.unsqueeze(1)], dim=1)
@@ -287,18 +307,20 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
     marks = batch["input_marks"][:n].float().to(device).clone()
     dts = batch["input_times"][:n].float().clamp_min(0.0).to(device).clone()
     _, ell_plus = model.decoder.rate_bounds()
-    lam_star = float(ell_plus) * float(over_sample)            # global, constant dominating rate
+    # the sim-time calibration scale multiplies every intensity, so the exact
+    # dominating rate scales with it (certificate preserved under calibration)
+    lam_star = float(ell_plus) * float(over_sample) * float(getattr(model, "_sim_rate_k", 1.0))
     rec_marks, rec_dt = [], []
     max_steps = steps if duration <= 0 else ROLLOUT_HARD_CAP
     cum_time = torch.zeros(n, device=device)
     n_prop = n_acc = 0
     with torch.no_grad():
         if carried:
-            packed = model.decoder.get_states(marks, torch.cumsum(dts, dim=1))[:, -1]
+            carry, qstates = _carry_init(model.decoder, marks, torch.cumsum(dts, dim=1))
             zbuf = torch.zeros(n, 1, device=device)   # queries are event-relative
         for _ in range(max_steps):
             if carried:
-                states, timestamps = packed.unsqueeze(1), zbuf
+                states, timestamps = qstates, zbuf
             else:
                 timestamps = torch.cumsum(dts, dim=1)
                 states = model.decoder.get_states(marks, timestamps)   # fixed during the inner thinning loop
@@ -329,7 +351,7 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
             new_set = torch.zeros_like(probs); new_set.scatter_(1, idx.unsqueeze(1), 1.0)
             rec_marks.append(new_set.bool().cpu().numpy()); rec_dt.append(dt_out.cpu().numpy())
             if carried:
-                packed = _carry_step(model.decoder, packed, new_set, dt_out)
+                carry, qstates = _carry_step(model.decoder, carry, new_set, dt_out)
             else:
                 marks = torch.cat([marks[:, 1:, :], new_set.unsqueeze(1)], dim=1)
                 dts = torch.cat([dts[:, 1:], dt_out.unsqueeze(1)], dim=1)
@@ -343,14 +365,13 @@ def simulate_stream_thinning(model, batch, device, steps: int, n_seq: int, seed:
 
 
 # ---------------------------------------------------------------------------
-# Post-hoc rate calibration (SS2P2-family: lambda = s * softplus(z), EXACTLY
-# linear in the learnable scale s, so rescaling s rescales the instantaneous
-# rate and the thinning ceiling together -- certificate preserved)
+# Post-hoc rate calibration: a simulation-time multiplier k on the total (and
+# per-channel) intensity, applied in the query helpers. Uniform scaling is
+# MARK-PRESERVING for every decoder in the harness (the type distribution is a
+# ratio / separate head), so any model can be calibrated; for SS2P2 the scaled
+# thinning ceiling k*s*softplus(c) remains an EXACT dominating rate (the
+# certificate survives calibration -- unique to the bounded factorized head).
 # ---------------------------------------------------------------------------
-
-def _set_rate_scale(decoder, s_new: torch.Tensor) -> None:
-    decoder.raw_scale.data = torch.log(torch.expm1(s_new.clamp_min(1e-8)))
-
 
 def _measured_rate(marks, dt, cum, duration: float) -> float:
     n_ev, t_tot = 0, 0.0
@@ -363,19 +384,14 @@ def _measured_rate(marks, dt, cum, duration: float) -> float:
 def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
                    probe_duration: float = 120.0, probe_seq: int = 8,
                    tol: float = 0.05, max_iter: int = 8) -> float:
-    """Bisect a multiplier k on the ORIGINAL scale s0 until the free-run rate
-    matches `target`. The closed-loop rate is monotone in k (higher scale ->
-    more events -> more excitation), but not linear, hence root-finding on
-    short probe rollouts. Leaves the decoder at the calibrated scale; returns k.
+    """Bisect the sim-time multiplier k until the free-run rate matches
+    `target`. The closed-loop rate is monotone in k (higher rate -> more events
+    -> more excitation), but not linear, hence root-finding on short probe
+    rollouts. Leaves model._sim_rate_k at the calibrated value; returns k.
+    `batch` should come from the CALIBRATION split (validation), never test.
     """
-    dec = model.decoder
-    if not hasattr(dec, "raw_scale"):
-        raise ValueError("--calibrate-rate needs a decoder with a scalar rate scale "
-                         "(SS2P2.raw_scale); this decoder has none")
-    s0 = F.softplus(dec.raw_scale.detach()).clone()
-
     def probe(k: float) -> float:
-        _set_rate_scale(dec, s0 * k)
+        model._sim_rate_k = k
         m, d, c = simulate_stream(model, batch, device, steps=0, n_seq=probe_seq,
                                   duration=probe_duration, seed=777, **sampler_kwargs)
         r = _measured_rate(m, d, c, probe_duration)
@@ -385,6 +401,7 @@ def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
     lo, hi = 1.0, 1.0
     r1 = probe(1.0)
     if abs(r1 - target) / target <= tol:
+        model._sim_rate_k = 1.0
         return 1.0
     if r1 > target:                       # over-firing: bracket downward
         while probe(lo := lo / 4.0) > target and lo > 1e-4:
@@ -403,9 +420,9 @@ def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
         else:
             lo = mid
     k = math.sqrt(lo * hi)
-    _set_rate_scale(dec, s0 * k)
-    print(f"CALIBRATED rate scale k={k:.4f}  (s {float(s0):.4f} -> {float(s0)*k:.4f}; "
-          f"thinning ceiling scales identically)", flush=True)
+    model._sim_rate_k = k
+    print(f"CALIBRATED sim-time rate scale k={k:.4f} (mark distribution unchanged; "
+          f"SS2P2 thinning ceiling scales identically)", flush=True)
     return k
 
 
@@ -666,10 +683,17 @@ def main():
     ap.add_argument("--over-sample-rate", type=float, default=1.0,
                     help="thinning safety multiplier on lambda* (SS2P2 bound is exact, so 1.0)")
     ap.add_argument("--calibrate-rate", type=float, default=0.0,
-                    help="post-hoc rate calibration (SS2P2-family): bisect a multiplier k on "
-                         "the rate-head scale s (lambda linear in s; thinning ceiling scales "
-                         "with it) until the free-run rate matches this target. "
-                         "-1 = calibrate to the measured real-stream rate; 0 = off")
+                    help="post-hoc rate calibration (any model; mark-preserving sim-time "
+                         "intensity scale k, bisected until the free-run rate matches this "
+                         "target). -1 = calibrate to the measured rate of the CALIBRATION "
+                         "split (--calibrate-split); 0 = off")
+    ap.add_argument("--calibrate-split", choices=["val", "test"], default="val",
+                    help="split providing the calibration TARGET rate and probe warm-starts "
+                         "(default val: no test leakage into the calibration constant)")
+    ap.add_argument("--match-durations", action="store_true",
+                    help="score REAL facts on bootstrap segments matching the simulated "
+                         "sequences in count and duration (equal-duration comparison), "
+                         "instead of one long real stream")
     ap.add_argument("--context-mode", choices=["window", "carried"], default="window",
                     help="window = sliding seq-length window re-encoded from a cold state "
                          "each step (training-faithful; memory truncated to the window); "
@@ -682,7 +706,7 @@ def main():
     dl_kwargs = dict(num_workers=args.num_workers)
     if args.cache_dir:
         dl_kwargs["cache_dir"] = args.cache_dir
-    train_loader, val_loader, test_loader, event_mapping = create_bfnx_dataloaders(
+    _train_loader, val_loader, test_loader, event_mapping = create_bfnx_dataloaders(
         args.data_dir, args.batch_size, args.seq_length, args.stride, args.max_files, **dl_kwargs
     )
     ck = torch.load(args.checkpoint, map_location=device, weights_only=False)
@@ -729,12 +753,22 @@ def main():
           if carried else f"window ({args.seq_length} events, cold-start re-encode per step)", flush=True)
     first_batch = move_batch(next(iter(test_loader)), device)
     rate_scale_k = 1.0
+    cal_target = None
     if args.calibrate_rate != 0.0:
-        cal_target = real_rate if args.calibrate_rate < 0 else args.calibrate_rate
+        # Calibration target and probe warm-starts come from the CALIBRATION
+        # split (default val) -- the test stream never informs the constant.
+        cal_loader = val_loader if args.calibrate_split == "val" else test_loader
+        if args.calibrate_rate < 0:
+            marks_c, dt_c = real_stream(cal_loader, args.stride, args.max_real_windows)
+            cal_target = len(dt_c) / max(float(dt_c.sum()), 1e-9)
+        else:
+            cal_target = args.calibrate_rate
+        cal_batch = move_batch(next(iter(cal_loader)), device)
         print(f"CALIBRATE_RATE target {cal_target:.4f} ev/s "
-              f"({'measured real rate' if args.calibrate_rate < 0 else 'user target'})", flush=True)
+              f"({'measured ' + args.calibrate_split + ' rate' if args.calibrate_rate < 0 else 'user target'})",
+              flush=True)
         rate_scale_k = calibrate_rate(
-            model, first_batch, device, cal_target,
+            model, cal_batch, device, cal_target,
             sampler_kwargs=dict(horizon=args.dt_horizon, n_grid=args.dt_grid_points,
                                 carried=carried))
     if args.sampler == "thinning":
@@ -769,9 +803,33 @@ def main():
     print("SIM events", n_sim_events, "buckets", len(r_sim),
           "sim_rate", round(sim_rate, 4), "real_rate", round(real_rate, 4), flush=True)
 
-    facts_real = all_facts(r_real, a_real)
+    if args.match_durations and args.rollout_duration > 0:
+        # Equal-duration comparison: score REAL facts on bootstrap segments with
+        # the same count and duration as the simulated sequences, aggregated the
+        # same way (bucketize per segment, concatenate), instead of one long
+        # stream -- so finite-sample effects match between the two columns.
+        rng = np.random.default_rng(args.rollout_seed)
+        t_real = np.cumsum(dt_r)
+        total = float(t_real[-1])
+        n_seg = sim_marks.shape[0]
+        rr_chunks, aa_chunks = [], []
+        for _ in range(n_seg):
+            t0 = rng.uniform(0.0, max(total - args.rollout_duration, 1e-9))
+            i0 = int(np.searchsorted(t_real, t0))
+            i1 = int(np.searchsorted(t_real, t0 + args.rollout_duration))
+            if i1 <= i0 + 1:
+                continue
+            rr, aa = bucketize(marks_r[i0:i1], dt_r[i0:i1], sign, moving, args.bucket_seconds)
+            rr_chunks.append(rr); aa_chunks.append(aa)
+        r_real_scored = np.concatenate(rr_chunks); a_real_scored = np.concatenate(aa_chunks)
+        print(f"MATCH_DURATIONS real facts on {len(rr_chunks)} bootstrap segments x "
+              f"{args.rollout_duration:.0f}s (buckets {len(r_real_scored)})", flush=True)
+    else:
+        r_real_scored, a_real_scored = r_real, a_real
+
+    facts_real = all_facts(r_real_scored, a_real_scored)
     facts_sim = all_facts(r_sim, a_sim)
-    plot_facts(facts_real, facts_sim, r_real, r_sim, args.label, out)
+    plot_facts(facts_real, facts_sim, r_real_scored, r_sim, args.label, out)
 
     headline = {}
     for key, name in [
@@ -798,7 +856,9 @@ def main():
         "rollout_duration": args.rollout_duration,
         "sampler": args.sampler,
         "context_mode": "carried" if carried else "window",
-        "calibrate_rate_target": (real_rate if args.calibrate_rate < 0 else args.calibrate_rate) if args.calibrate_rate != 0.0 else None,
+        "calibrate_rate_target": cal_target,
+        "calibrate_split": args.calibrate_split if args.calibrate_rate != 0.0 else None,
+        "match_durations": bool(args.match_durations),
         "rate_scale_k": rate_scale_k,
         "return_proxy": "signed order flow of MO_* and IS_*_L1 per bucket (side b/a = bid/ask)",
         "headline": headline,

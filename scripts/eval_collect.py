@@ -111,3 +111,16 @@ for r in rows:
 
 done = [r['tag'] for r in rows if r.get('overall') is not None]
 print(f"\n{len(done)}/{len(ORDER)} models have prediction results: {', '.join(done)}")
+
+# STRICT collection: with EXPECT_TAGS set (comma-separated), any expected model
+# missing either its prediction json or its stylized-facts json fails the
+# collector (nonzero exit) -- an incomplete benchmark must not look successful.
+expect = [t for t in os.environ.get("EXPECT_TAGS", "").split(",") if t.strip()]
+if expect:
+    have_pred = {r['tag'] for r in rows if r.get('overall') is not None}
+    have_sf = {r['tag'] for r in rows if r.get('sim_rate') is not None}
+    missing = [t for t in expect if t not in have_pred or t not in have_sf]
+    if missing:
+        print(f"COLLECT_FAIL missing/incomplete models: {', '.join(missing)}")
+        sys.exit(2)
+    print(f"COLLECT_OK all {len(expect)} expected models complete")
