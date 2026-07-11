@@ -77,13 +77,22 @@ source /share/apps/source_files/python/python-3.11.9.source 2>/dev/null || true
 source "$HOME/volume-set-mtpp/venv/bin/activate" 2>/dev/null || true
 export PYTHONPATH="$REPO" PYTHONUNBUFFERED=1 TQDM_DISABLE=1 OMP_NUM_THREADS=4
 B="$ROOT/$TAG"
-rm -rf "$B"
+CKPT="$B/train/best_model.pt"
+# RESUME=1: keep the existing checkpoint + genuine json and redo ONLY the SF
+# stage (e.g. after a CAL_FINAL_FAIL) -- same trained model, fresh rollouts.
+if [ "${RESUME:-0}" = "1" ] && [ -s "$CKPT" ]; then
+  rm -rf "$B"/sf_r*
+else
+  rm -rf "$B"
+fi
 mkdir -p "$B"; ML="$B/master.log"
 log(){ echo "$@" | tee -a "$ML"; }
 fail(){ log "DONE $(date) STATUS=1 stage=$1 rc=$2 BASE=$B"; exit 1; }
-log "START $(date) TAG=$TAG host=$(hostname)"; nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tee -a "$ML"
-CKPT="$B/train/best_model.pt"
+log "START $(date) TAG=$TAG host=$(hostname) RESUME=${RESUME:-0}"; nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tee -a "$ML"
 
+if [ "${RESUME:-0}" = "1" ] && [ -s "$CKPT" ] && [ -s "$B/genuine_${TAG}.json" ]; then
+  log "RESUME: reusing checkpoint + genuine json; redoing SF only"
+else
 log "TRAIN $(date) seed=$SEED"
 python3 -u -m volume_set_mtpp.training.train --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
   --channel-emb-size 64 --time-emb-size 64 --recurrent-hidden 64 \
@@ -101,6 +110,7 @@ python3 -u -m volume_set_mtpp.evaluation.genuine_eval --checkpoint "$CKPT" --dat
   --streaming --dt-horizon 60 --dt-grid-points 32 --output "$B/genuine_${TAG}.json" 2>&1 | tail -30 | tee -a "$ML"
 GEN_RC=$?
 { [ "$GEN_RC" -eq 0 ] && [ -s "$B/genuine_${TAG}.json" ]; } || fail genuine "$GEN_RC"
+fi
 
 for R in $ROLLOUT_SEEDS; do
   log "SF $(date) rollout_seed=$R"
@@ -108,7 +118,7 @@ for R in $ROLLOUT_SEEDS; do
   python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
     --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler inversion \
     --context-mode carried --calibrate-rate -1 --calibrate-split val \
-    --calibrate-probe-duration 240 --calibrate-final-tol 0.15 --match-durations \
+    --calibrate-probe-duration 600 --calibrate-final-tol 0.15 --match-durations \
     --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
     --rollout-seed "$R" --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf_r$R.log" 2>&1
   SF_RC=$?
