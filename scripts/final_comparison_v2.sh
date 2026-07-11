@@ -62,6 +62,13 @@ MODELS=(nhp lstm sahp pct-lstm s2p2 ss2p2-full)
 MI=$(( (SGE_TASK_ID - 1) % 6 ))
 SEED=$(( (SGE_TASK_ID - 1) / 6 + 1 ))
 MODEL="${MODELS[$MI]}"
+# SAHP: constant-rate calibration DIVERGES (documented finding, 2026-07-11/12:
+# probes converge -- 240s AND 600s horizons -- but the full rollout misses by
+# 31-200%; its fixed-context closed-loop rate is unstable across warm-start
+# conditions, unlike every recurrent-state model). Report it UNCALIBRATED
+# (k=1, dagger in the paper table); the divergence logs are the evidence.
+SF_CAL="--calibrate-rate -1 --calibrate-split val --calibrate-probe-duration 600 --calibrate-final-tol 0.15"
+[ "$MODEL" = "sahp" ] && SF_CAL=""
 case "$MODEL" in
   nhp)        EXTRA="--decoder-type hawkes" ;;
   lstm)       EXTRA="--decoder-type lstm" ;;
@@ -117,8 +124,7 @@ for R in $ROLLOUT_SEEDS; do
   mkdir -p "$B/sf_r$R"
   python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
     --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler inversion \
-    --context-mode carried --calibrate-rate -1 --calibrate-split val \
-    --calibrate-probe-duration 600 --calibrate-final-tol 0.15 --match-durations \
+    --context-mode carried $SF_CAL --match-durations \
     --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
     --rollout-seed "$R" --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf_r$R.log" 2>&1
   SF_RC=$?
