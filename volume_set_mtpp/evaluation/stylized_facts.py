@@ -818,9 +818,25 @@ def main():
             model, cal_batch, device, cal_target,
             probe_duration=args.calibrate_probe_duration, sampler_kwargs=cal_kwargs)
         if args.calibrate_final_tol > 0:
-            verify_calibration(model, cal_batch, device, cal_target, cal_kwargs,
-                               duration=args.rollout_duration or args.calibrate_probe_duration,
-                               n_seq=args.rollout_sequences, tol=args.calibrate_final_tol)
+            ver_dur = args.rollout_duration or args.calibrate_probe_duration
+            try:
+                verify_calibration(model, cal_batch, device, cal_target, cal_kwargs,
+                                   duration=ver_dur, n_seq=args.rollout_sequences,
+                                   tol=args.calibrate_final_tol)
+            except RuntimeError as e:
+                # Escalation: a checkpoint whose closed-loop rate is heavy-tailed
+                # across sequences can pass small probes yet miss at full scale.
+                # Recalibrate with probe fidelity == measurement fidelity (full
+                # sequence count), then verify again -- a second failure is real.
+                print(f"CAL_ESCALATE {e}; recalibrating at n_seq={args.rollout_sequences}", flush=True)
+                model._sim_rate_k = 1.0
+                rate_scale_k = calibrate_rate(
+                    model, cal_batch, device, cal_target,
+                    probe_duration=ver_dur, probe_seq=args.rollout_sequences,
+                    sampler_kwargs=cal_kwargs)
+                verify_calibration(model, cal_batch, device, cal_target, cal_kwargs,
+                                   duration=ver_dur, n_seq=args.rollout_sequences,
+                                   tol=args.calibrate_final_tol)
     if args.sampler == "thinning":
         print("SAMPLER thinning (Ogata, SS2P2 closed-form bound)", flush=True)
         sim_marks, sim_dt, sim_cum = simulate_stream_thinning(
