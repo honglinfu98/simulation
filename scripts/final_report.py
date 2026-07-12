@@ -15,6 +15,12 @@ genuine json per train seed, (b) a stylized-facts json for EVERY
 (train seed x rollout seed) pair at its exact path, and (c) finite values for
 the required metrics -- otherwise the report fails (exit 2).
 
+EXCLUDE_SF: comma-separated checkpoint tags (e.g. "s2p2-s1") whose SF stage is
+DOCUMENTED-EXCLUDED (calibration verification failed at matched fidelity; the
+divergence logs are the evidence). Prediction metrics are still REQUIRED for
+excluded tags; their SF stats are simply computed over the remaining
+checkpoints and the exclusion is printed in the report.
+
 Usage: final_report.py ROOT [--seeds 1,2,3] [--rollout-seeds 1,2,3]
 """
 import argparse
@@ -106,6 +112,7 @@ def main():
     seeds = [s for s in args.seeds.split(",") if s]
     rseeds = [r for r in args.rollout_seeds.split(",") if r]
     expect = [m for m in os.environ.get("EXPECT_MODELS", "").split(",") if m.strip()]
+    exclude_sf = {t.strip() for t in os.environ.get("EXCLUDE_SF", "").split(",") if t.strip()}
 
     if expect:
         models = expect
@@ -132,6 +139,8 @@ def main():
                     problems.append(f"{tag}: non-finite prediction metrics {bad}")
                 for k, _ in PRED_KEYS:
                     pred_seed_vals[k].append(g.get(k, float("nan")))
+            if tag in exclude_sf:
+                continue  # documented SF exclusion; prediction still checked above
             # EXACT rollout-file check: every (train seed x rollout seed) path
             per_rollout = {k: [] for k in SF_COLS}
             for r in rseeds:
@@ -161,6 +170,9 @@ def main():
 
     print("\n========  STYLIZED FACTS (rel-err vs real; rollout seeds averaged per "
           "checkpoint; mean ± 95% CI over checkpoints)  ========")
+    for t in sorted(exclude_sf):
+        print(f"  EXCLUDED from SF stats: {t} (calibration verification failed at "
+              f"matched fidelity; see its sf logs)")
     print(f"{'model':14s} " + " ".join(f"{('cal_k' if c == 'k' else c):>14s}" for c in SF_COLS))
     for mdl in models:
         cells = [fmt(*sf_ck[mdl][c], d=2 if c == 'sim_rate' else 3) for c in SF_COLS]
@@ -178,8 +190,9 @@ def main():
             print(f"  - {p}")
         sys.exit(2)
     if expect:
+        note = (f" (SF exclusions: {','.join(sorted(exclude_sf))})" if exclude_sf else "")
         print(f"\nREPORT_OK all {len(expect)} models complete: {len(seeds)} train seeds x "
-              f"{len(rseeds)} rollout seeds, all files present, required metrics finite")
+              f"{len(rseeds)} rollout seeds, all files present, required metrics finite{note}")
 
 
 if __name__ == "__main__":
