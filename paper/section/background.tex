@@ -12,10 +12,14 @@ the log-likelihood of a sequence is
 =\sum_i \Bigl[\log\lambda^*(t_i)+\log p^*(k_i\mid t_i)\Bigr]
 -\int_0^T\!\lambda^*(s)\,ds ,
 \]
-the integral being the \emph{compensator}. Sampling uses Ogata thinning, which
-requires a dominating rate $\bar\lambda\ge\lambda^*(t)$; a model whose intensity has
-no computable upper bound must resort to heuristic (and bias-prone) dominating-rate
-estimates. Classical self-exciting intensities are Hawkes processes
+the integral being the \emph{compensator}
+$\Lambda^*(t)=\int_0^t\lambda^*(s)\,ds$. By the random time change theorem, the
+rescaled masses $u_i=\Lambda^*(t_i)$, $\Delta u_i = u_i-u_{i-1}$ are i.i.d.\
+$\mathrm{Exp}(1)$ iff the intensity is correctly specified --- we report their mean
+(target 1) and KS distance as timing-calibration diagnostics. Sampling uses Ogata
+thinning, which requires a dominating rate $\bar\lambda\ge\lambda^*(t)$; a model
+whose intensity has no computable upper bound must resort to heuristic (and
+bias-prone) dominating-rate estimates. Classical self-exciting intensities are Hawkes processes
 \citep{Hawkes1971}, widely used for LOB event flow
 \citep{Jain2024LimitProcess,Morariu-Patrichi2022State-dependentModelling}; neural
 versions replace the parametric kernel with recurrent
@@ -23,8 +27,8 @@ versions replace the parametric kernel with recurrent
 history encoders.
 
 \paragraph{The \sppp{} backbone.}
-\sppp{} \citep{Shi2022StateSimulation} is a state-space point process for LOB
-streams: $L$ stacked latent-linear-Hawkes/SSM layers with diagonal state,
+\sppp{} \citep{chang2025ctssm,Shi2022StateSimulation} is a state-space point
+process: $L$ stacked latent-linear-Hawkes/SSM layers with diagonal state,
 ZOH-discretized between events and computable by parallel scan,
 \[
 x^{(\ell)}_{t'}=\bar A^{(\ell)} x^{(\ell)}_{t}
@@ -41,8 +45,9 @@ $u(t)$ and changes only these two heads.
 
 \paragraph{Evaluation axes.}
 We score \emph{prediction} per genuine test event --- the time/mark NLL split, type
-accuracy and perplexity, time-MAE, and time-rescaling calibration (rescaled
-inter-event masses should be Exp(1); we report their KS distance and mean) --- and
-\emph{simulation} by 600\,s closed-loop roll-outs bucketed into 1\,s bins, compared
-to real data on event rate, Fano factor, volatility clustering, and return
-autocorrelation \citep{cont2001empirical,vyetrenko2020getreal}.
+accuracy and perplexity, expected-time MAE, and the time-rescaling diagnostics
+above --- and \emph{simulation} by calibrated closed-loop roll-outs
+($32\times600$\,s) bucketed into 1\,s bins, compared to equal-duration bootstrap
+samples of real data on event rate, Fano factor across scales, volatility
+clustering ($|r|$-ACF), and return autocorrelation
+\citep{cont2001empirical,vyetrenko2020getreal}.

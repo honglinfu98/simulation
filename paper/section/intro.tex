@@ -9,24 +9,29 @@ the time and type of the next event. The second is \emph{simulation}: roll the m
 forward freely, feeding its own samples back as history, and reproduce the stylized
 facts of real order flow --- calibrated event rates, burst--lull clustering, and
 heavy-tailed returns \citep{cont2001empirical}. Simulation is the harder and, for
-downstream use (market-making world models, agent training, counterfactual analysis),
-the more valuable of the two.
+downstream use (market-making world models, agent training, counterfactual
+analysis), the more valuable of the two \citep{mars2025,nagy2025lobbench}.
 
-Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview} excel at
-prediction, and state-space variants specialized to LOB streams
-\citep{Shi2022StateSimulation} push accuracy further. But the very self-excitation
-that wins the one-step likelihood becomes a liability closed-loop: each sampled event
-raises the intensity, which produces more events, and with no mechanism bounding the
-rate the roll-out runs away. In our benchmark the best predictor --- the Neural Hawkes
-continuous-time LSTM (\nhp) --- free-runs at $66$ events/s against a real rate of
-$2.3$, with the Fano factor $6.6\times$ off; its unbounded state-space cousin \sppp{}
-reaches $87$ events/s. The field thus faces an \emph{expressivity--stability
-frontier}: expressive intensities predict but explode; trivially stable models (an
-unconditional LSTM sampler) simulate innocuously but predict poorly.
+Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview} excel
+at prediction, and continuous-time state-space variants
+\citep{chang2025ctssm,Shi2022StateSimulation} push held-out likelihood to the state
+of the art. But that literature evaluates almost exclusively teacher-forced, and the
+very self-excitation that wins the one-step likelihood becomes a liability
+closed-loop: each sampled event raises the intensity, which produces more events,
+and with no mechanism bounding the rate the roll-out drifts hot or explodes. The
+standard patch --- rescale the intensity until the simulated rate matches reality
+--- turns out to be unavailable exactly where it is needed most: we find trained
+unbounded state-space checkpoints whose closed-loop rate is \emph{near-discontinuous}
+in the rescaling constant (a $10^{-3}$ change flips the rate across the entire
+tolerance band) so that no constant rescaling exists, and the failure worsens
+systematically with the event rate of the asset. The field thus faces an
+\emph{expressivity--stability frontier}: expressive intensities predict but cannot
+be trusted (or even calibrated) closed-loop, while trivially stable samplers
+simulate innocuously but predict poorly.
 
 \ssppp{} is a head transplant, not a new backbone. We keep the stacked
-latent-linear-Hawkes state-space backbone of \sppp{} verbatim --- its diagonal
-zero-order-hold (ZOH) dynamics, parallel-scan computability, and LayerNorm'd stack
+latent-linear-Hawkes state-space backbone verbatim --- its diagonal
+zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
 output $u(t)$ --- and replace only what comes after $u(t)$:
 \begin{itemize}
 \item a \textbf{softmin-bounded rate head}: a gated bounded state
@@ -42,41 +47,39 @@ output $u(t)$ --- and replace only what comes after $u(t)$:
   destabilize the rate.
 \end{itemize}
 
-Because the backbone is identical, differences against \sppp{} are attributable to
-the heads. The heads, however, are only the first ingredient: we show that the
-prediction--simulation gap decomposes into \emph{independent} causes --- what the
-model can remember (roll-out memory), what states it trains on (cold-start windows
-vs.\ warm streams), and how the likelihood measures intensity mass (the compensator
-estimator) --- and we resolve each with a single-factor ablation. Our contributions:
+Because the backbone is identical, differences against the unbounded parent
+(\sppp) are attributable to the heads. Our contributions:
 \begin{enumerate}
 \item \textbf{The \ssppp{} head pair} (softmin-bounded rate $\times$ rate-neutral
   marks): a provably bounded, thinning-exact intensity on an unmodified
-  state-of-the-art backbone.
-\item \textbf{A corrected, identically-configured seven-model benchmark} on Gemini
-  ETH-USD order flow (62 event types), covering both per-event prediction (NLL split,
-  accuracy, time-rescaling calibration) and closed-loop simulation (stylized-facts
-  fit), plus a mechanistic head-ablation chain (two-sided bound $\to$ slow-mode
-  initialization $\to$ open-floor softmin) that localizes and cuts the quiet-regime
-  deficit by 41\%.
-\item \textbf{Carried-state simulation and stateful (TBPTT) training.} Sliding-window
-  roll-out architecturally truncates memory to the window span; an $O(1)$-per-event
-  carried-state roll-out (exactly equivalent to encoding the full history, for
-  state-space recursions) unlocks long-memory volatility clustering. Training with
-  state carried across windows (detached at boundaries) improves prediction across
-  every metric and brings simulated clustering and return-autocorrelation structure
-  to near-real levels --- while leaving the free-running rate unchanged, cleanly
-  isolating the rate from the state regime.
-\item \textbf{Exact post-hoc rate calibration.} Because the \ssppp{} rate head is
-  linear in its learnable scale and the thinning ceiling scales with it, the
-  free-running rate can be calibrated by a one-dimensional root-find on short probe
-  roll-outs --- certificate-preserving, mark-distribution-preserving, and unavailable
-  to coupled-head models. Calibration \emph{improves} every structure fact: the
-  apparent structure deficit of over-firing simulators is largely a clock-rate
-  artifact.
+  state-space backbone, trained with stateful (TBPTT) likelihood and simulated
+  with $O(1)$-per-event carried state.
+\item \textbf{A strict two-axis benchmark} on four crypto assets (Gemini ETH;
+  Coinbase BTC/ETH/SOL) $\times$ six models $\times$ three training seeds:
+  prediction scored losslessly on \emph{every} test event by a streaming
+  evaluator with carried state, simulation scored on calibrated carried-state
+  roll-outs against equal-duration real segments, checkpoint-level confidence
+  intervals throughout. \ssppp{} is the best-calibrated simulator on the home
+  asset and \emph{overtakes} the best predictor (\nhp) as streams grow faster,
+  winning every prediction metric on SOL. A per-gap decomposition explains the
+  remaining prediction gap mechanistically: it is quiet-regime hazard, the
+  deliberate price of the bound.
+\item \textbf{Calibratability as a measurable model property.} Every model is
+  rate-calibrated by a mark-preserving bisection with \emph{full-scale
+  verification}, and the outcome is reported as a result: the unbounded head
+  fails verified calibration on 8/12 checkpoints with a critical-point
+  signature, degrading with event rate (all three seeds on SOL); the bounded
+  head fails 1/12. To our knowledge this is the first cross-asset
+  quantification of closed-loop calibratability for neural TPPs.
+\item \textbf{Exact post-hoc rate calibration} for factorized heads: the rate is
+  linear in a learnable scale, the thinning ceiling scales with it, and the mark
+  distribution is untouched --- a certificate-preserving one-dimensional
+  root-find that also \emph{improves} every structure fact by repairing
+  clock-rate distortion.
 \item \textbf{A cautionary negative result on unbiased compensators.} The
-  Mei--Eisner-style global Monte-Carlo compensator, though verifiably unbiased,
-  collapses training under gradient clipping and adaptive optimization: its
-  heavy-tailed penalty is systematically trimmed and maximum likelihood learns to
-  exploit the sparse audit. Estimator variance, not bias alone, decides whether
-  likelihood-level calibration succeeds.
+  global Monte-Carlo compensator, though verifiably unbiased, collapses training
+  under gradient clipping and adaptive optimization. Estimator variance, not
+  bias alone, decides whether likelihood-level rate calibration succeeds.
 \end{enumerate}
+All tables and figures in this paper are generated end-to-end by released
+collection and plotting scripts.

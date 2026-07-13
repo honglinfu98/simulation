@@ -6,19 +6,20 @@ mark distribution, both reading the \emph{same} backbone embedding $u(t)$:
 \[
 \lambda_k(t)\;=\;\lambda(t)\cdot p^*(k\mid t),
 \qquad
-\sum_k \lambda_k(t)=\lambda(t)\ \ \text{since}\ \sum_k p^*(k\mid t)=1 .
+\sum\nolimits_k \lambda_k(t)=\lambda(t),
 \]
+the second identity holding because $\sum_k p^*(k\mid t)=1$.
 The design principle is to put nonlinearity where it cannot perturb the rate.
 
 \subsection{Softmin-bounded rate head}
 From the LayerNorm'd (hence bounded-scale) embedding $u$, a gate produces a
 two-sided-bounded state, which is read out through a smooth one-sided cap:
 \begin{align}
-o(u) &= \sigma(W_o u + b_o)\in(0,1)^H, &
+o(u) &= \sigma(W_o u + b_o)\in(0,1)^H,\notag\\
 h(u) &= o(u)\odot\tanh(u)\in(-1,1)^H,\notag\\
-z_{\mathrm{raw}} &= w^{\!\top}h+b \ \ (\text{unconstrained}), &
+z_{\mathrm{raw}} &= w^{\!\top}h+b \ \ (\text{unconstrained}),\notag\\
 z &= c-\mathrm{softplus}\bigl(c-z_{\mathrm{raw}}\bigr),\notag\\
-\lambda(t) &= s\cdot\mathrm{softplus}(z), &&
+\lambda(t) &= s\cdot\mathrm{softplus}(z),
 \label{eq:softmin}
 \end{align}
 with a learnable positive scale $s$ initialized so the baseline rate matches a target
@@ -100,8 +101,15 @@ through the closed-loop feedback --- can therefore be calibrated by a one-dimens
 geometric bisection on a multiplier $k$: roll out briefly at $k\,s$, compare the
 realized rate to the target, and iterate ($\sim$6 probe roll-outs in practice). The
 result is a certificate-preserving, sampling-exact simulator at any prescribed mean
-rate. Coupled-head models (\nhp, \sppp) admit no such knob: their marks and rate
-share parameters, so rescaling the intensity distorts the type distribution. We use
-this as a \emph{post-hoc} correction for the residual rate inflation caused by the
-biased endpoint-rule compensator (the experiments quantify the alternative of fixing
-the estimator itself, and why its naive form fails).
+rate. For \emph{any} decoder, a constant $k$ multiplying the sim-time intensity is
+still mark-preserving --- type probabilities $\lambda_k/\lambda$ are unchanged ---
+so the same bisection applies to every baseline; what is lost off-family is only
+the exactness of the thinning bound. We make the procedure falsifiable: the target
+is the \emph{validation}-split rate, the bisection must bracket and converge, and a
+full-scale validation roll-out must verify the target within tolerance (failures
+escalate to full-scale probes; unresolved failures exclude the checkpoint and are
+reported). Transfer to the test split is reported, never gated. We use calibration
+as a \emph{post-hoc} correction for the residual rate inflation caused by the
+biased endpoint-rule compensator (the experiments quantify the alternative of
+fixing the estimator itself, and why its naive form fails) --- and, in the
+experiments, as a measurement instrument in its own right.
