@@ -43,7 +43,7 @@ scale: in a quiet gap of length $\Delta t$ the compensator bleeds
 $(\ell_--\lambda^{\mathrm{true}})\Delta t$ nats that no parameter setting can
 recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
 prediction --- and the softmin cap builds exactly that asymmetry into the
-nonlinearity (the ablation chain in the Experiments section quantifies the effect).
+nonlinearity.
 
 \subsection{Rate-neutral mark head}
 Marks read the same $u$ but never change the total rate:
@@ -61,9 +61,7 @@ owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 Training maximizes the standard MTPP likelihood with the compensator evaluated on the
 training window; the mark term is a categorical cross-entropy on $p^*(k_i\mid t_i)$,
 decoupled from the rate term. Closed-loop sampling uses thinning with the exact
-dominating rate $s\cdot\mathrm{softplus}(c)$. An S4-style log-spaced initialization
-of the backbone decay spectrum (timescales $0.02$--$60$\,s) is kept as a training
-option and evaluated in the head-ablation chain.
+dominating rate $s\cdot\mathrm{softplus}(c)$.
 
 \subsection{Carried-state simulation}
 The standard roll-out protocol re-encodes a sliding window of the last $W$ events
@@ -108,8 +106,6 @@ the exactness of the thinning bound. We make the procedure falsifiable: the targ
 is the \emph{validation}-split rate, the bisection must bracket and converge, and a
 full-scale validation roll-out must verify the target within tolerance (failures
 escalate to full-scale probes; unresolved failures exclude the checkpoint and are
-reported). Transfer to the test split is reported, never gated. We use calibration
-as a \emph{post-hoc} correction for the residual rate inflation caused by the
-biased endpoint-rule compensator (the experiments quantify the alternative of
-fixing the estimator itself, and why its naive form fails) --- and, in the
+reported). Transfer to the test split is reported, never gated. We use calibration as a \emph{post-hoc} correction for the residual rate
+inflation caused by the biased endpoint-rule training compensator --- and, in the
 experiments, as a measurement instrument in its own right.

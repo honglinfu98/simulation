@@ -23,8 +23,9 @@ standard patch --- rescale the intensity until the simulated rate matches realit
 --- turns out to be unavailable exactly where it is needed most: we find trained
 unbounded state-space checkpoints whose closed-loop rate is \emph{near-discontinuous}
 in the rescaling constant (a $10^{-3}$ change flips the rate across the entire
-tolerance band) so that no constant rescaling exists, and the failure worsens
-systematically with the event rate of the asset. The field thus faces an
+tolerance band) so that no constant rescaling exists --- on one of our three
+assets, this leaves the unbounded model with no usable simulator at all. The
+field thus faces an
 \emph{expressivity--stability frontier}: expressive intensities predict but cannot
 be trusted (or even calibrated) closed-loop, while trivially stable samplers
 simulate innocuously but predict poorly.
@@ -54,32 +55,29 @@ Because the backbone is identical, differences against the unbounded parent
   marks): a provably bounded, thinning-exact intensity on an unmodified
   state-space backbone, trained with stateful (TBPTT) likelihood and simulated
   with $O(1)$-per-event carried state.
-\item \textbf{A strict two-axis benchmark} on four crypto assets (Gemini ETH;
-  Coinbase BTC/ETH/SOL) $\times$ six models $\times$ three training seeds:
+\item \textbf{A strict two-axis benchmark} on three Coinbase assets (BTC, ETH,
+  SOL; $24$--$48$ events/s) $\times$ six models $\times$ three training seeds:
   prediction scored losslessly on \emph{every} test event by a streaming
   evaluator with carried state, simulation scored on calibrated carried-state
   roll-outs against equal-duration real segments, checkpoint-level confidence
-  intervals throughout. \ssppp{} is the best-calibrated simulator on the home
-  asset and \emph{overtakes} the best predictor (\nhp) as streams grow faster,
-  winning every prediction metric on SOL. A per-gap decomposition explains the
+  intervals throughout. \ssppp{} wins every prediction metric on SOL, leads overall likelihood
+  and marks on ETH, ties the strongest baseline (\nhp) on BTC marks, and
+  remains verifiably calibratable with competitive simulated structure
+  throughout. A per-gap decomposition explains the
   remaining prediction gap mechanistically: it is quiet-regime hazard, the
   deliberate price of the bound.
 \item \textbf{Calibratability as a measurable model property.} Every model is
   rate-calibrated by a mark-preserving bisection with \emph{full-scale
   verification}, and the outcome is reported as a result: the unbounded head
-  fails verified calibration on 8/12 checkpoints with a critical-point
-  signature, degrading with event rate (all three seeds on SOL); the bounded
-  head fails 1/12. To our knowledge this is the first cross-asset
+  fails verified calibration on 7/9 checkpoints with a critical-point
+  signature --- including all three seeds on SOL, leaving no usable simulator
+  --- while the bounded head fails 1/9. To our knowledge this is the first cross-asset
   quantification of closed-loop calibratability for neural TPPs.
 \item \textbf{Exact post-hoc rate calibration} for factorized heads: the rate is
   linear in a learnable scale, the thinning ceiling scales with it, and the mark
   distribution is untouched --- a certificate-preserving one-dimensional
   root-find that also \emph{improves} every structure fact by repairing
   clock-rate distortion.
-\item \textbf{A cautionary negative result on unbiased compensators.} The
-  global Monte-Carlo compensator, though verifiably unbiased, collapses training
-  under gradient clipping and adaptive optimization. Estimator variance, not
-  bias alone, decides whether likelihood-level rate calibration succeeds.
 \end{enumerate}
 All tables and figures in this paper are generated end-to-end by released
 collection and plotting scripts.

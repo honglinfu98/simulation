@@ -160,35 +160,6 @@ def main():
     D = json.load(open(DATA))
     os.makedirs(OUT, exist_ok=True)
 
-    # ---- Table: Gemini prediction --------------------------------------
-    rows = pred_rows(D["gemini"])
-    body = "\n".join(
-        name(m, n) + " & " + " & ".join(c) + r"\\" for m, _, c, n in rows)
-    w(os.path.join(OUT, "tab_gemini_prediction.tex"), rf"""\begin{{tabular}}{{lccccccc}}
-\toprule
-model & overall$\downarrow$ & timeNLL$\downarrow$ & KS$\downarrow$ & mean\,$u$ & tMAE(s) & ACC$\uparrow$ & PPL$\downarrow$\\
-\midrule
-{body}
-\bottomrule
-\end{{tabular}}""")
-
-    # ---- Table: Gemini stylized facts ----------------------------------
-    rows = sf_rows(D["gemini"])
-    lines = []
-    for m, means, cells, n in rows:
-        if means is None:
-            lines.append(LABEL[m] +
-                         r" & \multicolumn{5}{c}{\emph{no calibrated checkpoints}}\\")
-        else:
-            lines.append(name(m, n) + " & " + " & ".join(cells) + r"\\")
-    w(os.path.join(OUT, "tab_gemini_sf.tex"), rf"""\begin{{tabular}}{{lccccc}}
-\toprule
-model & rate\_re$\downarrow$ & Fano\_re$\downarrow$ & clus\_re$\downarrow$ & rACF\_re$\downarrow$ & cal.\ $k$\\
-\midrule
-{chr(10).join(lines)}
-\bottomrule
-\end{{tabular}}""")
-
     # ---- Table: multi-asset prediction (compact) ------------------------
     lines = []
     for mdl in MODELS:
@@ -239,7 +210,7 @@ model & overall$\downarrow$ & ACC$\uparrow$ & overall$\downarrow$ & ACC$\uparrow
         cells, vals = [], []
         for coin in COINS:
             cks = sf_per_checkpoint(D[coin], mdl)
-            for key in ["rate_re", "fano"]:
+            for key in ["rate_re", "fano", "clus"]:
                 if not cks:
                     cells.append("--")
                     vals.append(float("nan"))
@@ -248,18 +219,19 @@ model & overall$\downarrow$ & ACC$\uparrow$ & overall$\downarrow$ & ACC$\uparrow
                     cells.append(fmt(m, c, 2))
                     vals.append(m)
         lines.append([mdl, cells, vals])
-    for j in range(len(COINS) * 2):
-        col = [(i, r[2][j]) for i, r in enumerate(lines) if finite(r[2][j])]
+    for j in range(len(COINS) * 3):
+        col = [(i, r[2][j]) for i, r in enumerate(lines)
+               if finite(r[2][j]) and lines[i][0] != "sahp"]
         if col:
             bi = min(col, key=lambda t: t[1])[0]
             lines[bi][1][j] = r"\textbf{" + lines[bi][1][j] + "}"
     body = "\n".join(LABEL[m] + " & " + " & ".join(c) + r"\\"
                      for m, c, _ in lines)
-    w(os.path.join(OUT, "tab_multiasset_sf.tex"), rf"""\begin{{tabular}}{{lcccccc}}
+    w(os.path.join(OUT, "tab_multiasset_sf.tex"), rf"""\begin{{tabular}}{{lccccccccc}}
 \toprule
- & \multicolumn{{2}}{{c}}{{BTC}} & \multicolumn{{2}}{{c}}{{ETH}} & \multicolumn{{2}}{{c}}{{SOL}}\\
-\cmidrule(lr){{2-3}}\cmidrule(lr){{4-5}}\cmidrule(lr){{6-7}}
-model & rate\_re & Fano\_re & rate\_re & Fano\_re & rate\_re & Fano\_re\\
+ & \multicolumn{{3}}{{c}}{{BTC}} & \multicolumn{{3}}{{c}}{{ETH}} & \multicolumn{{3}}{{c}}{{SOL}}\\
+\cmidrule(lr){{2-4}}\cmidrule(lr){{5-7}}\cmidrule(lr){{8-10}}
+model & rate\_re & Fano\_re & clus\_re & rate\_re & Fano\_re & clus\_re & rate\_re & Fano\_re & clus\_re\\
 \midrule
 {body}
 \bottomrule
@@ -269,11 +241,11 @@ model & rate\_re & Fano\_re & rate\_re & Fano\_re & rate\_re & Fano\_re\\
     lines = []
     for mdl in MODELS:
         if mdl == "sahp":
-            cells = [r"\multicolumn{4}{c}{\emph{model-level divergence: reported uncalibrated}}"]
+            cells = [r"\multicolumn{3}{c}{\emph{model-level divergence: reported uncalibrated}}"]
             lines.append(LABEL[mdl] + " & " + cells[0] + r"\\")
             continue
         cells = []
-        for dsn in ["gemini"] + COINS:
+        for dsn in COINS:
             total = sum(1 for s in [1, 2, 3]
                         if f"{mdl}-s{s}" in D[dsn])
             ok = sum(1 for s in [1, 2, 3]
@@ -283,17 +255,17 @@ model & rate\_re & Fano\_re & rate\_re & Fano\_re & rate\_re & Fano\_re\\
                 cell = rf"\textbf{{{cell}}}"
             cells.append(cell)
         lines.append(LABEL[mdl] + " & " + " & ".join(cells) + r"\\")
-    w(os.path.join(OUT, "tab_calibration_outcomes.tex"), rf"""\begin{{tabular}}{{lcccc}}
+    w(os.path.join(OUT, "tab_calibration_outcomes.tex"), rf"""\begin{{tabular}}{{lccc}}
 \toprule
- & Gemini ETH & CB BTC & CB ETH & CB SOL\\
-model & $\sim$4\,ev/s & 38\,ev/s & 48\,ev/s & 24\,ev/s\\
+ & BTC & ETH & SOL\\
+model & 38\,ev/s & 48\,ev/s & 24\,ev/s\\
 \midrule
 {chr(10).join(lines)}
 \bottomrule
 \end{{tabular}}""")
 
     # exclusion notes for captions
-    for dsn in ["gemini"] + COINS:
+    for dsn in COINS:
         ex = excluded(D[dsn])
         print(f"  note[{dsn}]: excluded = {', '.join(ex) if ex else 'none'}")
 

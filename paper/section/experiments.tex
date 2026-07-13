@@ -3,16 +3,17 @@
 
 \subsection{Protocol}
 \label{sec:setup}
-Our primary benchmark is Gemini ETH-USD event-driven order flow (seven days, 62
-event types, validation-split rate $\approx 4.2$ events/s), with a cross-asset
-replication on Coinbase BTC/ETH/SOL (below). Six models ---
-\nhp{} (the Mei--Eisner CT-LSTM), an LSTM decoder and a SAHP-style
-causal-attention decoder \citep{zhang2020self} (both \emph{adapted generic
-backbones} over our shared input embedding, not paper-faithful
+We benchmark on Coinbase BTC, ETH, and SOL event-driven order flow (seven days
+each, 62 event types; validation-split rates $38.3$, $47.9$, and $24.0$
+events/s). Six models --- \nhp{} (the Mei--Eisner CT-LSTM), an LSTM decoder and
+a SAHP-style causal-attention decoder \citep{zhang2020self} (both \emph{adapted
+generic backbones} over our shared input embedding, not paper-faithful
 re-implementations), PCT-LSTM (a per-type parallel CT-LSTM), \sppp{}, and
-\ssppp{} --- are trained under an identical configuration: sequence length 1024,
-non-overlapping windows, identical gradient-step counts, three training seeds
-each. The protocol is strict end-to-end:
+\ssppp{} --- are trained under an identical configuration per asset: sequence
+length 1024, non-overlapping windows, identical gradient-step counts, three
+training seeds each. The fixed 1024-event context spans only ${\sim}20$--$40$\,s
+of market time at these rates, so long-memory structure leans entirely on
+carried state. The protocol is strict end-to-end:
 
 \begin{itemize}\setlength\itemsep{1pt}
 \item \textbf{Prediction} is scored on \emph{every} genuine test event by a
@@ -23,13 +24,13 @@ each. The protocol is strict end-to-end:
   ($32\times600$\,s, three roll-out seeds per checkpoint) compared to
   equal-duration bootstrap samples of real segments.
 \item \textbf{Every model is rate-calibrated} before scoring: a one-dimensional
-  bisection on a time-rescaling constant $k$ (mark-preserving
-  for every decoder; see Method) targets the \emph{validation}-split rate, then a
-  full-scale validation roll-out must verify the target within 15\%; failures
-  escalate to full-scale probes and, if still unmet, the checkpoint is excluded
-  and the failure reported as a result. SAHP is the exception:
-  its closed-loop rate is unstable across warm-starts and no constant $k$
-  transfers, so it is reported uncalibrated ($k{=}1$, marked \dag).
+  bisection on a time-rescaling constant $k$ (mark-preserving for every decoder;
+  see Method) targets the \emph{validation}-split rate, then a full-scale
+  validation roll-out must verify the target within 15\%; failures escalate to
+  full-scale probes and, if still unmet, the checkpoint is excluded and the
+  failure reported as a result. SAHP is the exception: its closed-loop rate is
+  unstable across warm-starts and no constant $k$ transfers, so it is reported
+  uncalibrated ($k{=}1$, marked \dag).
 \item \textbf{Statistics}: roll-out seeds are averaged within each checkpoint;
   95\% CIs are $t$-based across checkpoints. Any batch failure or non-finite
   value aborts the run.
@@ -37,217 +38,148 @@ each. The protocol is strict end-to-end:
 
 \begin{table*}[t]
 \centering\small
-\setlength{\tabcolsep}{5pt}
-\input{tables/tab_gemini_prediction}
-\caption{Prediction on Gemini ETH per genuine test event (mean $\pm$ 95\% CI over
-three training seeds; streaming lossless evaluator). \nhp{} is the best predictor;
-\ssppp{} is second on every mark metric and, unlike its unbounded parent
-\sppp{}, has no pathological expected-time tail (tMAE $9.1\pm17.4$\,s for \sppp{}
---- driven by intensity-collapse states --- vs.\ $0.37$\,s).}
-\label{tab:prediction}
+\setlength{\tabcolsep}{5.5pt}
+\input{tables/tab_multiasset_prediction}
+\caption{Prediction per genuine test event (mean $\pm$ 95\% CI over three
+training seeds; streaming lossless evaluator; overall = time $+$ mark NLL).
+\ssppp{} wins both columns on ETH and SOL and ties \nhp{} on BTC accuracy
+(0.447 vs.\ 0.449). Not shown: \sppp's expected-time MAE is pathological on
+every asset ($1.5$, $10.2$, $46.2$\,s vs.\ $0.03$--$0.05$\,s for every bounded
+or recurrent baseline) --- the intensity-collapse tail of the unbounded head.}
+\label{tab:multiasset}
 \end{table*}
 
 \subsection{Prediction, and where its nats live}
 \label{sec:prediction}
-Table~\ref{tab:prediction}: \nhp{} wins one-step prediction; \ssppp{} is the
-strongest of the rest on marks (accuracy 0.332 vs.\ 0.346, perplexity 10.47 vs.\
-10.26) and concedes mainly timing likelihood. A per-gap decomposition of
+Table~\ref{tab:multiasset}: \ssppp{} is the strongest predictor on two of three
+assets --- it wins overall NLL and accuracy outright on ETH ($-0.87$ vs.\ \nhp's
+$-0.81$; $0.345$ vs.\ $0.341$) and on SOL by a wide margin ($0.27$ vs.\ $0.53$;
+$0.192$ vs.\ $0.184$), and on BTC ties \nhp{} on marks while conceding overall
+likelihood. The concession is timing, and a per-gap decomposition of
 timeNLL $= -\log\lambda^*(t_i) + \Delta u_i$ (event term $+$ compensator mass)
-locates the concession precisely. On matched test windows, event terms are
-nearly equal ($-2.60$ \nhp{} vs.\ $-2.53$ \ssppp{}); the gap is compensator mass
-accrued \emph{late in long gaps}: on gaps ${>}2$\,s, \nhp{} integrates $4.4$
-units of hazard where \ssppp{} integrates $7.6$ and \sppp{} $10.4$.
-Figure~\ref{fig:hazard} shows why: \nhp's per-dimension decay toward a
-\emph{learned steady state} tracks the falling empirical hazard of real gaps
-from ${\sim}0.5$\,s onward and floors at $0.16$\,ev/s (real: $0.07$), while the
-state-space family --- whose quiet-state behaviour is an emergent readout of
-decaying latents with no dedicated resting-rate parameter --- stays $2$--$4\times$
-hot at every gap age. A second, smaller cost is the ceiling itself: \ssppp's
-intensity sits within 5\% of its bound on 47\% of events (\nhp{}: 17\% of its
-natural saturation), giving up ${\sim}0.15$ nats of burst sharpness. Both costs
-are the deliberate price of the certificate; what the certificate buys is the
-subject of the next two subsections.
+locates it precisely on BTC, the asset where \nhp{} leads. Burst sharpness is
+\emph{not} the issue: the state-space family's event terms are better than
+\nhp's ($-4.95$ \ssppp{} vs.\ $-4.23$), and intensity-ceiling saturation is
+comparable across models (${\sim}25\%$). The entire concession is compensator
+mass in \emph{quiet gaps}: mean per-gap rescaled mass is $1.88$ (\ssppp) and
+$2.26$ (\sppp) against \nhp's near-ideal $1.03$ (target $1$), with the excess
+accruing in gaps beyond $0.1$\,s --- rare at $38$\,ev/s, but expensive
+(\ssppp{} integrates $10.0$ units of hazard across a $0.5$--$2$\,s gap where
+\nhp{} integrates $6.0$; \sppp{} $16.4$). Figure~\ref{fig:hazard} shows why:
+\nhp's per-dimension decay toward a \emph{learned steady state} tracks the
+falling empirical hazard of real gaps, while the state-space family --- whose
+quiet-state behaviour is an emergent readout of decaying latents with no
+dedicated resting-rate parameter --- stays hot through quiet gaps. This cost is
+the deliberate price of stability; what it buys is the subject of the next two
+subsections.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\columnwidth]{figs/fig_hazard_profile}
-\caption{Mean model intensity at gap age $\delta$, among test gaps that survive
-past $\delta$, vs.\ the empirical hazard of the real gap distribution (log-log;
-survivor counts are small beyond 8\,s). \nhp{} tracks the falling hazard and
-floors near it; the state-space family stays hot through quiet gaps --- the
-entire timeNLL gap of Table~\ref{tab:prediction} accrues here.}
+\caption{Mean model intensity at gap age $\delta$, among BTC test gaps that
+survive past $\delta$, vs.\ the empirical hazard of the real gap distribution
+(log-log; survivor counts shrink toward the right). \nhp{} tracks the falling
+hazard; the state-space family stays hot through quiet gaps --- the timeNLL gap
+of Table~\ref{tab:multiasset} accrues here.}
 \label{fig:hazard}
 \end{figure}
 
-\begin{table}[t]
-\centering\scriptsize
-\setlength{\tabcolsep}{2.6pt}
-\input{tables/tab_gemini_sf}
-\caption{Closed-loop stylized facts on Gemini ETH (rel-err vs.\ real;
-roll-out seeds averaged per checkpoint, mean $\pm$ 95\% CI over checkpoints).
-\sppp{}-s1 is excluded: it failed calibration verification
-(see \emph{Calibratability}). \dag{} = SAHP uncalibrated by protocol. \ssppp{}
-holds the best rate control and Fano fit; its clustering mean is inflated by one
-over-clustering checkpoint (s2: $|r|$-ACF $0.19$--$0.28$ vs.\ real
-${\sim}0.02$--$0.06$) --- checkpoints s1/s3 lead the table outright (clus\_re
-0.46/0.33, rACF\_re 0.34/0.19).}
-\label{tab:simulation}
-\end{table}
+\begin{table*}[t]
+\centering\small
+\setlength{\tabcolsep}{4.5pt}
+\input{tables/tab_multiasset_sf}
+\caption{Closed-loop stylized facts (rel-err vs.\ real; roll-out seeds averaged
+per checkpoint, mean $\pm$ 95\% CI over checkpoints). Checkpoints that failed
+calibration verification are excluded (BTC: \sppp{}-s1/s2, \ssppp{}-s3; ETH:
+\sppp{}-s1/s2; SOL: all three \sppp{} seeds --- ``--''). \dag{} = SAHP
+uncalibrated by protocol; its free-running rate collapses to $6$--$10$\,ev/s
+against $24$--$48$ real.}
+\label{tab:multiassetsf}
+\end{table*}
 
 \subsection{Simulation}
 \label{sec:simulation}
-Table~\ref{tab:simulation} scores calibrated closed-loop roll-outs.
-\ssppp{} posts the best rate control (rel-err $0.163$) and the best Fano fit
-($0.426\pm0.183$; PCT-LSTM comparable at $0.408\pm0.021$), and
-Figure~\ref{fig:fano} shows its Fano-vs-scale \emph{curve} rising with
-aggregation scale like real data --- the signature of burst--lull clustering
-that short-memory simulators flatten. Honest caveats are in the caption: one
-\ssppp{} checkpoint over-clusters (its two siblings lead both long-memory
-columns), and \sppp's surviving $n{=}2$ checkpoints carry a within-checkpoint
-roll-out variance an order of magnitude above every other calibrated model
-(MC sd $0.81$ vs.\ $\le 0.11$ on simulated rate) --- the same near-criticality
-that the next subsection makes a first-class result. \nhp{}, the best
-predictor, is mid-pack in simulation: prediction and simulation quality remain
-distinct axes, and no unbounded model wins both.
+Table~\ref{tab:multiassetsf} and Figure~\ref{fig:forest} score calibrated
+closed-loop roll-outs. Every calibrated model lands its rate (rel-err
+$0.06$--$0.42$); the discriminating columns are structural.
+PCT-LSTM leads the Fano column on all three assets; clustering splits
+between \nhp{} (BTC, ETH) and \ssppp{} (SOL); \ssppp{} is competitive on
+every structural column of every asset --- the only model in the table that
+combines that with top-tier prediction --- while the LSTM sampler pins Fano
+rel-err at ${\approx}0.99$ throughout: it simulates a near-Poisson stream, the
+trivially-stable end of the frontier. Figure~\ref{fig:fano} shows the
+level-and-rise view on BTC: real Fano rises from ${\sim}60$ at 1\,s to
+${\sim}1000$ at 50\,s; every model under-disperses at this context length,
+PCT-LSTM and \ssppp{} least. The one surviving \sppp{}
+arm on ETH calibrates in rate but over-disperses wildly (Fano rel-err $6.0$)
+--- rate calibration cannot repair a near-critical checkpoint's structure.
+\nhp{}, the best BTC predictor, is mid-pack in simulation on every asset:
+prediction and simulation quality remain distinct axes, and no unbounded model
+wins both.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\columnwidth]{figs/fig_fano_scale}
-\caption{Fano factor of simulated event counts vs.\ bucket scale (Gemini ETH;
-mean over checkpoints and roll-out seeds, calibrated models). Real order flow is
-super-Poissonian with Fano \emph{rising} in scale; \ssppp{} reproduces the level
-and the rise most closely.}
+\caption{Fano factor of simulated event counts vs.\ bucket scale (Coinbase BTC;
+mean over calibrated checkpoints and roll-out seeds). Real order flow is
+super-Poissonian with Fano \emph{rising} in scale; all models under-disperse at
+this context length, \ssppp{} and PCT-LSTM least.}
 \label{fig:fano}
 \end{figure}
 
 \subsection{Calibratability is a model property}
 \label{sec:calibratability}
-Post-hoc rate calibration (Method) is mark-preserving for
-\emph{every} decoder in the zoo --- a constant $k$ rescales sim-time intensity
-without touching type probabilities --- so we calibrate every model, and treat
-the \emph{outcome} of calibration as an experimental result in its own right.
-The protocol is deliberately falsifiable: probes must bracket and converge to
-the validation target, and a full-scale validation roll-out must verify it;
-every failure is reproducible (probe seeds are deterministic, and each retried
-failure reproduced its bisection bracket bit-identically).
+Post-hoc rate calibration (Method) is mark-preserving for \emph{every} decoder
+in the zoo --- a constant $k$ rescales sim-time intensity without touching type
+probabilities --- so we calibrate every model, and treat the \emph{outcome} of
+calibration as an experimental result in its own right. The protocol is
+deliberately falsifiable: probes must bracket and converge to the validation
+target, and a full-scale validation roll-out must verify it; every failure is
+reproducible (probe seeds are deterministic, and each retried failure
+reproduced its bisection bracket bit-identically).
 
 \begin{table}[t]
 \centering\small
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{6pt}
 \input{tables/tab_calibration_outcomes}
 \caption{Checkpoints passing calibration $+$ full-scale verification, out of
-three training seeds per dataset (bold marks failures). The unbounded \sppp{}
-head degrades with event rate --- 8 of 12 checkpoints uncalibratable overall,
-including \emph{all three} on SOL --- while the bounded \ssppp{} head fails
-once in twelve. SAHP diverges at the model level on every asset.}
+three training seeds per asset (bold marks failures). The unbounded \sppp{}
+head fails on 7 of 9 checkpoints --- \emph{all three} on SOL, leaving no usable
+simulator --- while the bounded \ssppp{} head fails once in nine. SAHP
+diverges at the model level on every asset.}
 \label{tab:caloutcomes}
 \end{table}
 
 Table~\ref{tab:caloutcomes} is, to our knowledge, the first cross-asset
-quantification of closed-loop calibratability for neural TPPs, and it shows a
-dose--response: at Gemini's ${\sim}4$\,ev/s, one of three \sppp{} checkpoints
-fails; at Coinbase rates ($24$--$48$\,ev/s), seven of nine fail, leaving no
-calibrated \sppp{} simulation arm at all on SOL. Figure~\ref{fig:ladder} shows
-the failure signature: the closed-loop rate response of a failing \sppp{}
+quantification of closed-loop calibratability for neural TPPs: at production
+event rates, the unbounded head is uncalibratable on 7 of 9 checkpoints, and on
+SOL the model class is excluded outright. Figure~\ref{fig:ladder} shows the
+failure signature: the closed-loop rate response of a failing \sppp{}
 checkpoint is near-discontinuous in $k$ --- a $10^{-3}$ change in $k$ flips the
 realized rate across the entire tolerance band (e.g.\ $36\to48.5$\,ev/s), and
 seed-to-seed variance at fixed $k$ reaches ${\sim}30\%$ --- the behaviour of a
 system parked near criticality, where no constant time-rescaling exists. The
-bounded \ssppp{} response crosses the same target smoothly. This is the
+bounded \ssppp{} response crosses the same target smoothly and verifies on
+eight of nine checkpoints, including all three ETH seeds. This is the
 certificate made empirical: the same unbounded softplus head whose
-intensity-collapse states produce \sppp's pathological tMAE
-(Table~\ref{tab:prediction}) also parks checkpoints near criticality closed-loop,
-and both pathologies disappear under the softmin bound.
+intensity-collapse states produce \sppp's pathological expected-time tail
+(Table~\ref{tab:multiasset}) also parks checkpoints near criticality
+closed-loop, and both pathologies disappear under the softmin bound.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\columnwidth]{figs/fig_cal_ladder}
-\caption{Calibration probe ladders on Coinbase BTC (target band shaded): the
-failing \sppp{} checkpoint's closed-loop rate is near-discontinuous in the
-rescaling constant $k$; the verified \ssppp{} checkpoint crosses the target
-smoothly.}
+\caption{Calibration probe ladders on BTC (target band shaded): the failing
+\sppp{} checkpoint's closed-loop rate is near-discontinuous in the rescaling
+constant $k$; the verified \ssppp{} checkpoint crosses the target smoothly.}
 \label{fig:ladder}
 \end{figure}
-
-\subsection{Cross-asset generalization}
-\label{sec:crossasset}
-We replicate the full protocol on Coinbase BTC, ETH, and SOL (seven days;
-validation rates $38.3$, $47.9$, $24.0$\,ev/s --- $6$--$13\times$ Gemini, so the
-fixed 1024-event context spans only ${\sim}20$--$40$\,s of market time).
-Table~\ref{tab:multiasset} reports prediction; Table~\ref{tab:multiassetsf} and
-Figure~\ref{fig:forest} simulation. Prediction \emph{reverses} in \ssppp's
-favour as streams get faster and marks harder: on SOL it is best on every
-metric, including overall NLL ($0.27$ vs.\ \nhp's $0.53$), and on ETH it leads
-overall, KS, accuracy, and perplexity; on BTC \nhp{} leads overall while
-\ssppp{} ties it on marks. In simulation every calibrated model lands its rate
-(rel-err $0.06$--$0.30$), Fano fits degrade for all models relative to Gemini
-(consistent with the shorter effective context), and \ssppp{} and PCT-LSTM
-remain the strongest structure models. The stability findings replicate
-throughout (Table~\ref{tab:caloutcomes}).
-
-\begin{table*}[t]
-\centering\small
-\setlength{\tabcolsep}{5.5pt}
-\input{tables/tab_multiasset_prediction}
-\caption{Cross-asset prediction (mean $\pm$ 95\% CI over training seeds). \ssppp{} overtakes
-\nhp{} as the event rate and mark entropy grow.}
-\label{tab:multiasset}
-\end{table*}
-
-\begin{table*}[t]
-\centering\small
-\setlength{\tabcolsep}{5.5pt}
-\input{tables/tab_multiasset_sf}
-\caption{Cross-asset simulation (rel-err vs.\ real). ``--'' = no calibrated
-checkpoints (all three \sppp{} seeds failed verification on SOL).}
-\label{tab:multiassetsf}
-\end{table*}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.92\textwidth]{figs/fig_forest}
-\caption{Cross-asset simulation quality (rel-err vs.\ real, log scale; whiskers
-= 95\% CI over checkpoints). \sppp{} and SAHP omitted where no calibrated
-checkpoints exist.}
+\caption{Simulation quality across assets (rel-err vs.\ real, log scale;
+whiskers = 95\% CI over checkpoints). \sppp{} and SAHP omitted where no
+calibrated checkpoints exist.}
 \label{fig:forest}
 \end{figure*}
-
-\subsection{How the recipe was assembled: single-factor ablations}
-\label{sec:ablations}
-Three ablations on Gemini ETH assembled the \ssppp{} configuration; each moves
-exactly one factor.
-
-\paragraph{Carried-state roll-out unlocks long memory.} Sliding-window
-simulation caps memory at the window span (${\sim}27$\,s of market time at 64
-events), making the slow decay of $|r|$-autocorrelation \emph{architecturally}
-unreachable; with $O(1)$-per-event carried state (exactly equivalent to encoding
-the full history for state-space recursions), simulated $|r|$-ACF reaches
-real levels for the first time in this study. Memory truncation, not model
-class, was the binding constraint.
-
-\paragraph{TBPTT owns structure and prediction --- not the rate.} Pairing
-cold-start against stateful training, all else fixed: prediction improves on
-every metric (\sppp's expected-time MAE collapses $15.6\to2.7$\,s) and simulated
-clustering reaches near-real levels, while the free-running rate and per-gap
-compensator mass barely move (mean $u$ $1.9$--$2.2$ throughout). The residual
-rate inflation is a property of the \emph{loss}, not of the state regime.
-
-\paragraph{Calibration closes the rate and repairs structure.} Applying the
-$k$-calibration to trained \ssppp{} checkpoints cuts the closed-loop rate from
-${\sim}7\times$ real to within tolerance and \emph{improves every structure
-fact} (clustering rel-err $8.2\to0.45$ on the TBPTT arm): facts computed on an
-over-hot stream have mis-scaled buckets, so much of the apparent structure
-deficit of uncalibrated simulators is a clock-rate artifact. Calibration and
-stateful training compose: the TBPTT advantage persists after calibration.
-
-\paragraph{A negative result: the unbiased compensator fails dynamically.}
-Replacing the endpoint-rule compensator with the global Monte-Carlo estimator
-(verifiably unbiased; its expectation matches the model's true intensity mass to
-$6.4\times$ the endpoint value on a trained control) \emph{collapses} training:
-free-running rates fall to $0.05$--$0.08$\,ev/s and teacher-forced NLL degrades
-by ${>}5$ nats while the training loss decreases smoothly. The estimator's
-heavy-tailed penalty is systematically trimmed by gradient clipping under Adam,
-and maximum likelihood learns to exploit the sparse audit --- spiky intensity at
-events, crushed baseline elsewhere. Unbiased in expectation is not unbiased
-under clipped adaptive optimization; a stratified per-gap estimator is the
-indicated repair and left to future work.

@@ -2,25 +2,22 @@
 \label{sec:conclusion}
 
 We held six neural MTPPs to both sides of the prediction--simulation tension on
-four crypto assets, under a protocol strict enough to falsify its own claims:
+three Coinbase assets at production event rates ($24$--$48$ events/s), under a protocol strict enough to falsify its own claims:
 lossless streaming prediction, multi-seed checkpoint-level confidence intervals,
 and verified rate calibration whose failures are reported as results. The
 \ssppp{} heads --- a softmin-bounded rate with a closed-form thinning ceiling and
 an exactly-zero floor, times a rate-neutral simplex mark head on an unchanged
-state-space backbone --- deliver the best-calibrated simulator on the home asset
-and overtake the strongest predictor as streams grow faster, while a per-gap
+state-space backbone --- win every prediction metric on SOL, lead ETH, tie the strongest
+baseline on BTC marks, and remain verifiably calibratable with competitive
+simulated structure throughout, while a per-gap
 hazard decomposition prices the residual prediction gap precisely where the
 design puts it: quiet-regime hazard, the cost of the bound. The sharpest finding
 is that \emph{calibratability is a model property}: the unbounded parent head
-fails verified rate calibration on 8 of 12 checkpoints with a critical-point
-signature that worsens with event rate, while the bounded head fails once ---
-the stability certificate made empirical. Stateful training and carried-state
-roll-out contribute structure that calibration alone cannot, and the unbiased
-Monte-Carlo compensator's collapse under clipped adaptive optimization warns
-that estimator variance, not bias, governs whether rate calibration can be
-\emph{learned} rather than retrofitted. Because the mark head is rate-neutral,
+fails verified rate calibration on 7 of 9 checkpoints --- all three on SOL ---
+with a critical-point signature, while the bounded head fails once in nine ---
+the stability certificate made empirical. Stateful training and carried-state roll-out contribute temporal structure
+that calibration alone cannot. Because the mark head is rate-neutral,
 conditioning it on exogenous state --- an agent's resting quotes --- cannot
 destabilize the rate, making \ssppp{} a suitable environment model for
-market-making world models; that action-conditioned extension, and a
-low-variance stratified compensator, are future work. All tables and figures
+market-making world models; that action-conditioned extension is future work. All tables and figures
 are regenerated end-to-end by the released collection and display scripts.

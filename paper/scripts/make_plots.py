@@ -69,10 +69,8 @@ def fig_hazard(hz):
     mid = np.sqrt(g[:-1] * g[1:])
     ax.plot(mid, emp[:-1], color="k", ls="--", marker="x", ms=4,
             label=f"empirical hazard (n={hz['n_gaps']})")
-    for tag, st in [("nhp-s1", STYLE["nhp"]), ("s2p2-s3", STYLE["s2p2"]),
-                    ("ss2p2-full-s3", STYLE["ss2p2-full"])]:
-        if tag not in hz["models"]:
-            continue
+    for tag in hz["models"]:
+        st = STYLE["-".join(tag.split("-")[:-1])]
         prof = np.array(hz["models"][tag]["profile"])
         ax.plot(g[:-1], prof[:-1], ms=3.5, **st)
     ax.set_xscale("log"); ax.set_yscale("log")
@@ -87,7 +85,7 @@ def fig_hazard(hz):
 
 
 def fig_fano(D):
-    ds = D["gemini"]
+    ds = D["btc"]
     fig, ax = plt.subplots(figsize=(3.3, 2.3))
     reals, per_model = [], {}
     for mdl in ["nhp", "pct-lstm", "ss2p2-full"]:
@@ -99,7 +97,7 @@ def fig_fano(D):
         if curves:
             per_model[mdl] = np.mean(np.array(curves), axis=0)
     ax.plot(SCALES, np.mean(np.array(reals), axis=0), color="k", ls="--",
-            marker="x", ms=4, label="real (Gemini ETH)")
+            marker="x", ms=4, label="real (Coinbase BTC)")
     for mdl, curve in per_model.items():
         ax.plot(SCALES, curve, ms=3.5, **STYLE[mdl])
     ax.set_xscale("log"); ax.set_yscale("log")
@@ -135,9 +133,8 @@ def sf_checkpoint_vals(ds, mdl, key):
 
 
 def fig_forest(D):
-    coins = ["gemini", "btc", "eth", "sol"]
-    coin_lbl = {"gemini": "Gemini ETH", "btc": "CB BTC", "eth": "CB ETH",
-                "sol": "CB SOL"}
+    coins = ["btc", "eth", "sol"]
+    coin_lbl = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
     models = ["nhp", "lstm", "pct-lstm", "ss2p2-full"]
     keys = [("rate_re", "rate rel-err"), ("fano", "Fano rel-err"),
             ("clus", "clustering rel-err")]

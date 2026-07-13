@@ -1,14 +1,14 @@
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccccccc}
 \toprule
- & \multicolumn{2}{c}{BTC} & \multicolumn{2}{c}{ETH} & \multicolumn{2}{c}{SOL}\\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-model & rate\_re & Fano\_re & rate\_re & Fano\_re & rate\_re & Fano\_re\\
+ & \multicolumn{3}{c}{BTC} & \multicolumn{3}{c}{ETH} & \multicolumn{3}{c}{SOL}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+model & rate\_re & Fano\_re & clus\_re & rate\_re & Fano\_re & clus\_re & rate\_re & Fano\_re & clus\_re\\
 \midrule
-\nhp{} & 0.09$\pm$0.08 & 0.86$\pm$0.07 & 0.37$\pm$0.20 & 0.87$\pm$0.11 & \textbf{0.19$\pm$0.03} & 0.75$\pm$0.17\\
-LSTM & 0.10$\pm$0.09 & 0.99$\pm$0.00 & 0.40$\pm$0.03 & 0.99$\pm$0.00 & 0.23$\pm$0.04 & 0.99$\pm$0.00\\
-SAHP\,\dag & 0.71$\pm$0.38 & \textbf{0.76$\pm$0.20} & 0.79$\pm$0.11 & 0.76$\pm$0.46 & 0.68$\pm$0.15 & 0.92$\pm$0.08\\
-PCT-LSTM & \textbf{0.06$\pm$0.05} & 0.79$\pm$0.12 & 0.42$\pm$0.26 & \textbf{0.76$\pm$0.17} & 0.22$\pm$0.24 & \textbf{0.46$\pm$0.33}\\
-\sppp{} & 0.07 & 1.11 & \textbf{0.27} & 6.04 & -- & --\\
-\ssppp{} & 0.24$\pm$1.83 & 0.79$\pm$0.99 & 0.42$\pm$0.17 & 0.79$\pm$0.05 & 0.30$\pm$0.17 & 0.60$\pm$0.60\\
+\nhp{} & 0.09$\pm$0.08 & 0.86$\pm$0.07 & \textbf{0.27$\pm$0.04} & 0.37$\pm$0.20 & 0.87$\pm$0.11 & \textbf{0.52$\pm$0.23} & \textbf{0.19$\pm$0.03} & 0.75$\pm$0.17 & 0.72$\pm$0.11\\
+LSTM & 0.10$\pm$0.09 & 0.99$\pm$0.00 & 0.50$\pm$0.40 & 0.40$\pm$0.03 & 0.99$\pm$0.00 & 0.77$\pm$0.29 & 0.23$\pm$0.04 & 0.99$\pm$0.00 & 0.97$\pm$0.03\\
+SAHP\,\dag & 0.71$\pm$0.38 & 0.76$\pm$0.20 & 0.92$\pm$2.55 & 0.79$\pm$0.11 & 0.76$\pm$0.46 & 0.43$\pm$0.93 & 0.68$\pm$0.15 & 0.92$\pm$0.08 & 0.66$\pm$0.24\\
+PCT-LSTM & \textbf{0.06$\pm$0.05} & \textbf{0.79$\pm$0.12} & 0.36$\pm$0.29 & 0.42$\pm$0.26 & \textbf{0.76$\pm$0.17} & 0.55$\pm$0.50 & 0.22$\pm$0.24 & \textbf{0.46$\pm$0.33} & 0.72$\pm$1.36\\
+\sppp{} & 0.07 & 1.11 & 0.33 & \textbf{0.27} & 6.04 & 0.60 & -- & -- & --\\
+\ssppp{} & 0.24$\pm$1.83 & 0.79$\pm$0.99 & 0.46$\pm$0.62 & 0.42$\pm$0.17 & 0.79$\pm$0.05 & 0.81$\pm$0.11 & 0.30$\pm$0.17 & 0.60$\pm$0.60 & \textbf{0.68$\pm$0.62}\\
 \bottomrule
 \end{tabular}
