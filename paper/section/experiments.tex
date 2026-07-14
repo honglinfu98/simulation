@@ -160,7 +160,11 @@ realized rate across the entire tolerance band (e.g.\ $36\to48.5$\,ev/s), and
 seed-to-seed variance at fixed $k$ reaches ${\sim}30\%$ --- the behaviour of a
 system parked near criticality, where no constant time-rescaling exists. The
 bounded \ssppp{} response crosses the same target smoothly and verifies on
-eight of nine checkpoints, including all three ETH seeds. This is the
+eight of nine checkpoints, including all three ETH seeds; its single failure
+is qualitatively different --- a per-lane diagnostic traces it to a
+\emph{metastable} burst-locked regime at ${\sim}2\times$ the target rate that
+individual roll-out lanes enter stochastically, bounded and benign next to
+\sppp's criticality, and likely passable under a seed-averaged probe. This is the
 certificate made empirical: the same unbounded softplus head whose
 intensity-collapse states produce \sppp's pathological expected-time tail
 (Table~\ref{tab:multiasset}) also parks checkpoints near criticality
