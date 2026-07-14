@@ -42,3 +42,30 @@ cd paper && pdflatex main && bibtex main && pdflatex main && pdflatex main
 - Bold = best per column: lower is better except ACC (higher) and mean u
   (closest to 1); SF tables bold only relative-error columns.
 - SAHP is uncalibrated by protocol (k = 1, dagger) — model-level divergence.
+
+## Unconditional market-realism suite (realism.py)
+
+```bash
+# On the cluster — re-roll every calibrated rollout with its banked k and
+# compute the 10 realism metric families (writes realism_<tag>.json per rollout):
+qsub scripts/realism_all.sh          # 54-task array over ma_cbse
+
+# Collect and fetch:
+python3 paper/scripts/collect_realism.py \
+    --root btc=experiments/ma_cbse/btc --root eth=experiments/ma_cbse/eth \
+    --root sol=experiments/ma_cbse/sol --out /tmp/realism.json
+scp peacock:/tmp/realism.json paper/data/realism.json
+
+# Tables (per-coin metric x model, mean±CI, bold best) + figures:
+python3 paper/scripts/make_realism_tables.py
+python3 paper/scripts/make_realism_plots.py --coin btc --rep-model ss2p2-full
+```
+
+Metric families: event-type marginals (JS/TV), per-class inter-event times
+(KS/W1/moments), first-order transitions (Frobenius/row-KL + heatmaps), mark
+decompositions, spread, imbalance, mid-returns at 10ms/100ms/1s/10s,
+price-change inter-times, extended Fano (1–100s). Book-state metrics replay
+both streams through book_replay.py with a shared depth profile (assumptions
+cancel in the comparison). Future stylized-facts runs get all of this
+automatically via `--realism`; `--fixed-k` reuses a banked calibration
+constant without re-running bisection.
