@@ -736,6 +736,15 @@ def main():
     ap.add_argument("--calibrate-final-tol", type=float, default=0.0,
                     help=">0: REQUIRE the final full rollout's rate to be within this "
                          "relative error of the calibration target (else exit 3); 0 = report only")
+    ap.add_argument("--fixed-k", type=float, default=None,
+                    help="skip calibration entirely and use this sim-time rate "
+                         "multiplier (e.g. the banked constant from a previous "
+                         "calibrated run); enables cheap re-rolls")
+    ap.add_argument("--realism", action="store_true",
+                    help="after the stylized facts, run the unconditional "
+                         "market-realism suite (realism.py) on the SAME rollout "
+                         "and equal-duration real segments; writes "
+                         "realism_<label>.json")
     ap.add_argument("--match-durations", action="store_true",
                     help="score REAL facts on bootstrap segments matching the simulated "
                          "sequences in count and duration (equal-duration comparison), "
@@ -800,7 +809,12 @@ def main():
     first_batch = move_batch(next(iter(test_loader)), device)
     rate_scale_k = 1.0
     cal_target = None
-    if args.calibrate_rate != 0.0:
+    if args.fixed_k is not None:
+        rate_scale_k = float(args.fixed_k)
+        model._sim_rate_k = rate_scale_k
+        print(f"FIXED_K sim-time rate scale k={rate_scale_k:.4f} "
+              f"(calibration skipped; constant supplied by caller)", flush=True)
+    elif args.calibrate_rate != 0.0:
         # Calibration target and probe warm-starts come from the CALIBRATION
         # split (default val) -- the test stream never informs the constant.
         cal_loader = val_loader if args.calibrate_split == "val" else test_loader
@@ -940,6 +954,35 @@ def main():
     }
     save_json(out / f"stylized_facts_{args.label}.json", summary)
     print(json.dumps(headline, indent=2))
+
+    if args.realism:
+        # Unconditional market-realism suite on the SAME rollout, against
+        # fresh equal-duration bootstrap segments of the real stream (seeded
+        # by rollout seed, offset so they differ from the facts segments).
+        from .realism import compute_realism, real_bootstrap_segments
+        sim_seqs = []
+        for i in range(sim_marks.shape[0]):
+            keep = sim_cum[i] <= args.rollout_duration if args.rollout_duration > 0 \
+                else np.ones(len(sim_dt[i]), bool)
+            if keep.sum() > 10:
+                sim_seqs.append((np.asarray(sim_marks[i][keep], bool),
+                                 np.asarray(sim_dt[i][keep], float)))
+        real_segs = real_bootstrap_segments(
+            marks_r, dt_r, args.rollout_duration, sim_marks.shape[0],
+            seed=args.rollout_seed + 10_000)
+        print(f"REALISM suite: {len(sim_seqs)} sim segments vs {len(real_segs)} "
+              f"real bootstrap segments x {args.rollout_duration:.0f}s", flush=True)
+        vol_prof = first_batch["input_volumes"].reshape(-1, sim_marks.shape[-1]).cpu().numpy()
+        mrk_prof = first_batch["input_marks"].reshape(-1, sim_marks.shape[-1]).cpu().numpy().astype(bool)
+        realism = compute_realism(sim_seqs, real_segs, idx_to_event,
+                                  duration=args.rollout_duration,
+                                  real_volumes_log1p=vol_prof,
+                                  real_marks_for_profile=mrk_prof)
+        realism["label"] = args.label
+        realism["rate_scale_k"] = rate_scale_k
+        realism["rollout_seed"] = args.rollout_seed
+        save_json(out / f"realism_{args.label}.json", realism)
+        print("REALISM summary:", json.dumps(realism["summary"], indent=2), flush=True)
 
 
 if __name__ == "__main__":

@@ -186,6 +186,7 @@ def replay(marks: np.ndarray, dts: np.ndarray, volumes_log1p: np.ndarray,
     raw_vol = np.expm1(volumes_log1p)
     t = np.cumsum(np.clip(dts, 0.0, None))
     mids, spreads = np.empty(len(marks)), np.empty(len(marks))
+    imbs = np.empty(len(marks))  # signed (bid-ask)/(bid+ask), TFOW convention
     for n in range(len(marks)):
         idx = np.nonzero(marks[n])[0]
         items = []
@@ -199,9 +200,11 @@ def replay(marks: np.ndarray, dts: np.ndarray, volumes_log1p: np.ndarray,
             items.append((v[0], v[1], v[2], vol))
         book.apply_event_set(items)
         mids[n], spreads[n] = book.mid, book.spread
+        bs, as_ = sum(book.bid), sum(book.ask)
+        imbs[n] = (bs - as_) / (bs + as_) if (bs + as_) > 0 else 0.0
     sl = slice(burn_in, None)
     return {
-        "time": t[sl], "mid": mids[sl], "spread": spreads[sl],
+        "time": t[sl], "mid": mids[sl], "spread": spreads[sl], "imbalance": imbs[sl],
         "invalid": dict(book.invalid), "n_events": int(len(marks) - burn_in),
         "depth_profile": depth_profile,
     }
