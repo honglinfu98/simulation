@@ -1,0 +1,20 @@
+\begin{tabular}{lcccccc}
+\toprule
+distance to real & \nhp{} & LSTM & SAHP\,\dag & PCT-LSTM & \sppp{} & \ssppp{}\\
+\midrule
+event types (JS) & \textbf{0.021$\pm$0.025} & 0.034$\pm$0.056 & 0.030$\pm$0.052 & 0.026$\pm$0.012 & -- & 0.088$\pm$0.213\\
+event types (TV) & \textbf{0.164$\pm$0.131} & 0.192$\pm$0.091 & 0.188$\pm$0.193 & 0.182$\pm$0.045 & -- & 0.315$\pm$0.405\\
+inter-event $\Delta t$ (KS) & 0.379$\pm$0.018 & 0.497$\pm$0.003 & 0.580$\pm$0.041 & 0.435$\pm$0.014 & -- & \textbf{0.168$\pm$0.043}\\
+inter-event $\Delta t$ (W$_1$, s) & 0.032$\pm$0.010 & 0.044$\pm$0.000 & 0.108$\pm$0.062 & 0.031$\pm$0.006 & -- & \textbf{0.018$\pm$0.005}\\
+transitions (Frobenius) & \textbf{0.805$\pm$0.094} & 0.919$\pm$0.163 & 0.886$\pm$0.387 & 1.046$\pm$0.037 & -- & 1.322$\pm$1.532\\
+transitions (row KL) & \textbf{0.113$\pm$0.047} & 0.205$\pm$0.187 & 0.150$\pm$0.185 & 0.191$\pm$0.065 & -- & 0.223$\pm$0.340\\
+level marginal (JS) & 0.014$\pm$0.026 & \textbf{0.007$\pm$0.004} & 0.021$\pm$0.051 & 0.013$\pm$0.007 & -- & 0.058$\pm$0.161\\
+spread (KS) & 0.018$\pm$0.057 & 0.008$\pm$0.004 & 0.032$\pm$0.059 & \textbf{0.007$\pm$0.004} & -- & 0.008$\pm$0.003\\
+spread (W$_1$, ticks) & 0.02$\pm$0.06 & 0.01$\pm$0.00 & 0.04$\pm$0.08 & \textbf{0.01$\pm$0.00} & -- & 0.01$\pm$0.00\\
+imbalance (KS) & 0.542$\pm$0.547 & 0.608$\pm$0.335 & 0.323$\pm$0.306 & \textbf{0.397$\pm$0.229} & -- & 0.448$\pm$0.612\\
+1\,s mid returns (KS) & 0.054$\pm$0.046 & 0.273$\pm$0.021 & 0.113$\pm$0.005 & 0.112$\pm$0.210 & -- & \textbf{0.051$\pm$0.038}\\
+1\,s mid returns (W$_1$, ticks) & 0.23$\pm$0.10 & 0.69$\pm$0.48 & 0.38$\pm$0.05 & 0.32$\pm$0.61 & -- & \textbf{0.21$\pm$0.14}\\
+price-change $\Delta t$ (KS) & 0.329$\pm$0.065 & 0.318$\pm$0.140 & 0.526$\pm$0.168 & \textbf{0.278$\pm$0.032} & -- & 0.335$\pm$0.203\\
+Fano 1--100\,s (rel-err) & 0.749$\pm$0.172 & 0.988$\pm$0.000 & 0.917$\pm$0.091 & \textbf{0.448$\pm$0.057} & -- & 0.630$\pm$0.391\\
+\bottomrule
+\end{tabular}
