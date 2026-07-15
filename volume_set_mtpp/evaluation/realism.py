@@ -308,8 +308,12 @@ def compute_realism(sim_seqs, real_segs, idx_to_event,
 
     # -- 5-8. book-replay metrics --------------------------------------------
     if real_volumes_log1p is not None and real_marks_for_profile is not None:
+        # THIN-BOOK replay (mult=1: one median LO per level): tick-constrained
+        # books barely move under deep fallback depth, which makes the price
+        # metrics vacuous; a thin book maximizes price-motion sensitivity and
+        # the assumption is symmetric across real and simulated streams.
         depth_profile = estimate_depth_profile(
-            real_marks_for_profile, real_volumes_log1p, vocab)
+            real_marks_for_profile, real_volumes_log1p, vocab, mult=1.0)
     else:
         depth_profile = np.full(10, 5.0)   # unit fallback (symmetric)
     if not np.all(np.isfinite(depth_profile)) or depth_profile.max() <= 0:

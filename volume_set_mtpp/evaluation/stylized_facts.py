@@ -982,6 +982,16 @@ def main():
         realism["rate_scale_k"] = rate_scale_k
         realism["rollout_seed"] = args.rollout_seed
         save_json(out / f"realism_{args.label}.json", realism)
+        np.savez_compressed(
+            out / f"realism_streams_{args.label}.npz",
+            **{f"sim_k_{i}": np.argmax(m, axis=1).astype(np.uint8)
+               for i, (m, _) in enumerate(sim_seqs)},
+            **{f"sim_dt_{i}": d.astype(np.float32)
+               for i, (_, d) in enumerate(sim_seqs)},
+            **{f"real_k_{i}": np.argmax(m, axis=1).astype(np.uint8)
+               for i, (m, _) in enumerate(real_segs)},
+            **{f"real_dt_{i}": np.asarray(d, np.float32)
+               for i, (_, d) in enumerate(real_segs)})
         print("REALISM summary:", json.dumps(realism["summary"], indent=2), flush=True)
 
 
