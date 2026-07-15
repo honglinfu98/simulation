@@ -37,6 +37,7 @@ import numpy as np
 from scipy import stats as sps
 
 from .book_replay import estimate_depth_profile, parse_vocab, replay
+from .stylized_facts import build_sign_vectors
 
 KINDS = ["MO", "IS", "CO", "LO"]
 SIDES = ["b", "a"]
@@ -182,6 +183,22 @@ def _mid_series(segs, idx_to_event, depth_profile):
         zeros = np.zeros_like(m, dtype=float)
         out.append(replay(np.asarray(m, bool), np.asarray(d, float), zeros,
                           idx_to_event, burn_in=0, depth_profile=depth_profile))
+    return out
+
+
+def _proxy_paths(segs, idx_to_event, k):
+    """Signed-order-flow proxy price path per segment (the paper's return
+    construction): unit tick per price-moving event, signed by side.  Types-
+    only and therefore symmetric across real and simulated streams, and
+    responsive at tick-constrained books where the volume-free replay is not."""
+    sign, moving = build_sign_vectors(idx_to_event, k)
+    out = []
+    for m, d in segs:
+        if len(m) < 10:
+            continue
+        ki = np.argmax(m, axis=1)
+        t = np.cumsum(np.clip(np.asarray(d, float), 0.0, None))
+        out.append({"time": t, "mid": np.cumsum(sign[ki])})
     return out
 
 
@@ -332,17 +349,19 @@ def compute_realism(sim_seqs, real_segs, idx_to_event,
     res["imbalance"] = {**_two_sample(im_sim, im_real),
                         "hist": _hist_artifact(im_sim, im_real, bins=40)}
 
+    px_sim = _proxy_paths(sim_seqs, idx_to_event, k)
+    px_real = _proxy_paths(real_segs, idx_to_event, k)
     rets: Dict = {}
     for h in horizons:
-        r_s = _returns_at(rp_sim, h, duration)
-        r_r = _returns_at(rp_real, h, duration)
+        r_s = _returns_at(px_sim, h, duration)
+        r_r = _returns_at(px_real, h, duration)
         rets[str(h)] = {**_two_sample(r_s, r_r),
                         "hist": _hist_artifact(r_s, r_r, bins=50),
                         "qq": _qq_artifact(r_s, r_r)}
     res["returns"] = rets
 
-    pc_sim = _price_change_times(rp_sim)
-    pc_real = _price_change_times(rp_real)
+    pc_sim = _price_change_times(px_sim)
+    pc_real = _price_change_times(px_real)
     res["price_change_time"] = {**_two_sample(pc_sim, pc_real),
                                 "hist": _hist_artifact(pc_sim[pc_sim > 0],
                                                        pc_real[pc_real > 0], log=True)}
