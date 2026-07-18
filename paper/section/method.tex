@@ -1,6 +1,56 @@
 \section{Methods}
 \label{sec:method}
 
+\subsection{Event constructor}
+\label{subsec:event-construction}
+\input{exhibits/event_construction}
+
+To apply point process modeling to high-frequency limit order book (LOB) data, we
+represent market dynamics as a sequence of \textbf{event sets}. We consider the top
+$K=10$ levels on each side (bid and ask).
+
+\paragraph{Atomic Events.}
+We define a finite set $\mathcal{E}$ of \emph{atomic event types}, each denoted
+$e=(c,s,\delta)$, where:
+\begin{itemize}
+    \item $c \in \{\text{LO}, \text{MO}, \text{CO}, \text{IS}\}$ is the \emph{event class}:
+        \begin{itemize}
+            \item \textbf{Limit Order (LO)}: liquidity provision at one of the top-$K$ levels.
+            \item \textbf{Cancel Order (CO)}: liquidity withdrawal at one of the top-$K$ levels.
+            \item \textbf{Market Order (MO)}: liquidity consumption at the best quote.
+            \item \textbf{Inside-Spread Order (IS)}: a new order placed inside the spread, improving the prevailing best quote.
+        \end{itemize}
+    \item $s \in \{b,a\}$ is the \emph{side} (bid or ask).
+    \item $\delta$ is the \emph{level index}:
+        \begin{itemize}
+            \item For LO/CO, $\delta \in \{1,\dots,K\}$ indicates distance from the best quote ($\delta=1$ = best bid/ask, $\delta=10$ = tenth level).
+            \item For MO, $\delta=1$ always, since market orders execute against the current best quote.
+            \item For IS, $\delta \in \{1,\dots,K\}$ denotes the number of ticks by which the new quote improves the spread (e.g., $\text{IS}_{b,2}$ = new bid order two ticks inside the spread).
+        \end{itemize}
+\end{itemize}
+
+\paragraph{Event Construction from LOB and Trade Data.}
+% TODO: restore "As illustrated in Figure~\ref{fig:graph_infer}," once the
+% decision-tree exhibit is added in exhibits/event_construction.tex.
+Each atomic order event is inferred by differencing consecutive Level-2 order book
+snapshots and aligning them with trade records at identical timestamps. Because
+trades and book updates are perfectly synchronized in both time and volume, every
+observed change can be classified without ambiguity through a three-step decision
+tree. First, if the best-quote liquidity decreases and a trade is recorded at the
+same price, the change corresponds to a \textbf{Market Order}---a direct execution
+against standing quotes. Second, if liquidity decreases at any level without a
+matching trade, the reduction represents a \textbf{Cancel Order}, reflecting
+liquidity withdrawal. Finally, when liquidity increases, the classification depends
+on the price position: if the new order appears inside the spread, it forms an
+\textbf{Inside-Spread Order}; otherwise, it is a \textbf{Limit Order} placed within
+the existing book depth. This rule set ensures exhaustive mapping from raw order
+book and trade data into atomic order events, enabling a consistent foundation for
+downstream temporal modeling. Simultaneous atomic events at one timestamp form an
+event set $X_{t_i}$; we model the resulting type stream with categorical marks and
+leave volume marks $v(e)$ unmodeled.
+
+
+
 \ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
 mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
 \citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
