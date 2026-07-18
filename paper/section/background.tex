@@ -44,9 +44,11 @@ with a LayerNorm'd residual readout
 $h^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+h^{(\ell-1)}\bigr)$
 producing the continuous-time hidden representation $h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published model
 reads the rate from $h_t$ through a projection-and-softplus head,
-$\lambda = \varsigma\cdot\mathrm{softplus}(w^{\!\top}h_t+b)$, which is unbounded above; marks
-are coupled to the same rate field. \ssppp{} keeps everything up to and including
-$h_t$ and changes only these two heads.
+$\lambda = \mathrm{softplus}(w^{\!\top}h_t+b)$, which is unbounded above and has no
+learnable scale; marks are coupled to the same rate field (our benchmark
+implementation of this baseline splits $h_t$ into disjoint halves for the rate
+and mark heads). \ssppp{} keeps everything up to and including $h_t$ and changes
+only the two heads.
 
 \paragraph{Evaluation axes.}
 We score \emph{prediction} per genuine test event --- the time/mark NLL split, type
