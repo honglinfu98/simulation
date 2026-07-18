@@ -60,8 +60,8 @@ case "$MODEL" in
   lstm)       EXTRA="--decoder-type lstm" ;;
   sahp)       EXTRA="--decoder-type sahp --sahp-layers 2 --sahp-heads 4" ;;
   pct-lstm)   EXTRA="--decoder-type pct-lstm --ptp-dim 8" ;;
-  s2p2)       EXTRA="--decoder-type s2p2 --s2p2-layers 2 --s2p2-readout output" ;;
-  ss2p2-full) EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate -1 --tbptt" ;;
+  s2p2)       EXTRA="--decoder-type s2p2 --s2p2-layers 2 --s2p2-readout output --s2p2-scan" ;;
+  ss2p2-full) EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate -1 --tbptt --s2p2-scan" ;;
 esac
 TAG="${MODEL}-s${SEED}"
 
