@@ -34,6 +34,15 @@ class S2P2SetDecoder(nn.Module):
                                       # (heads read the LayerNorm'd stack output
                                       # u^{(L)} -- rate-bounded per checkpoint, and
                                       # queries evolve ALL layers per the paper).
+        use_scan: bool = False,       # parallel prefix scan over events (layer-by-
+                                      # layer) instead of the sequential per-event
+                                      # loop; numerically equivalent, O(log N) depth.
+        scan_impl: str = "doubling",  # "doubling": Hillis-Steele associative scan
+                                      # (the jax.lax.associative_scan operator of
+                                      # the reference S2P2/S5 code, in torch).
+                                      # "logcse": the reference torch fallback --
+                                      # log-space cumsum with complex logs
+                                      # (mamba-tiny trick).
     ):
         super().__init__()
         self.channel_embedding = channel_embedding
@@ -48,6 +57,10 @@ class S2P2SetDecoder(nn.Module):
         if readout_mode not in ("state", "output"):
             raise ValueError(f"readout_mode must be 'state' or 'output', got {readout_mode!r}")
         self.readout_mode = readout_mode
+        self.use_scan = bool(use_scan)
+        if scan_impl not in ("doubling", "logcse"):
+            raise ValueError(f"scan_impl must be 'doubling' or 'logcse', got {scan_impl!r}")
+        self.scan_impl = scan_impl
 
         H = self.recurrent_hidden_size
         E = self.channel_embedding_size
@@ -168,6 +181,99 @@ class S2P2SetDecoder(nn.Module):
         layer_states[-1] = old_states.to(device=device, dtype=dtype)
         return layer_states
 
+    # -- parallel prefix scan over events --------------------------------
+    @staticmethod
+    def _scan_doubling(x0: torch.Tensor, abar: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Inclusive scan of x_i = abar_i * x_{i-1} + c_i (Hillis-Steele).
+
+        This is the associative operator (a,c) o (a',c') = (a a', a' c + c')
+        that the reference S2P2/S5 implementation feeds to
+        jax.lax.associative_scan, realized in torch by recursive doubling:
+        log2(N) tensor steps, each elementwise -- fully parallel over events.
+        x0 [B,H]; abar, c [B,N,H] -> x_right [B,N,H]."""
+        A, Bv = abar, c
+        n, shift = abar.shape[1], 1
+        while shift < n:
+            A_prev = F.pad(A[:, :-shift], (0, 0, shift, 0), value=1.0)
+            B_prev = F.pad(Bv[:, :-shift], (0, 0, shift, 0), value=0.0)
+            Bv = A * B_prev + Bv
+            A = A * A_prev
+            shift *= 2
+        return A * x0.unsqueeze(1) + Bv
+
+    @staticmethod
+    def _scan_logcse(x0: torch.Tensor, abar: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Reference-faithful torch scan: log-space cumsum with complex logs
+        (the mamba-tiny trick the official S2P2 torch code points to).
+        x_i = exp(L*_i) * cumsum_j<=i exp(log c_j - L*_j), L*_i = cumsum log abar.
+
+        WARNING: numerically unusable for THIS decoder (max-abs errors ~1e2 vs
+        the sequential loop): our per-step inputs (1-abar)*W u are dense and
+        signed, and the signed complex-exponential cumsum cancels
+        catastrophically in fp32.  Kept for reference/documentation; training
+        uses the exact 'doubling' associative scan."""
+        z = torch.cat([x0.unsqueeze(1), c], dim=1)                     # [B,N+1,H]
+        zlog = torch.complex(z.abs().clamp_min(1e-38).log(),
+                             (z < 0).to(z.dtype) * math.pi)
+        log_abar = abar.clamp_min(1e-38).log()
+        Lstar = F.pad(log_abar.cumsum(dim=1), (0, 0, 1, 0))            # [B,N+1,H]
+        w = zlog - Lstar
+        m = w.real.cummax(dim=1).values                                # stabilizer
+        lcse = torch.log(torch.exp(w - m).cumsum(dim=1)) + m
+        return (lcse + Lstar).exp().real[:, 1:]
+
+    def _states_scan(self, marks: torch.Tensor, timestamps: torch.Tensor, old_states=None):
+        """Layer-by-layer parallel-scan equivalent of the sequential loop in
+        get_states_and_event_left_states (identical semantics, incl. the
+        anti-leakage left-limit rule: layer inputs at step i come from lower-
+        layer LEFT states at t_i, which never see the current event set)."""
+        if timestamps.dim() == 3:
+            timestamps = timestamps.squeeze(-1)
+        marks = marks.float()
+        B, N = timestamps.shape
+        device, dtype = timestamps.device, timestamps.dtype
+        alpha_all = self._event_embedding(marks).to(dtype=dtype)       # [B,N,E]
+        layer_states = self._initial_layer_states(B, device, dtype, old_states)
+        scan = self._scan_doubling if self.scan_impl == "doubling" else self._scan_logcse
+
+        prev_t = F.pad(timestamps[:, :-1], (1, 0))
+        dt = (timestamps - prev_t).clamp(min=0.0, max=self.max_dt).unsqueeze(-1)  # [B,N,1]
+        paper = (getattr(self, "readout_mode", "state") == "output")
+
+        U = torch.zeros(B, N, self.channel_embedding_size, device=device, dtype=dtype)
+        xs_right, xs_left, held = [], [], []
+        for layer in range(self.num_layers):
+            decay = self._decay(layer, U)                              # [B,N,H]
+            abar = torch.exp((-decay * dt).clamp(min=-40.0, max=0.0))
+            wu = self.input_projections[layer](U)
+            imp = self.impulse_projections[layer](alpha_all)
+            x_right = scan(layer_states[layer], abar, (1.0 - abar) * wu + imp)
+            x_right_prev = torch.cat([layer_states[layer].unsqueeze(1),
+                                      x_right[:, :-1]], dim=1)
+            x_left = abar * x_right_prev + (1.0 - abar) * wu
+            xs_right.append(x_right)
+            xs_left.append(x_left)
+            U = self._layer_output(x_left, U, layer)                   # pointwise
+            if paper and layer < self.num_layers - 1:
+                held.append(U)
+        left_outputs = U if paper else xs_left[-1]
+
+        if paper:
+            # initial packed anchor (identical to the loop's construction)
+            zero_u0 = torch.zeros(B, self.channel_embedding_size, device=device, dtype=dtype)
+            u0 = zero_u0
+            held0 = []
+            for layer in range(self.num_layers):
+                u0 = self._layer_output(layer_states[layer], u0, layer)
+                if layer < self.num_layers - 1:
+                    held0.append(u0)
+            first = torch.cat(list(layer_states) + held0, dim=-1).unsqueeze(1)
+            rest = torch.cat(xs_right + held, dim=-1)
+            right_states = torch.cat([first, rest], dim=1)
+        else:
+            right_states = torch.cat([layer_states[-1].unsqueeze(1), xs_right[-1]], dim=1)
+        return right_states, left_outputs
+
     def get_states_and_event_left_states(self, marks: torch.Tensor, timestamps: torch.Tensor, old_states=None):
         """Return post-event/right states and event-time left-limit states in one pass.
 
@@ -175,6 +281,8 @@ class S2P2SetDecoder(nn.Module):
         left_states:  [B, N, H] contains the top-layer state immediately before
         each current event/set impulse and is the safe state for event likelihoods.
         """
+        if getattr(self, "use_scan", False):
+            return self._states_scan(marks, timestamps, old_states=old_states)
         if timestamps.dim() == 3:
             timestamps = timestamps.squeeze(-1)
         marks = marks.float()

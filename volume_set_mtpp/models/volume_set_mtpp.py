@@ -850,6 +850,7 @@ def create_volume_set_mtpp(
             dropout=config.get('s2p2_dropout', 0.0),
             input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
             readout_mode=config.get('s2p2_readout', 'state'),
+            use_scan=config.get('s2p2_scan', False),
         )
         if config.get('s2p2_readout', 'state') == 'output' and config.get('subcritical_closed', False):
             raise ValueError("subcritical_closed assumes the legacy state readout; "
@@ -870,6 +871,7 @@ def create_volume_set_mtpp(
             target_rate=config.get('target_rate', config.get('lgm_target_rate', 40.6)),
             wnorm_cap=config.get('ss2p2_wnorm_cap', 6.0),
             mark_hidden=config.get('ss2p2_mark_hidden', None),
+            use_scan=config.get('s2p2_scan', False),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(

@@ -58,6 +58,7 @@ class SS2P2SetDecoder(S2P2SetDecoder):
         target_rate: float = 40.6,
         wnorm_cap: float = 6.0,
         mark_hidden: Optional[int] = None,
+        use_scan: bool = False,
         **_ignore,
     ):
         # Paper-faithful readout: heads consume the LayerNorm'd stack output u,
@@ -70,6 +71,7 @@ class SS2P2SetDecoder(S2P2SetDecoder):
             dropout=dropout,
             input_dependent_dynamics=input_dependent_dynamics,
             readout_mode="output",
+            use_scan=use_scan,
         )
         H = self.recurrent_hidden_size
         self.K = int(num_channels if num_channels is not None else channel_embedding.num_embeddings)
