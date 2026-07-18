@@ -5,8 +5,23 @@
 \label{subsec:event-construction}
 \input{exhibits/event_construction}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.98\columnwidth]{figs/pipeline}
+\caption{Pipeline. (1)~\emph{Data collector}: synchronized trade records and
+Level-2 order book updates. (2)~\emph{Event constructor}: consecutive book
+snapshots are differenced and aligned with trades to emit atomic typed events
+(Section~\ref{subsec:event-construction}). (3)~\emph{Model training}: the
+event-set sequence drives the state-space backbone (LLH layers) whose
+continuous-time hidden representation $h_t$ decodes the bounded total rate
+$\lambda(t)$ and the rate-neutral mark distribution $p(e\mid t)$, giving
+per-type intensities $\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
+\label{fig:pipeline}
+\end{figure}
+
 To apply point process modeling to high-frequency limit order book (LOB) data, we
-represent market dynamics as a sequence of \textbf{event sets}. We consider the top
+represent market dynamics as a sequence of \textbf{event sets}
+(pipeline overview in Figure~\ref{fig:pipeline}). We consider the top
 $K=10$ levels on each side (bid and ask).
 
 \paragraph{Atomic Events.}
