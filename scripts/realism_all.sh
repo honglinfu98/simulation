@@ -34,10 +34,14 @@ SEQ=1024; STRIDE=1024
 ROOT="$REPO/experiments/ma_cbse/$COIN"
 
 MODELS=(nhp lstm sahp pct-lstm s2p2 ss2p2-full)
+# SS2P2 samples by Ogata thinning with its EXACT closed-form ceiling
+# (rate_bounds); baselines have no such bound and stay on inversion.
 MI=$(( (SGE_TASK_ID - 1) % 6 ))
 SEED=$(( ((SGE_TASK_ID - 1) % 18) / 6 + 1 ))
 MODEL="${MODELS[$MI]}"
 TAG="${MODEL}-s${SEED}"
+SAMPLER=inversion
+case "$MODEL" in ss2p2*) SAMPLER=thinning ;; esac
 B="$ROOT/$TAG"
 CKPT="$B/train/best_model.pt"
 
@@ -57,7 +61,7 @@ for R in 1 2 3; do
   K=$(python3 -c "import json,sys; print(json.load(open('$SF'))['rate_scale_k'])")
   echo "REALISM $COIN/$TAG r$R fixed-k=$K"
   python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
-    --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler inversion \
+    --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler "$SAMPLER" \
     --context-mode carried --fixed-k "$K" --realism --match-durations \
     --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
     --rollout-seed "$R" --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf_r$R/realism_run.log" 2>&1

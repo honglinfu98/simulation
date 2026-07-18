@@ -313,10 +313,13 @@ def main():
                              "(rate-bounded); queries evolve all layers. state = legacy raw top state.")
     parser.add_argument('--s2p2-layers', type=int, default=2,
                         help='Number of stacked latent linear Hawkes/SSM layers for --decoder-type s2p2')
-    parser.add_argument('--s2p2-scan', action='store_true',
+    parser.add_argument('--s2p2-scan', action='store_true', default=True,
                         help='parallel prefix-scan state computation for the '
                              'S2P2/SS2P2 decoders (O(log N) depth instead of a '
-                             'sequential per-event loop; numerically equivalent)')
+                             'sequential per-event loop; numerically equivalent). '
+                             'ON by default; --no-s2p2-scan restores the loop.')
+    parser.add_argument('--no-s2p2-scan', dest='s2p2_scan', action='store_false',
+                        help='sequential per-event loop (legacy; ~184x slower on GPU)')
     parser.add_argument('--s2p2-dropout', type=float, default=0.0,
                         help='Dropout in S2P2 residual blocks')
     parser.add_argument('--no-s2p2-input-dependent-dynamics', action='store_true',

@@ -50,6 +50,8 @@ ROOT="${ROOT:-$REPO/experiments/ma_cbse/$COIN}"
 ROLLOUT_SEEDS="${ROLLOUT_SEEDS:-1 2 3}"
 
 MODELS=(nhp lstm sahp pct-lstm s2p2 ss2p2-full)
+# SS2P2 samples by Ogata thinning with its EXACT closed-form ceiling
+# (rate_bounds); baselines have no such bound and stay on inversion.
 MI=$(( (SGE_TASK_ID - 1) % 6 ))
 SEED=$(( ((SGE_TASK_ID - 1) % 18) / 6 + 1 ))
 MODEL="${MODELS[$MI]}"
@@ -64,6 +66,8 @@ case "$MODEL" in
   ss2p2-full) EXTRA="--decoder-type ss2p2 --s2p2-layers 2 --ss2p2-wnorm-cap 6.0 --target-rate -1 --tbptt --s2p2-scan" ;;
 esac
 TAG="${MODEL}-s${SEED}"
+SAMPLER=inversion
+case "$MODEL" in ss2p2*) SAMPLER=thinning ;; esac
 
 cd "$REPO"
 source /share/apps/source_files/python/python-3.11.9.source 2>/dev/null || true
@@ -109,7 +113,7 @@ for R in $ROLLOUT_SEEDS; do
   log "SF $(date) rollout_seed=$R"
   mkdir -p "$B/sf_r$R"
   python3 -u -m volume_set_mtpp.evaluation.stylized_facts --data-dir "$DATA" --max-files "$MAXFILES" --cache-dir "$CACHE" \
-    --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler inversion \
+    --checkpoint "$CKPT" --label "$TAG" --output-dir "$B/sf_r$R" --device cuda --sampler "$SAMPLER" \
     --context-mode carried $SF_CAL --match-durations \
     --seq-length "$SEQ" --stride "$STRIDE" --batch-size 256 --rollout-duration 600 --rollout-sequences 32 \
     --rollout-seed "$R" --bucket-seconds 1.0 --max-real-windows 4096 > "$B/sf_r$R.log" 2>&1
