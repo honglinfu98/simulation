@@ -5,20 +5,24 @@
 An MTPP models a sequence $\mathcal{H}_T=\{(t_i,e_i)\}_{i=1}^{N_T}$ of events with
 times $t_i$ and types $e_i\in\mathcal{E}$, a finite set of atomic event types, through
 per-type conditional intensities
-$\lambda_e^*(t)$. Writing $\lambda^*(t)=\sum_{e\in\mathcal{E}}\lambda_e^*(t)$ for the total (ground)
-intensity and $p^*(e\mid t)=\lambda_e^*(t)/\lambda^*(t)$ for the mark distribution,
+$\lambda_e(t\mid\mathcal{H}_t)$, conditioned on the history $\mathcal{H}_t$ of all
+events up to time $t$ (model parameters $\theta$ suppressed; we abbreviate
+$\lambda_e(t)$ when the conditioning is clear). Writing
+$\lambda(t)=\sum_{e\in\mathcal{E}}\lambda_e(t)$ for the total (ground)
+intensity and $p(e\mid t)=\lambda_e(t)/\lambda(t)$ for the mark distribution,
 the log-likelihood of a sequence is
 \[
 \log\mathcal{L}
-=\sum_i \Bigl[\log\lambda^*(t_i)+\log p^*(e_i\mid t_i)\Bigr]
--\int_0^T\!\lambda^*(s)\,ds ,
+=\sum_i \Bigl[\log\lambda(t_i)+\log p(e_i\mid t_i)\Bigr]
+-\int_0^T\!\lambda(u\mid\mathcal{H}_u)\,du ,
 \]
 the integral being the \emph{compensator}
-$\Lambda^*(t)=\int_0^t\lambda^*(s)\,ds$. By the random time change theorem, the
-rescaled masses $u_i=\Lambda^*(t_i)$, $\Delta u_i = u_i-u_{i-1}$ are i.i.d.\
+$\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. By the random time change
+theorem, the
+rescaled masses $u_i=\Lambda(t_i)$, $\Delta u_i = u_i-u_{i-1}$ are i.i.d.\
 $\mathrm{Exp}(1)$ iff the intensity is correctly specified --- we report their mean
 (target 1) and KS distance as timing-calibration diagnostics. Sampling uses Ogata
-thinning, which requires a dominating rate $\bar\lambda\ge\lambda^*(t)$; a model
+thinning, which requires a dominating rate $\bar\lambda\ge\lambda(t)$; a model
 whose intensity has no computable upper bound must resort to heuristic (and
 bias-prone) dominating-rate estimates. Classical self-exciting intensities are Hawkes processes
 \citep{Hawkes1971}, widely used for LOB event flow
@@ -33,16 +37,16 @@ process: $L$ stacked latent-linear-Hawkes/SSM layers with diagonal state,
 ZOH-discretized between events and computable by parallel scan,
 \[
 x^{(\ell)}_{t'}=\bar A^{(\ell)} x^{(\ell)}_{t}
-+(\bar A^{(\ell)}\!-\!I)\,\tilde B^{(\ell)} u^{(\ell-1)}
++(\bar A^{(\ell)}\!-\!I)\,\tilde B^{(\ell)} h^{(\ell-1)}
 \;\bigl[+\,\tilde E^{(\ell)}\alpha\ \text{at an event}\bigr],
 \]
 with a LayerNorm'd residual readout
-$u^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+u^{(\ell-1)}\bigr)$
-producing the stack output $u(t):=u^{(L)}(t)\in\mathbb{R}^{H}$. The published model
-reads the rate from $u(t)$ through a projection-and-softplus head,
-$\lambda = \varsigma\cdot\mathrm{softplus}(w^{\!\top}u+b)$, which is unbounded above; marks
+$h^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+h^{(\ell-1)}\bigr)$
+producing the continuous-time hidden representation $h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published model
+reads the rate from $h_t$ through a projection-and-softplus head,
+$\lambda = \varsigma\cdot\mathrm{softplus}(w^{\!\top}h_t+b)$, which is unbounded above; marks
 are coupled to the same rate field. \ssppp{} keeps everything up to and including
-$u(t)$ and changes only these two heads.
+$h_t$ and changes only these two heads.
 
 \paragraph{Evaluation axes.}
 We score \emph{prediction} per genuine test event --- the time/mark NLL split, type

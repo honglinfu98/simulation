@@ -2,28 +2,29 @@
 \label{sec:method}
 
 \ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
-mark distribution, both reading the \emph{same} backbone embedding $u(t)$:
+mark distribution, both decoded from the \emph{same} continuous-time hidden
+representation $h_t$:
 \[
-\lambda_e(t)\;=\;\lambda(t)\cdot p^*(e\mid t),
+\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
 \qquad
 \sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
 \]
-the second identity holding because $\sum_{e} p^*(e\mid t)=1$.
+the second identity holding because $\sum_{e} p(e\mid t)=1$.
 The design principle is to put nonlinearity where it cannot perturb the rate.
 
 \subsection{Softmin-bounded rate head}
-From the LayerNorm'd (hence bounded-scale) embedding $u$, a gate produces a
-two-sided-bounded state, which is read out through a smooth one-sided cap:
+From the LayerNorm'd (hence bounded-scale) $h_t$, a gate produces a
+two-sided-bounded state $g$, which is read out through a smooth one-sided cap:
 \begin{align}
-o(u) &= \sigma(W_o u + b_o)\in(0,1)^H,\notag\\
-h(u) &= o(u)\odot\tanh(u)\in(-1,1)^H,\notag\\
-z_{\mathrm{raw}} &= w^{\!\top}h+b \ \ (\text{unconstrained}),\notag\\
+o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
+g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
+z_{\mathrm{raw}} &= w^{\!\top}g+b \ \ (\text{unconstrained}),\notag\\
 z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
 \lambda(t) &= \varsigma\cdot\mathrm{softplus}(z),
 \label{eq:softmin}
 \end{align}
 with a learnable positive scale $\varsigma$ initialized so the baseline rate matches a target
-rate ($h\!\to\!0 \Rightarrow \lambda \approx \varsigma\ln 2$).
+rate ($g\!\to\!0 \Rightarrow \lambda \approx \varsigma\ln 2$).
 
 Two properties follow immediately from Eq.~\eqref{eq:softmin}:
 \begin{itemize}
@@ -46,11 +47,11 @@ prediction --- and the softmin cap builds exactly that asymmetry into the
 nonlinearity.
 
 \subsection{Rate-neutral mark head}
-Marks read the same $u$ but never change the total rate:
+Marks are decoded from the same $h_t$ but never change the total rate:
 \[
-p^*(e\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(u)\bigr)_e,
+p(e\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(h_t)\bigr)_e,
 \qquad
-\lambda_e(t)=\lambda(t)\,p^*(e\mid t).
+\lambda_e(t)=\lambda(t)\,p(e\mid t).
 \]
 Because the soft-max lives on the simplex, the mark network can be arbitrarily deep
 --- or later conditioned on exogenous state such as an agent's resting quotes ---
@@ -59,7 +60,7 @@ owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 
 \subsection{Likelihood and sampling}
 Training maximizes the standard MTPP likelihood with the compensator evaluated on the
-training window; the mark term is a categorical cross-entropy on $p^*(e_i\mid t_i)$,
+training window; the mark term is a categorical cross-entropy on $p(e_i\mid t_i)$,
 decoupled from the rate term. Closed-loop sampling uses thinning with the exact
 dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$.
 

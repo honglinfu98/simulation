@@ -33,16 +33,16 @@ simulate innocuously but predict poorly.
 \ssppp{} is a head transplant, not a new backbone. We keep the stacked
 latent-linear-Hawkes state-space backbone verbatim --- its diagonal
 zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
-output $u(t)$ --- and replace only what comes after $u(t)$:
+output $h_t$ --- and replace only what comes after $h_t$:
 \begin{itemize}
 \item a \textbf{softmin-bounded rate head}: a gated bounded state
-  $h=\sigma(W_o u)\odot\tanh(u)$ is read out through a smooth one-sided cap
-  $z = c-\mathrm{softplus}(c-w^{\!\top}h-b)$, so
+  $g=\sigma(W_o h_t)\odot\tanh(h_t)$ is read out through a smooth one-sided cap
+  $z = z_{\max}-\mathrm{softplus}(z_{\max}-w^{\!\top}g-b)$, so
   $\lambda = \varsigma\cdot\mathrm{softplus}(z) \le \varsigma\cdot\mathrm{softplus}(z_{\max})$ is a
   \emph{hard closed-form ceiling} --- an exact dominating rate for Ogata thinning ---
   while $z\to z_{\text{raw}}$ as $z_{\text{raw}}\to-\infty$, so the floor is exactly
   zero and log-intensity keeps unit gradient in the quiet regime;
-\item a \textbf{rate-neutral mark head}: $p^*(k\mid t)=\mathrm{softmax}(\mathrm{MLP}(u))_k$
+\item a \textbf{rate-neutral mark head}: $p(e\mid t)=\mathrm{softmax}(\mathrm{MLP}(h_t))_e$
   lives on the probability simplex, so $\sum_e \lambda_e = \lambda$ holds regardless
   of how nonlinear the mark network is --- expressiveness goes where it cannot
   destabilize the rate.
