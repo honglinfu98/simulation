@@ -1,6 +1,18 @@
 \section{Methods}
 \label{sec:method}
 
+\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
+mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
+\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
+hidden representation $h_t$:
+\[
+\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
+\qquad
+\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
+\]
+the second identity holding because $\sum_{e} p(e\mid t)=1$.
+The design principle is to put nonlinearity where it cannot perturb the rate.
+
 \subsection{Event constructor}
 \label{subsec:event-construction}
 \input{exhibits/event_construction}
@@ -61,20 +73,6 @@ book and trade data into atomic order events, enabling a consistent foundation f
 downstream temporal modeling. Simultaneous atomic events at one timestamp form an
 event set $X_{t_i}$; we model the resulting type stream with categorical marks and
 leave volume marks $v(e)$ unmodeled.
-
-
-
-\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
-mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
-\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
-hidden representation $h_t$:
-\[
-\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
-\qquad
-\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
-\]
-the second identity holding because $\sum_{e} p(e\mid t)=1$.
-The design principle is to put nonlinearity where it cannot perturb the rate.
 
 \subsection{Softmin-bounded rate head}
 From the LayerNorm'd (hence bounded-scale) $h_t$, a gate produces a
