@@ -3,9 +3,23 @@
 
 \subsection{Protocol}
 \label{sec:setup}
-We benchmark on Coinbase BTC, ETH, and SOL event-driven order flow (seven days
-each, 62 event types; validation-split rates $38.3$, $47.9$, and $24.0$
-events/s). Six models --- \nhp{} (the Mei--Eisner CT-LSTM), an LSTM decoder and
+We benchmark on Coinbase BTC, ETH, and SOL event-driven order flow, seven days
+per asset (validation-split rates $38.3$, $47.9$, and $24.0$ events/s), encoded
+by the TFOW event constructor \citep{fu2026tfow}. Each atomic event type is a
+triple $e=(c,s,\delta)\in\mathcal{E}$: an event class
+$c\in\{\mathrm{LO},\mathrm{MO},\mathrm{CO},\mathrm{IS}\}$ (limit order,
+market order, cancel order, inside-spread order), a side $s\in\{b,a\}$, and a
+level index $\delta$. For LO/CO, $\delta\in\{1,\dots,K\}$ is the distance
+from the best quote over the top $K{=}10$ book levels per side; for MO,
+$\delta=1$ (execution against the standing best); for IS,
+$\delta\in\{1,\dots,K\}$ is the number of ticks by which the new quote
+improves the spread. This yields $|\mathcal{E}|=62$ atomic types
+($20+20+2+20$), classified deterministically from synchronized Level-2 book
+snapshots and trade records by a three-question decision tree (trade at the
+touch $\to$ MO; liquidity drop without trade $\to$ CO; liquidity added inside
+the spread $\to$ IS; otherwise LO). Simultaneous atomic events at one
+timestamp form an event set $X_{t_i}$; we model the resulting type stream with
+categorical marks and leave volume marks $v(e)$ unmodeled. Six models --- \nhp{} (the Mei--Eisner CT-LSTM), an LSTM decoder and
 a SAHP-style causal-attention decoder \citep{zhang2020self} (both \emph{adapted
 generic backbones} over our shared input embedding, not paper-faithful
 re-implementations), PCT-LSTM (a per-type parallel CT-LSTM), \sppp{}, and
@@ -24,12 +38,12 @@ carried state. The protocol is strict end-to-end:
   ($32\times600$\,s, three roll-out seeds per checkpoint) compared to
   equal-duration bootstrap samples of real segments.
 \item \textbf{Every model is rate-calibrated} before scoring: a one-dimensional
-  bisection on a time-rescaling constant $k$ (mark-preserving for every decoder;
+  bisection on a time-rescaling constant $\kappa$ (mark-preserving for every decoder;
   see Method) targets the \emph{validation}-split rate, then a full-scale
   validation roll-out must verify the target within 15\%; failures escalate to
   full-scale probes and, if still unmet, the checkpoint is excluded and the
   failure reported as a result. SAHP is the exception: its closed-loop rate is
-  unstable across warm-starts and no constant $k$ transfers, so it is reported
+  unstable across warm-starts and no constant $\kappa$ transfers, so it is reported
   uncalibrated ($k{=}1$, marked \dag).
 \item \textbf{Statistics}: roll-out seeds are averaged within each checkpoint;
   95\% CIs are $t$-based across checkpoints. Any batch failure or non-finite
@@ -130,7 +144,7 @@ this context length, \ssppp{} and PCT-LSTM least.}
 \subsection{Calibratability is a model property}
 \label{sec:calibratability}
 Post-hoc rate calibration (Method) is mark-preserving for \emph{every} decoder
-in the zoo --- a constant $k$ rescales sim-time intensity without touching type
+in the zoo --- a constant $\kappa$ rescales sim-time intensity without touching type
 probabilities --- so we calibrate every model, and treat the \emph{outcome} of
 calibration as an experimental result in its own right. The protocol is
 deliberately falsifiable: probes must bracket and converge to the validation
@@ -155,9 +169,9 @@ quantification of closed-loop calibratability for neural TPPs: at production
 event rates, the unbounded head is uncalibratable on 7 of 9 checkpoints, and on
 SOL the model class is excluded outright. Figure~\ref{fig:ladder} shows the
 failure signature: the closed-loop rate response of a failing \sppp{}
-checkpoint is near-discontinuous in $k$ --- a $10^{-3}$ change in $k$ flips the
+checkpoint is near-discontinuous in $\kappa$ --- a $10^{-3}$ change in $\kappa$ flips the
 realized rate across the entire tolerance band (e.g.\ $36\to48.5$\,ev/s), and
-seed-to-seed variance at fixed $k$ reaches ${\sim}30\%$ --- the behaviour of a
+seed-to-seed variance at fixed $\kappa$ reaches ${\sim}30\%$ --- the behaviour of a
 system parked near criticality, where no constant time-rescaling exists. The
 bounded \ssppp{} response crosses the same target smoothly and verifies on
 eight of nine checkpoints, including all three ETH seeds; its single failure
@@ -175,7 +189,7 @@ closed-loop, and both pathologies disappear under the softmin bound.
 \includegraphics[width=0.9\columnwidth]{figs/fig_cal_ladder}
 \caption{Calibration probe ladders on BTC (target band shaded): the failing
 \sppp{} checkpoint's closed-loop rate is near-discontinuous in the rescaling
-constant $k$; the verified \ssppp{} checkpoint crosses the target smoothly.}
+constant $\kappa$; the verified \ssppp{} checkpoint crosses the target smoothly.}
 \label{fig:ladder}
 \end{figure}
 

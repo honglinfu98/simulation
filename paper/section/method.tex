@@ -4,11 +4,11 @@
 \ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
 mark distribution, both reading the \emph{same} backbone embedding $u(t)$:
 \[
-\lambda_k(t)\;=\;\lambda(t)\cdot p^*(k\mid t),
+\lambda_e(t)\;=\;\lambda(t)\cdot p^*(e\mid t),
 \qquad
-\sum\nolimits_k \lambda_k(t)=\lambda(t),
+\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
 \]
-the second identity holding because $\sum_k p^*(k\mid t)=1$.
+the second identity holding because $\sum_{e} p^*(e\mid t)=1$.
 The design principle is to put nonlinearity where it cannot perturb the rate.
 
 \subsection{Softmin-bounded rate head}
@@ -18,21 +18,21 @@ two-sided-bounded state, which is read out through a smooth one-sided cap:
 o(u) &= \sigma(W_o u + b_o)\in(0,1)^H,\notag\\
 h(u) &= o(u)\odot\tanh(u)\in(-1,1)^H,\notag\\
 z_{\mathrm{raw}} &= w^{\!\top}h+b \ \ (\text{unconstrained}),\notag\\
-z &= c-\mathrm{softplus}\bigl(c-z_{\mathrm{raw}}\bigr),\notag\\
-\lambda(t) &= s\cdot\mathrm{softplus}(z),
+z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
+\lambda(t) &= \varsigma\cdot\mathrm{softplus}(z),
 \label{eq:softmin}
 \end{align}
-with a learnable positive scale $s$ initialized so the baseline rate matches a target
-rate ($h\!\to\!0 \Rightarrow \lambda \approx s\ln 2$).
+with a learnable positive scale $\varsigma$ initialized so the baseline rate matches a target
+rate ($h\!\to\!0 \Rightarrow \lambda \approx \varsigma\ln 2$).
 
 Two properties follow immediately from Eq.~\eqref{eq:softmin}:
 \begin{itemize}
-\item \textbf{Hard ceiling (simulation stability).} $z\le c$ always, hence
-  $\lambda(t)\le s\cdot\mathrm{softplus}(c)$ in closed form. This is an \emph{exact}
+\item \textbf{Hard ceiling (simulation stability).} $z\le z_{\max}$ always, hence
+  $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ in closed form. This is an \emph{exact}
   dominating rate for Ogata thinning --- the roll-out cannot run away, whatever state
   the closed loop visits.
 \item \textbf{Open floor (prediction honesty).} As $z_{\mathrm{raw}}\to-\infty$,
-  $z\to z_{\mathrm{raw}}$, so $\lambda \sim s\,e^{z_{\mathrm{raw}}}\to 0$ and
+  $z\to z_{\mathrm{raw}}$, so $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and
   $\log\lambda$ keeps unit gradient in the quiet regime. The floor is exactly zero.
 \end{itemize}
 The asymmetry is the point. Our original G1 head bounded $z$ on \emph{both} sides
@@ -48,9 +48,9 @@ nonlinearity.
 \subsection{Rate-neutral mark head}
 Marks read the same $u$ but never change the total rate:
 \[
-p^*(k\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(u)\bigr)_k,
+p^*(e\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(u)\bigr)_e,
 \qquad
-\lambda_k(t)=\lambda(t)\,p^*(k\mid t).
+\lambda_e(t)=\lambda(t)\,p^*(e\mid t).
 \]
 Because the soft-max lives on the simplex, the mark network can be arbitrarily deep
 --- or later conditioned on exogenous state such as an agent's resting quotes ---
@@ -59,9 +59,9 @@ owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 
 \subsection{Likelihood and sampling}
 Training maximizes the standard MTPP likelihood with the compensator evaluated on the
-training window; the mark term is a categorical cross-entropy on $p^*(k_i\mid t_i)$,
+training window; the mark term is a categorical cross-entropy on $p^*(e_i\mid t_i)$,
 decoupled from the rate term. Closed-loop sampling uses thinning with the exact
-dominating rate $s\cdot\mathrm{softplus}(c)$.
+dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$.
 
 \subsection{Carried-state simulation}
 The standard roll-out protocol re-encodes a sliding window of the last $W$ events
@@ -91,16 +91,16 @@ length), so our controls match that setting.
 
 \subsection{Post-hoc rate calibration}
 \label{sec:calibration}
-The factorization buys one more property: $\lambda = s\cdot\mathrm{softplus}(z)$ is
-\emph{exactly linear} in the learnable scale $s$, the thinning ceiling
-$s\cdot\mathrm{softplus}(c)$ scales with it, and the mark head is untouched by
-construction. The free-running rate --- which is monotone but nonlinear in $s$
+The factorization buys one more property: $\lambda = \varsigma\cdot\mathrm{softplus}(z)$ is
+\emph{exactly linear} in the learnable scale $\varsigma$, the thinning ceiling
+$\varsigma\cdot\mathrm{softplus}(z_{\max})$ scales with it, and the mark head is untouched by
+construction. The free-running rate --- which is monotone but nonlinear in $\varsigma$
 through the closed-loop feedback --- can therefore be calibrated by a one-dimensional
-geometric bisection on a multiplier $k$: roll out briefly at $k\,s$, compare the
+geometric bisection on a multiplier $\kappa$: roll out briefly at $\kappa\,\varsigma$, compare the
 realized rate to the target, and iterate ($\sim$6 probe roll-outs in practice). The
 result is a certificate-preserving, sampling-exact simulator at any prescribed mean
-rate. For \emph{any} decoder, a constant $k$ multiplying the sim-time intensity is
-still mark-preserving --- type probabilities $\lambda_k/\lambda$ are unchanged ---
+rate. For \emph{any} decoder, a constant $\kappa$ multiplying the sim-time intensity is
+still mark-preserving --- type probabilities $\lambda_e/\lambda$ are unchanged ---
 so the same bisection applies to every baseline; what is lost off-family is only
 the exactness of the thinning bound. We make the procedure falsifiable: the target
 is the \emph{validation}-split rate, the bisection must bracket and converge, and a

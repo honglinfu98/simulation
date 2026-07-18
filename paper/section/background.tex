@@ -2,14 +2,15 @@
 \label{sec:background}
 
 \paragraph{Marked temporal point processes.}
-An MTPP models a sequence $\mathcal{H}_T=\{(t_i,k_i)\}_{i=1}^{N_T}$ of events with
-times $t_i$ and types $k_i\in\{1,\dots,K\}$ through per-type conditional intensities
-$\lambda_k^*(t)$. Writing $\lambda^*(t)=\sum_k\lambda_k^*(t)$ for the total (ground)
-intensity and $p^*(k\mid t)=\lambda_k^*(t)/\lambda^*(t)$ for the mark distribution,
+An MTPP models a sequence $\mathcal{H}_T=\{(t_i,e_i)\}_{i=1}^{N_T}$ of events with
+times $t_i$ and types $e_i\in\mathcal{E}$, a finite set of atomic event types, through
+per-type conditional intensities
+$\lambda_e^*(t)$. Writing $\lambda^*(t)=\sum_{e\in\mathcal{E}}\lambda_e^*(t)$ for the total (ground)
+intensity and $p^*(e\mid t)=\lambda_e^*(t)/\lambda^*(t)$ for the mark distribution,
 the log-likelihood of a sequence is
 \[
 \log\mathcal{L}
-=\sum_i \Bigl[\log\lambda^*(t_i)+\log p^*(k_i\mid t_i)\Bigr]
+=\sum_i \Bigl[\log\lambda^*(t_i)+\log p^*(e_i\mid t_i)\Bigr]
 -\int_0^T\!\lambda^*(s)\,ds ,
 \]
 the integral being the \emph{compensator}
@@ -39,7 +40,7 @@ with a LayerNorm'd residual readout
 $u^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+u^{(\ell-1)}\bigr)$
 producing the stack output $u(t):=u^{(L)}(t)\in\mathbb{R}^{H}$. The published model
 reads the rate from $u(t)$ through a projection-and-softplus head,
-$\lambda = s\cdot\mathrm{softplus}(w^{\!\top}u+b)$, which is unbounded above; marks
+$\lambda = \varsigma\cdot\mathrm{softplus}(w^{\!\top}u+b)$, which is unbounded above; marks
 are coupled to the same rate field. \ssppp{} keeps everything up to and including
 $u(t)$ and changes only these two heads.
 
