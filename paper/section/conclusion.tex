@@ -14,10 +14,18 @@ hazard decomposition prices the residual prediction gap precisely where the
 design puts it: quiet-regime hazard, the cost of the bound. The sharpest finding
 is that \emph{calibratability is a model property}: the unbounded parent head
 fails verified rate calibration on 7 of 9 checkpoints --- all three on SOL ---
-with a critical-point signature, while the bounded head fails once in nine ---
+with a critical-point signature, while the bounded head verifies on all nine ---
 the stability certificate made empirical. Stateful training and carried-state roll-out contribute temporal structure
 that calibration alone cannot. Because the mark head is rate-neutral,
 conditioning it on exogenous state --- an agent's resting quotes --- cannot
 destabilize the rate, making \ssppp{} a suitable environment model for
-market-making world models; that action-conditioned extension is future work. All tables and figures
+market-making world models; that action-conditioned extension is future work.
+The same factorized intensity also supports the importance-sampling
+probabilistic queries of \citet{chang2024probabilistic} --- ``event $A$ before
+event $B$, given the history'' --- which map directly onto the quantities a
+market maker needs from a world model: fill probability (an aggressing order
+reaches our resting level before the quote moves away) and adverse-selection
+risk (the probability that flow continues against us conditional on a fill),
+estimated consistently from one likelihood-trained model rather than by
+separate ad-hoc regressions. All tables and figures
 are regenerated end-to-end by the released collection and display scripts.
