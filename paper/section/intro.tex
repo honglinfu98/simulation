@@ -18,16 +18,18 @@ at prediction, and continuous-time state-space variants
 of the art. But that literature evaluates almost exclusively teacher-forced ---
 the \sppp{} paper itself \citep{chang2025ctssm} reports state-of-the-art held-out
 likelihood yet never rolls the model out, leaving closed-loop simulation an open
-gap --- and the very self-excitation that wins the one-step likelihood becomes a
-liability closed-loop: each sampled event raises the intensity, which produces more events,
-and with no mechanism bounding the rate the roll-out drifts hot or explodes. The
-standard patch --- rescale the intensity until the simulated rate matches reality
---- turns out to be unavailable exactly where it is needed most: we find trained
-unbounded state-space checkpoints whose closed-loop rate is \emph{near-discontinuous}
-in the rescaling constant (a $10^{-3}$ change flips the rate across the entire
-tolerance band) so that no constant rescaling exists --- on one of our three
-assets, this leaves the unbounded model with no usable simulator at all. The
-field thus faces an
+gap. Two obstacles stand between a trained MTPP and a usable simulator.
+\emph{First, instability}: the very self-excitation that wins the one-step
+likelihood becomes a liability closed-loop --- each sampled event raises the
+intensity, which produces more events, and with no mechanism bounding the rate
+the roll-out drifts hot or explodes. \emph{Second, uncalibratability}: the
+standard patch --- rescale the intensity until the simulated rate matches
+reality --- turns out to be unavailable exactly where it is needed most. We find
+trained unbounded state-space checkpoints whose closed-loop rate is
+\emph{near-discontinuous} in the rescaling constant (a $10^{-3}$ change flips
+the rate across the entire tolerance band) so that no constant rescaling exists
+--- on one of our three assets, this leaves the unbounded model with no usable
+simulator at all. The field thus faces an
 \emph{expressivity--stability frontier}: expressive intensities predict but cannot
 be trusted (or even calibrated) closed-loop, while trivially stable samplers
 simulate innocuously but predict poorly.
