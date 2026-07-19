@@ -61,12 +61,6 @@ Because the backbone is identical, differences against the unbounded parent
   stable simulator}: a bounded, thinning-exact intensity on the unmodified
   state-space backbone, trained with stateful (TBPTT) likelihood and simulated
   with $O(1)$-per-event carried state.
-\item \textbf{A strict two-axis benchmark} on three Coinbase assets (BTC, ETH,
-  SOL; $24$--$48$ events/s) $\times$ six models $\times$ three training seeds:
-  prediction scored losslessly on \emph{every} test event by a streaming
-  evaluator with carried state, simulation scored on calibrated carried-state
-  roll-outs against equal-duration real segments, checkpoint-level confidence
-  intervals throughout (results in Section~\ref{sec:experiments}).
 \item \textbf{Calibratability as a measurable model property.} Every model is
   rate-calibrated by a mark-preserving bisection with \emph{full-scale
   verification}, and the outcome is reported as a result: the unbounded head
