@@ -1,19 +1,19 @@
 \section{Methods}
 \label{sec:method}
 
-\subsection{Data Collector}
-We obtain both trade and Level-2 limit order book data from
-Kaiko~\citep{Kaiko2025TheKaiko}, a leading institutional provider of digital
-asset market data. In partnership with Cloudburst
-Technologies~\citep{Cloudburst2025CloudburstTechnologies}, a leading firm
-specializing in detecting and mitigating market manipulation, we establish the
-data collector. Level-2 limit order book updates are continuously streamed to a
-Google Cloud Storage bucket, providing full-depth market coverage. Each update
-record contains precise timestamps, update types (snapshots or liquidity
-updates), and the corresponding price--volume information for bid and ask
-levels. Complementary trade data are retrieved via Kaiko's API and temporally
-aligned with the order book stream, enabling synchronized analysis of trading
-activity and order flow dynamics.
+\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
+mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
+\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
+hidden representation $h_t$:
+\[
+\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
+\qquad
+\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
+\]
+the second identity holding because $\sum_{e} p(e\mid t)=1$.
+The design principle is to put nonlinearity where it cannot perturb the rate.
+
+
 
 
 
@@ -26,8 +26,7 @@ activity and order flow dynamics.
 \includegraphics[width=0.98\columnwidth]{figs/pipeline}
 \caption{Pipeline. (1)~\emph{Data collector}: synchronized trade records and
 Level-2 order book updates. (2)~\emph{Event constructor}: consecutive book
-snapshots are differenced and aligned with trades to emit atomic typed events
-(the Event Constructor subsection). (3)~\emph{Model training}: the
+snapshots are differenced and aligned with trades to emit atomic typed events. (3)~\emph{Model training}: the
 event-set sequence drives the state-space backbone (LLH layers) whose
 continuous-time hidden representation $h_t$ decodes the bounded total rate
 $\lambda(t)$ and the rate-neutral mark distribution $p(e\mid t)$, giving
@@ -74,21 +73,7 @@ on the price position: if the new order appears inside the spread, it forms an
 \textbf{Inside-Spread Order}; otherwise, it is a \textbf{Limit Order} placed within
 the existing book depth. This rule set ensures exhaustive mapping from raw order
 book and trade data into atomic order events, enabling a consistent foundation for
-downstream temporal modeling. Simultaneous atomic events at one timestamp form an
-event set $X_{t_i}$; we model the resulting type stream with categorical marks and
-leave volume marks $v(e)$ unmodeled.
-
-\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
-mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
-\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
-hidden representation $h_t$:
-\[
-\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
-\qquad
-\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
-\]
-the second identity holding because $\sum_{e} p(e\mid t)=1$.
-The design principle is to put nonlinearity where it cannot perturb the rate.
+downstream temporal modeling. 
 
 \subsection{Softmin-bounded rate head}
 From the LayerNorm'd (hence bounded-scale) $h_t$, a gate produces a
@@ -116,11 +101,11 @@ Two properties follow immediately from Eq.~\eqref{eq:softmin}:
 \end{itemize}
 This asymmetry is deliberate. An earlier version of the head bounded $z$ on
 \emph{both} sides (an $\ell_1$-capped readout of the gated state), giving
-$\lambda\in(\ell_-,\ell_+)$ with $\ell_-\approx 0.36$\,ev/s. The ceiling
+$\lambda\in(\ell_-,\ell_+)$ with a nonzero floor $\ell_-$. The ceiling
 $\ell_+$ buys stability, but the nonzero floor hurts prediction in quiet
-periods: in a quiet gap of length $\Delta t$ the compensator loses
-$(\ell_--\lambda^{\mathrm{true}})\Delta t$ nats that no parameter setting can
-recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
+periods: in a quiet gap of length $\Delta t$ the compensator pays an irreducible
+log-likelihood penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$ that no
+parameter setting can recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
 prediction --- and the softmin cap builds exactly that asymmetry into the
 nonlinearity.
 
@@ -150,9 +135,9 @@ than $W$ events can influence the future, so long-memory stylized facts (the slo
 decay of $|r|$ autocorrelation) are \emph{architecturally} unreachable regardless of
 the model. Because the backbone is a state-space recursion, both costs vanish: we
 carry the packed decoder state and advance it with only the new event, which is
-mathematically identical to encoding the entire history from the seed ($10^{-5}$
-agreement in float32) at $O(1)$ per event --- $31\times$ faster at $W{=}1024$ and
-memory-unbounded. Attention- and window-shaped baselines have no such Markov state
+mathematically identical to encoding the entire history from the seed, at
+$O(1)$ cost per event --- an order of magnitude faster than window re-encoding
+and memory-unbounded. Attention- and window-shaped baselines have no such Markov state
 and retain the sliding window.
 
 \subsection{Stateful (TBPTT) training}
@@ -176,7 +161,7 @@ $\varsigma\cdot\mathrm{softplus}(z_{\max})$ scales with it, and the mark head is
 construction. The free-running rate --- which is monotone but nonlinear in $\varsigma$
 through the closed-loop feedback --- can therefore be calibrated by a one-dimensional
 geometric bisection on a multiplier $\kappa$: roll out briefly at $\kappa\,\varsigma$, compare the
-realized rate to the target, and iterate ($\sim$6 probe roll-outs in practice). The
+realized rate to the target, and iterate over a handful of probe roll-outs. The
 result is a certificate-preserving, sampling-exact simulator at any prescribed mean
 rate. For \emph{any} decoder, a constant $\kappa$ multiplying the sim-time intensity is
 still mark-preserving --- type probabilities $\lambda_e/\lambda$ are unchanged ---
