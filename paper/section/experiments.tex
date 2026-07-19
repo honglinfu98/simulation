@@ -194,3 +194,45 @@ whiskers = 95\% CI over checkpoints). \sppp{} and SAHP omitted where no
 calibrated checkpoints exist.}
 \label{fig:forest}
 \end{figure*}
+
+\subsection{Training and simulation efficiency}
+\label{sec:efficiency}
+The state-space recursion is not just statistically but computationally
+advantageous --- once its per-event sequential loop is replaced by an exact
+associative prefix scan (Hillis--Steele over the ZOH recurrence; identical
+states and gradients to $2\!\times\!10^{-4}$). Table~\ref{tab:speed} reports
+wall-clock measurements on one GPU with the benchmark configuration and ETH
+checkpoints: one training step (fwd+bwd, batch $64\times1024$ events) and
+closed-loop simulation throughput (simulated events per wall-second, $8\times
+60$\,s carried-state roll-outs at native rates; SAHP re-encodes a sliding
+window). The scan collapses the \sppp-family training step from $3.5$\,s to
+${\sim}0.06$\,s --- attention-class speed, $60\times$ faster than the loop and
+$73\times$ faster than the CT-LSTM --- turning a multi-hour training run into
+minutes. For sampling, \ssppp's exact ceiling makes Ogata thinning available
+with a \emph{constant} dominating rate (no per-step bound estimation; mean
+acceptance $0.54$ on ETH): exactness costs ${\sim}2.5\times$ throughput
+against the approximate quadrature-inversion sampler shared by all models, and
+both run far above real time ($353$ vs.\ $48$ events/s on the fastest asset).
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+ & train step (s) & vs.\ seq.\ loop & sim.\ ev/s\\
+\midrule
+\nhp{}    & 4.35  & --           & 1253\\
+LSTM      & 0.019 & --           & 2083\\
+SAHP      & 0.059 & --           & 583\\
+PCT-LSTM  & 0.79  & --           & 1919\\
+\sppp{}   & 0.055 & $64\times$   & 1163\\
+\ssppp{}  & 0.059 & $60\times$   & 879 / 353$^{\dag}$\\
+\bottomrule
+\end{tabular}
+\caption{Efficiency on one GPU (ETH checkpoints, benchmark configuration).
+Training: one fwd+bwd on $64\times1024$ events (scan for the \sppp{} family;
+speedup vs.\ their sequential loop). Simulation: events per wall-second,
+$8\times60$\,s roll-outs. $^{\dag}$inversion~/ exact-ceiling Ogata thinning.}
+\label{tab:speed}
+\end{table}
