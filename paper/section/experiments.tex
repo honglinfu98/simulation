@@ -56,10 +56,12 @@ or recurrent baseline) --- the intensity-collapse tail of the unbounded head.}
 \subsection{Prediction, and where its nats live}
 \label{sec:prediction}
 Table~\ref{tab:multiasset}: \ssppp{} is the strongest predictor on two of three
-assets --- it wins overall NLL and accuracy outright on ETH ($-0.87$ vs.\ \nhp's
-$-0.81$; $0.345$ vs.\ $0.341$) and on SOL by a wide margin ($0.27$ vs.\ $0.53$;
-$0.192$ vs.\ $0.184$), and on BTC ties \nhp{} on marks while conceding overall
-likelihood. The concession is timing, and a per-gap decomposition of
+assets --- it wins \emph{every} prediction metric on SOL by a wide margin
+($0.27$ vs.\ $0.53$ overall NLL; $0.192$ vs.\ $0.184$ accuracy), wins overall
+NLL and accuracy outright on ETH ($-0.87$ vs.\ \nhp's $-0.81$; $0.345$ vs.\
+$0.341$), and on BTC ties \nhp{} on marks while conceding overall likelihood ---
+all while remaining verifiably calibratable with competitive simulated structure
+throughout (Tables~\ref{tab:multiassetsf} and~\ref{tab:caloutcomes}). The concession is timing, and a per-gap decomposition of
 timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator mass)
 locates it precisely on BTC, the asset where \nhp{} leads. Burst sharpness is
 \emph{not} the issue: the state-space family's event terms are better than

@@ -68,7 +68,10 @@ continuous-time state-space \citep{chang2025ctssm} encoders; see
 specialize neural Hawkes models to LOB event streams and evaluate both prediction
 and simulation. Notably, the state-space line is evaluated almost exclusively
 teacher-forced: \citet{chang2025ctssm} report state-of-the-art held-out likelihood
-but never roll the model out (they avoid thinning altogether). Our contribution is
+but never roll the model out (they avoid thinning altogether) --- closed-loop
+simulation is an unaddressed gap of the \sppp{} paper, and our experiments show it
+is not benign: the unbounded head is frequently \emph{uncalibratable} in free
+roll-out (Table~\ref{tab:caloutcomes}). Our contribution is
 orthogonal to the encoder line --- we keep the state-space backbone verbatim and
 change what is read \emph{out} of it, showing that the heads, not the backbone, own
 closed-loop stability and calibratability.

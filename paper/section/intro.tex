@@ -15,9 +15,11 @@ analysis), the more valuable of the two \citep{mars2025,nagy2025lobbench}.
 Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview} excel
 at prediction, and continuous-time state-space variants
 \citep{chang2025ctssm,Shi2022StateSimulation} push held-out likelihood to the state
-of the art. But that literature evaluates almost exclusively teacher-forced, and the
-very self-excitation that wins the one-step likelihood becomes a liability
-closed-loop: each sampled event raises the intensity, which produces more events,
+of the art. But that literature evaluates almost exclusively teacher-forced ---
+the \sppp{} paper itself \citep{chang2025ctssm} reports state-of-the-art held-out
+likelihood yet never rolls the model out, leaving closed-loop simulation an open
+gap --- and the very self-excitation that wins the one-step likelihood becomes a
+liability closed-loop: each sampled event raises the intensity, which produces more events,
 and with no mechanism bounding the rate the roll-out drifts hot or explodes. The
 standard patch --- rescale the intensity until the simulated rate matches reality
 --- turns out to be unavailable exactly where it is needed most: we find trained
@@ -52,7 +54,9 @@ Because the backbone is identical, differences against the unbounded parent
 (\sppp) are attributable to the heads. Our contributions:
 \begin{enumerate}
 \item \textbf{The \ssppp{} head pair} (softmin-bounded rate $\times$ rate-neutral
-  marks): a provably bounded, thinning-exact intensity on an unmodified
+  marks): it turns \sppp{} --- state-of-the-art teacher-forced, but unstable
+  and often uncalibratable in free-running simulation --- into a \emph{provably
+  stable simulator}: a bounded, thinning-exact intensity on the unmodified
   state-space backbone, trained with stateful (TBPTT) likelihood and simulated
   with $O(1)$-per-event carried state.
 \item \textbf{A strict two-axis benchmark} on three Coinbase assets (BTC, ETH,
@@ -60,12 +64,7 @@ Because the backbone is identical, differences against the unbounded parent
   prediction scored losslessly on \emph{every} test event by a streaming
   evaluator with carried state, simulation scored on calibrated carried-state
   roll-outs against equal-duration real segments, checkpoint-level confidence
-  intervals throughout. \ssppp{} wins every prediction metric on SOL, leads overall likelihood
-  and marks on ETH, ties the strongest baseline (\nhp) on BTC marks, and
-  remains verifiably calibratable with competitive simulated structure
-  throughout. A per-gap decomposition explains the
-  remaining prediction gap mechanistically: it is quiet-regime hazard, the
-  deliberate price of the bound.
+  intervals throughout (results in Section~\ref{sec:experiments}).
 \item \textbf{Calibratability as a measurable model property.} Every model is
   rate-calibrated by a mark-preserving bisection with \emph{full-scale
   verification}, and the outcome is reported as a result: the unbounded head
