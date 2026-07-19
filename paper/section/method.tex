@@ -98,11 +98,11 @@ Two properties follow immediately from Eq.~\eqref{eq:softmin}:
   $z\to z_{\mathrm{raw}}$, so $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and
   $\log\lambda$ keeps unit gradient in the quiet regime. The floor is exactly zero.
 \end{itemize}
-The asymmetry is the point. Our original G1 head bounded $z$ on \emph{both} sides
-(an $\ell_1$-capped readout of the gated state), giving
+This asymmetry is deliberate. An earlier version of the head bounded $z$ on
+\emph{both} sides (an $\ell_1$-capped readout of the gated state), giving
 $\lambda\in(\ell_-,\ell_+)$ with $\ell_-\approx 0.36$\,ev/s. The ceiling
-$\ell_+$ buys stability, but the nonzero floor welds the quiet regime to the burst
-scale: in a quiet gap of length $\Delta t$ the compensator bleeds
+$\ell_+$ buys stability, but the nonzero floor hurts prediction in quiet
+periods: in a quiet gap of length $\Delta t$ the compensator loses
 $(\ell_--\lambda^{\mathrm{true}})\Delta t$ nats that no parameter setting can
 recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
 prediction --- and the softmin cap builds exactly that asymmetry into the

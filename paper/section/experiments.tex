@@ -61,12 +61,12 @@ assets --- it wins \emph{every} prediction metric on SOL by a wide margin
 NLL and accuracy outright on ETH ($-0.87$ vs.\ \nhp's $-0.81$; $0.345$ vs.\
 $0.341$), and on BTC ties \nhp{} on marks while conceding overall likelihood ---
 all while remaining verifiably calibratable with competitive simulated structure
-throughout (Tables~\ref{tab:multiassetsf} and~\ref{tab:caloutcomes}). The concession is timing, and a per-gap decomposition of
+throughout (Tables~\ref{tab:multiassetsf} and~\ref{tab:caloutcomes}). The gap is in timing. A per-gap decomposition of
 timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator mass)
-locates it precisely on BTC, the asset where \nhp{} leads. Burst sharpness is
+shows exactly where it comes from on BTC, the asset where \nhp{} leads. Burst sharpness is
 \emph{not} the issue: the state-space family's event terms are better than
 \nhp's ($-4.95$ \ssppp{} vs.\ $-4.23$), and intensity-ceiling saturation is
-comparable across models (${\sim}25\%$). The entire concession is compensator
+comparable across models (${\sim}25\%$). The entire gap is compensator
 mass in \emph{quiet gaps}: mean per-gap rescaled mass is $1.88$ (\ssppp) and
 $2.26$ (\sppp) against \nhp's near-ideal $1.03$ (target $1$), with the excess
 accruing in gaps beyond $0.1$\,s --- rare at $38$\,ev/s, but expensive
@@ -171,11 +171,11 @@ checkpoint whose single failure was qualitatively different --- a per-lane
 diagnostic traced it to a \emph{metastable} burst-locked regime at
 ${\sim}2\times$ the target rate that individual roll-out lanes enter
 stochastically, bounded and benign next to \sppp's criticality; retraining
-escaped that basin.) This is the
-certificate made empirical: the same unbounded softplus head whose
-intensity-collapse states produce \sppp's pathological expected-time tail
-(Table~\ref{tab:multiasset}) also parks checkpoints near criticality
-closed-loop, and both pathologies disappear under the softmin bound.
+escaped that basin.) This confirms the stability certificate empirically: the same unbounded
+softplus head whose intensity-collapse states produce \sppp's pathological
+expected-time tail (Table~\ref{tab:multiasset}) also places checkpoints near
+criticality in closed loop, and both problems disappear under the softmin
+bound.
 
 \begin{figure}[t]
 \centering

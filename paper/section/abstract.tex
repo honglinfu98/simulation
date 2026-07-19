@@ -7,24 +7,23 @@ learned self-excitation drifts or explodes, and we show that the standard remedy
 --- rescaling the intensity to match the real event rate --- often has \emph{no
 solution} for unbounded models. To close this gap we propose \ssppp{} (Stable
 State-Space Point Process), which keeps the expressive state-space backbone of
-\sppp{} verbatim and replaces only the output heads: a \emph{softmin-bounded rate
+\sppp{} and replaces only the output heads: a \emph{softmin-bounded rate
 head} whose intensity carries a hard closed-form ceiling (an exact dominating rate
 for Ogata thinning) with a floor of exactly zero, and a \emph{rate-neutral}
 soft-max mark head that can be arbitrarily deep without perturbing the total rate.
-Extensive experiments on three Coinbase assets (BTC, ETH, SOL; production rates of
-$24$--$48$ events/s), against five baselines with three training seeds each,
+Extensive experiments on three Coinbase assets, against five baselines with three training seeds each,
 lossless streaming evaluation, and \emph{verified} rate calibration for every
 model, show that \ssppp{} is the strongest predictor on two of three assets while
 remaining verifiably calibratable closed-loop with competitive simulated
-structure. Treating calibratability itself as an experimental outcome yields the
-sharpest result: the unbounded parent fails verified calibration on 7 of 9
-checkpoints --- on one asset losing every usable simulator --- with a
-near-discontinuous rate response characteristic of criticality, while the bounded
-head verifies on all nine. A per-gap hazard decomposition prices the residual
-prediction gap exactly where the design puts it: quiet-regime hazard, the
-deliberate cost of the bound. The full recipe trains with an exact parallel
-prefix scan and simulates by exact-ceiling thinning with $O(1)$ carried state,
-at verified real rates.
+structure. Our sharpest finding is that whether a model \emph{can} be calibrated is itself
+a measurable property. The unbounded parent model fails verified calibration on
+7 of 9 checkpoints --- on one asset, no checkpoint can be calibrated at all ---
+because its simulated rate responds almost discontinuously to the rescaling
+constant; the bounded head passes on all nine. A per-gap decomposition shows
+that the remaining prediction gap comes almost entirely from quiet periods,
+which is the expected and accepted cost of bounding the intensity. \ssppp{}
+trains with an exact parallel scan, simulates with $O(1)$ cost per event using
+Ogata thinning, and matches real event rates after verification.
 \end{abstract}
 
 \noindent\textbf{Code} --- all tables and figures in this paper regenerate

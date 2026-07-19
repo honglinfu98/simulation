@@ -29,12 +29,12 @@ trained unbounded state-space checkpoints whose closed-loop rate is
 \emph{near-discontinuous} in the rescaling constant (a $10^{-3}$ change flips
 the rate across the entire tolerance band) so that no constant rescaling exists
 --- on one of our three assets, this leaves the unbounded model with no usable
-simulator at all. The field thus faces an
-\emph{expressivity--stability frontier}: expressive intensities predict but cannot
-be trusted (or even calibrated) closed-loop, while trivially stable samplers
-simulate innocuously but predict poorly.
+simulator at all. The field thus faces a trade-off between expressivity and stability:
+expressive models predict well but cannot be trusted (or even calibrated) in
+closed loop, while simple stable models simulate safely but predict poorly.
 
-\ssppp{} is a head transplant, not a new backbone. We keep the stacked
+\ssppp{} changes only the output heads of \sppp{}; the backbone is untouched.
+We keep the stacked
 latent-linear-Hawkes state-space backbone verbatim --- its diagonal
 zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
 output $h_t$ --- and replace only what comes after $h_t$:
@@ -76,9 +76,10 @@ Because the backbone is identical, differences against the unbounded parent
   quantification of closed-loop calibratability for neural TPPs.
 \item \textbf{Exact post-hoc rate calibration} for factorized heads: the rate is
   linear in a learnable scale, the thinning ceiling scales with it, and the mark
-  distribution is untouched --- a certificate-preserving one-dimensional
-  root-find that also \emph{improves} every structure fact by repairing
-  clock-rate distortion.
+  distribution is untouched. Calibration is therefore a one-dimensional
+  root-finding step that keeps the stability guarantee intact --- and it also
+  \emph{improves} every structure metric, because it corrects the simulated
+  clock rate.
 \end{enumerate}
 All tables and figures in this paper are generated end-to-end by released
 collection and plotting scripts.
