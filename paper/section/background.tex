@@ -24,12 +24,7 @@ $\mathrm{Exp}(1)$ iff the intensity is correctly specified --- we report their m
 (target 1) and KS distance as timing-calibration diagnostics. Sampling uses Ogata
 thinning, which requires a dominating rate $\bar\lambda\ge\lambda(t)$; a model
 whose intensity has no computable upper bound must resort to heuristic (and
-bias-prone) dominating-rate estimates. Classical self-exciting intensities are Hawkes processes
-\citep{Hawkes1971}, widely used for LOB event flow
-\citep{Jain2024LimitProcess,Morariu-Patrichi2022State-dependentModelling}; neural
-versions replace the parametric kernel with recurrent
-\citep{du2016recurrent,Mei2017TheProcess} or attention-based \citep{zhang2020self}
-history encoders.
+bias-prone) dominating-rate estimates.
 
 \paragraph{The \sppp{} backbone.}
 \sppp{} \citep{chang2025ctssm,Shi2022StateSimulation} is a state-space point
@@ -51,20 +46,18 @@ and mark heads). \ssppp{} keeps everything up to and including $h_t$ and changes
 only the two heads.
 
 \paragraph{Evaluation axes.}
-We score \emph{prediction} per genuine test event --- the time/mark NLL split, type
-accuracy and perplexity, expected-time MAE, and the time-rescaling diagnostics
-above --- and \emph{simulation} by calibrated closed-loop roll-outs
-($32\times600$\,s) bucketed into 1\,s bins, compared to equal-duration bootstrap
-samples of real data on event rate, Fano factor across scales, volatility
-clustering ($|r|$-ACF), and return autocorrelation
-\citep{cont2001empirical,vyetrenko2020getreal}.
+We score \emph{prediction} per genuine test event (NLL splits, type accuracy,
+expected-time MAE, time-rescaling diagnostics) and \emph{simulation} by
+calibrated closed-loop roll-outs scored on stylized facts of real order flow
+\citep{cont2001empirical,vyetrenko2020getreal}; the protocol is detailed in
+Section~\ref{sec:experiments}.
 
 \paragraph{Neural TPPs for event streams.}
 Neural MTPPs learn history-dependent intensities with recurrent
 \citep{du2016recurrent,Mei2017TheProcess}, attention-based
 \citep{zhang2020self,zuo2020thp}, jump-diffusion \citep{zhang2024njdtpp}, and
-continuous-time state-space \citep{chang2025ctssm} encoders; see
-\citet{Shchur2021NeuralReview} for a survey. \citet{Shi2022StateSimulation}
+continuous-time state-space \citep{chang2025ctssm} encoders
+\citep[survey:][]{Shchur2021NeuralReview}. \citet{Shi2022StateSimulation}
 specialize neural Hawkes models to LOB event streams and evaluate both prediction
 and simulation. Notably, the state-space line is evaluated almost exclusively
 teacher-forced: \citet{chang2025ctssm} report state-of-the-art held-out likelihood
@@ -72,18 +65,19 @@ but never roll the model out (they avoid thinning altogether) --- closed-loop
 simulation is an unaddressed gap of the \sppp{} paper, and our experiments show it
 is not benign: the unbounded head is frequently \emph{uncalibratable} in free
 roll-out (Table~\ref{tab:caloutcomes}). Our contribution is
-orthogonal to the encoder line --- we keep the state-space backbone verbatim and
-change what is read \emph{out} of it, showing that the heads, not the backbone, own
-closed-loop stability and calibratability.
+orthogonal: we keep the backbone verbatim and change only what is read
+\emph{out} of it.
 
 \paragraph{Hawkes modeling of order flow.}
 Parametric Hawkes processes are the classical LOB event model
 \citep{Hawkes1971,Hawkes2018HawkesReview,Jain2024LimitProcess,jain2024review}, with
 state-dependent extensions \citep{Morariu-Patrichi2022State-dependentModelling}.
-Their linear structure gives exact stationarity and branching-ratio certificates but
-limited expressiveness. \ssppp{} takes the complementary route: full neural
-expressiveness with stability restored by a closed-form intensity bound rather than
-by linearity.
+Their linear structure gives exact stationarity certificates but limited
+expressiveness; \ssppp{} takes the complementary route --- full neural
+expressiveness with stability restored by a closed-form bound. In the neural
+TPP literature such bounds appear mainly as computational devices for
+thinning; here the bound is a modeling decision with an asymmetric requirement
+(hard ceiling, exactly-zero floor), validated by our calibration study.
 
 \paragraph{Generative LOB simulators.}
 Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
@@ -91,24 +85,11 @@ coletta2022worldagent}, token-level autoregressive state-space models
 \citep{nagy2023lobs5}, diffusion-guided agents \citep{huang2026diga}, and
 foundation-model-scale transformers \citep{mars2025,sood2026tradefm}; agent-based
 simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL workhorse. These
-systems are scored on distributional realism --- stylized facts
-\citep{cont2001empirical,vyetrenko2020getreal} and, increasingly, the KS/Wasserstein
-suites of LOB-Bench \citep{nagy2025lobbench}. Two properties separate \ssppp{} from
-this line: a single likelihood-based model is held to \emph{both} axes (per-event
-predictive NLL and closed-loop realism), and the simulated rate is not merely
-measured but \emph{calibrated and verified}, with failures reported as first-class
-results. None of the generative simulators above carries a closed-loop stability
-certificate; TradeFM's inter-arrival marginal is its weakest statistic
-\citep{sood2026tradefm}, and LOB-Bench's authors observe error accumulation over long
-autoregressive roll-outs \citep{nagy2025lobbench} --- precisely the regime our
-bounded head and rate verification target.
+systems are scored on distributional realism: stylized facts
+\citep{cont2001empirical,vyetrenko2020getreal} and the KS/Wasserstein suites of
+LOB-Bench \citep{nagy2025lobbench}, whose authors report error accumulation over
+long roll-outs. \ssppp{} differs on two counts: one likelihood-based model is
+held to \emph{both} prediction and closed-loop realism, and the simulated rate
+is calibrated and \emph{verified} --- a closed-loop stability certificate no
+generative simulator above carries.
 
-\paragraph{Bounded intensities.}
-Bounding or normalizing intensities appears in the TPP literature mainly as a
-computational device (dominating rates for thinning). Here the bound is a modeling
-decision with an asymmetry requirement --- a hard ceiling for closed-loop stability,
-an exactly-zero floor for quiet-regime likelihood --- and the softmin cap realizes
-precisely this pair. Our cross-asset calibration study makes the case empirical:
-unbounded softplus heads become progressively uncalibratable as the event rate
-grows, while the bounded head admits a verified constant-rate rescaling almost
-everywhere.

@@ -37,20 +37,13 @@ closed loop, while simple stable models simulate safely but predict poorly.
 We keep the stacked
 latent-linear-Hawkes state-space backbone verbatim --- its diagonal
 zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
-output $h_t$ --- and replace only what comes after $h_t$:
-\begin{itemize}
-\item a \textbf{softmin-bounded rate head}: a gated bounded state
-  $g=\sigma(W_o h_t)\odot\tanh(h_t)$ is read out through a smooth one-sided cap
-  $z = z_{\max}-\mathrm{softplus}(z_{\max}-w^{\!\top}g-b)$, so
-  $\lambda = \varsigma\cdot\mathrm{softplus}(z) \le \varsigma\cdot\mathrm{softplus}(z_{\max})$ is a
-  \emph{hard closed-form ceiling} --- an exact dominating rate for Ogata thinning ---
-  while $z\to z_{\text{raw}}$ as $z_{\text{raw}}\to-\infty$, so the floor is exactly
-  zero and log-intensity keeps unit gradient in the quiet regime;
-\item a \textbf{rate-neutral mark head}: $p(e\mid t)=\mathrm{softmax}(\mathrm{MLP}(h_t))_e$
-  lives on the probability simplex, so $\sum_e \lambda_e = \lambda$ holds regardless
-  of how nonlinear the mark network is --- expressiveness goes where it cannot
-  destabilize the rate.
-\end{itemize}
+output $h_t$ --- and replace only what comes after $h_t$: a
+\textbf{softmin-bounded rate head}, whose intensity has a hard closed-form
+ceiling (an exact dominating rate for Ogata thinning) and an exactly-zero
+floor with unit log-intensity gradient in quiet periods; and a
+\textbf{rate-neutral mark head}, a soft-max over event types that cannot
+change the total rate no matter how deep its network is
+(Section~\ref{sec:method}).
 
 Because the backbone is identical, differences against the unbounded parent
 (\sppp) are attributable to the heads. Our contributions:
@@ -63,17 +56,16 @@ Because the backbone is identical, differences against the unbounded parent
   with $O(1)$-per-event carried state.
 \item \textbf{Calibratability as a measurable model property.} Every model is
   rate-calibrated by a mark-preserving bisection with \emph{full-scale
-  verification}, and the outcome is reported as a result: the unbounded head
-  fails verified calibration on 7/9 checkpoints with a critical-point
-  signature --- including all three seeds on SOL, leaving no usable simulator
-  --- while the bounded head verifies on all nine. To our knowledge this is the first cross-asset
-  quantification of closed-loop calibratability for neural TPPs.
-\item \textbf{Exact post-hoc rate calibration} for factorized heads: the rate is
-  linear in a learnable scale, the thinning ceiling scales with it, and the mark
-  distribution is untouched. Calibration is therefore a one-dimensional
-  root-finding step that keeps the stability guarantee intact --- and it also
-  \emph{improves} every structure metric, because it corrects the simulated
-  clock rate.
+  verification}: the unbounded head fails on 7/9 checkpoints with a
+  critical-point signature --- including all three seeds on SOL, leaving no
+  usable simulator --- while the bounded head verifies on all nine. To our
+  knowledge this is the first cross-asset quantification of closed-loop
+  calibratability for neural TPPs.
+\item \textbf{Exact post-hoc rate calibration} for factorized heads: the rate
+  is linear in a learnable scale, the ceiling scales with it, and the mark
+  distribution is untouched --- a one-dimensional root-find that keeps the
+  guarantee intact and \emph{improves} every structure metric by correcting
+  the simulated clock rate.
 \end{enumerate}
 All tables and figures in this paper are generated end-to-end by released
 collection and plotting scripts.
