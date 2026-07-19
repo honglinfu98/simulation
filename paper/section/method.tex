@@ -27,7 +27,7 @@ activity and order flow dynamics.
 \caption{Pipeline. (1)~\emph{Data collector}: synchronized trade records and
 Level-2 order book updates. (2)~\emph{Event constructor}: consecutive book
 snapshots are differenced and aligned with trades to emit atomic typed events
-(Section~\ref{subsec:event-construction}). (3)~\emph{Model training}: the
+(the Event Constructor subsection). (3)~\emph{Model training}: the
 event-set sequence drives the state-space backbone (LLH layers) whose
 continuous-time hidden representation $h_t$ decodes the bounded total rate
 $\lambda(t)$ and the rate-neutral mark distribution $p(e\mid t)$, giving

@@ -5,8 +5,8 @@
 \label{sec:setup}
 We benchmark on Coinbase BTC, ETH, and SOL event-driven order flow, seven days
 per asset (validation-split rates $38.3$, $47.9$, and $24.0$ events/s), encoded
-by the TFOW event constructor \citep{fu2026tfow} of
-Section~\ref{subsec:event-construction}: $|\mathcal{E}|=62$ atomic types
+by the TFOW event constructor \citep{fu2026tfow} of the Methods section:
+$|\mathcal{E}|=62$ atomic types
 ($20+20+2+20$ over LO/CO/MO/IS, sides, and levels). Six models --- \nhp{} (the Mei--Eisner CT-LSTM), an LSTM decoder and
 a SAHP-style causal-attention decoder \citep{zhang2020self} (both \emph{adapted
 generic backbones} over our shared input embedding, not paper-faithful
