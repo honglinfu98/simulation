@@ -190,7 +190,6 @@ def fig_forest(D):
                 ax.errorbar(m, slots[(coin, mdl)], xerr=(c if c == c else None),
                             fmt=st["marker"], color=st["color"], ms=3.0,
                             capsize=1.2, elinewidth=0.7)
-        ax.axvline(1.0, color="k", lw=0.5, ls=":", alpha=0.6)
         ax.set_title(ttl, fontsize=7)
         ax.grid(alpha=0.25, axis="x", lw=0.3)
         ax.set_xlim(left=0)
