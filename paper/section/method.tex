@@ -76,8 +76,11 @@ book and trade data into atomic order events, enabling a consistent foundation f
 downstream temporal modeling. 
 
 \subsection{Softmin-bounded rate head}
-From the LayerNorm'd (hence bounded-scale) $h_t$, a gate produces a
-two-sided-bounded state $g$, which is read out through a smooth one-sided cap:
+Closed-loop simulation fails through a feedback loop: each sampled event raises
+the intensity, a higher intensity produces events faster, and with an unbounded
+head the roll-out drifts hot or explodes. The rate head is built to break this
+loop. From the LayerNorm'd $h_t$, a gate produces a bounded state $g$, which is
+read out through a smooth one-sided cap:
 \begin{align}
 o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
 g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
@@ -86,28 +89,41 @@ z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
 \lambda(t) &= \varsigma\cdot\mathrm{softplus}(z),
 \label{eq:softmin}
 \end{align}
-with a learnable positive scale $\varsigma$ initialized so the baseline rate matches a target
-rate ($g\!\to\!0 \Rightarrow \lambda \approx \varsigma\ln 2$).
-
-Two properties follow immediately from Eq.~\eqref{eq:softmin}:
+with a learnable positive scale $\varsigma$ initialized so the baseline rate
+matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
+\varsigma\ln 2$). Three design choices in Eq.~\eqref{eq:softmin} keep the
+roll-out stable:
 \begin{itemize}
-\item \textbf{Hard ceiling (simulation stability).} $z\le z_{\max}$ always, hence
-  $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ in closed form. This is an \emph{exact}
-  dominating rate for Ogata thinning --- the roll-out cannot run away, whatever state
-  the closed loop visits.
-\item \textbf{Open floor (prediction honesty).} As $z_{\mathrm{raw}}\to-\infty$,
-  $z\to z_{\mathrm{raw}}$, so $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and
-  $\log\lambda$ keeps unit gradient in the quiet regime. The floor is exactly zero.
+\item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$, not the raw
+  latent state. However far the closed loop drives $h_t$ --- including states
+  training never visited --- the vector feeding the rate stays in a bounded
+  box; an extreme state can change the direction of $g$ but not its magnitude.
+\item \textbf{Hard ceiling.} Since $\mathrm{softplus}(x)>0$ for every $x$,
+  $z\le z_{\max}$ holds identically, so
+  $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ for every
+  state and every parameter setting. The worst the roll-out can ever do is
+  behave like a homogeneous Poisson process at the ceiling --- busy, but
+  finite. No training outcome can remove this property, and the ceiling
+  doubles as an \emph{exact} dominating rate for Ogata thinning.
+\item \textbf{Vanishing gain.} Differentiating the cap gives
+  $\partial z/\partial z_{\mathrm{raw}} = \sigma(z_{\max}-z_{\mathrm{raw}})$,
+  which decays exponentially as the rate approaches the ceiling. As a burst
+  pushes the intensity up, the head becomes \emph{less} sensitive to further
+  state excursions --- the feedback loop loses gain exactly when it is most
+  dangerous. The ceiling alone prevents explosion; the vanishing gain is what
+  makes the closed-loop rate respond smoothly to rescaling, and hence makes
+  the model calibratable (see Experiments).
 \end{itemize}
-This asymmetry is deliberate. An earlier version of the head bounded $z$ on
-\emph{both} sides (an $\ell_1$-capped readout of the gated state), giving
-$\lambda\in(\ell_-,\ell_+)$ with a nonzero floor $\ell_-$. The ceiling
-$\ell_+$ buys stability, but the nonzero floor hurts prediction in quiet
-periods: in a quiet gap of length $\Delta t$ the compensator pays an irreducible
+The cap is deliberately one-sided. As $z_{\mathrm{raw}}\to-\infty$,
+$z\to z_{\mathrm{raw}}$, so $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$:
+the floor is exactly zero and $\log\lambda$ keeps unit gradient in quiet
+periods. A two-sided cap (an earlier version of this head) also bounds the rate
+from below, and the nonzero floor $\ell_-$ hurts prediction in quiet periods:
+in a quiet gap of length $\Delta t$ the compensator pays an irreducible
 log-likelihood penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$ that no
-parameter setting can recover. The requirement is asymmetric --- ceiling for simulation, zero floor for
-prediction --- and the softmin cap builds exactly that asymmetry into the
-nonlinearity.
+parameter setting can recover. The requirement is asymmetric --- a ceiling for
+simulation, a zero floor for prediction --- and the softmin cap builds exactly
+this asymmetry into the nonlinearity.
 
 \subsection{Rate-neutral mark head}
 Marks are decoded from the same $h_t$ but never change the total rate:
