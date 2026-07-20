@@ -93,8 +93,8 @@ z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
 \end{align}
 with a learnable positive scale $\varsigma$ initialized so the baseline rate
 matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
-\varsigma\ln 2$). Three design choices in Eq.~\eqref{eq:softmin} keep the
-roll-out stable:
+\varsigma\ln 2$). Eq.~\eqref{eq:softmin} makes four deliberate design
+choices:
 \begin{itemize}
 \item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$, not the raw
   latent state: however far the closed loop drives $h_t$ --- including states
@@ -114,16 +114,18 @@ roll-out stable:
   feedback loop loses gain exactly when it is most dangerous. This is what
   makes the closed-loop rate respond smoothly to rescaling --- and hence what
   makes the model calibratable (see Experiments).
+\item \textbf{Open floor.} The cap is one-sided: as
+  $z_{\mathrm{raw}}\to-\infty$, $z\to z_{\mathrm{raw}}$, so
+  $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and $\log\lambda$
+  keeps unit gradient however quiet the market gets. An earlier two-sided
+  version of this head also bounded the rate from below; its nonzero floor
+  $\ell_-$ made every quiet gap of length $\Delta t$ pay an irreducible
+  log-likelihood penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$
+  (with $\lambda^{\mathrm{true}}$ the true rate) that no parameter setting
+  can recover.
 \end{itemize}
-The cap is deliberately one-sided: a ceiling for simulation, no floor for
-prediction. As $z_{\mathrm{raw}}\to-\infty$, $z\to z_{\mathrm{raw}}$, so
-$\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and $\log\lambda$
-keeps unit gradient however quiet the market gets. An earlier two-sided version
-of this head also bounded the rate from below, and its nonzero floor $\ell_-$
-made every quiet gap of length $\Delta t$ pay an irreducible log-likelihood
-penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$, where
-$\lambda^{\mathrm{true}}$ is the true rate, that no parameter setting can
-recover.
+The first three choices own simulation stability and calibratability; the
+fourth ensures the bound costs nothing in prediction when the market is quiet.
 
 \subsection{Rate-neutral mark head}
 Marks are decoded from the same $h_t$ but never change the total rate:
