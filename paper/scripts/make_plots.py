@@ -133,12 +133,42 @@ def sf_checkpoint_vals(ds, mdl, key):
 
 
 def fig_forest(D):
+    """All ten stylized facts x three assets: relative error vs real
+    (per-rollout matched bootstrap real; rollouts averaged per checkpoint;
+    95% t-CI across checkpoints). Reads data/sf_facts_<coin>.json."""
     coins = ["btc", "eth", "sol"]
     coin_lbl = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
     models = ["nhp", "lstm", "pct-lstm", "ss2p2-full"]
-    keys = [("rate_re", "rate rel-err"), ("fano", "Fano rel-err"),
-            ("clus", "clustering rel-err")]
-    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.6), sharey=True)
+    FACTS = [
+        ("f1_mean_abs_acf_1_10", "F1 |ACF r|"),
+        ("f2_excess_kurtosis", "F2a kurtosis"),
+        ("f2_hill_index", "F2b Hill index"),
+        ("f3_skewness", "F3 skewness"),
+        ("f6_mean_acf_abs_1_10", "F6 ACF |r|"),
+        ("f7_rescaled_kurtosis", "F7 agg. kurtosis"),
+        ("f8_powerlaw_exponent", "F8 decay exp."),
+        ("f9_mean_leverage_1_10", "F9 leverage"),
+        ("f10_volume_volatility_corr", "F10 act.-vol corr"),
+        ("f11_timescale_asymmetry", "F11 asymmetry"),
+    ]
+    F = {c: json.load(open(os.path.join(DATA, f"sf_facts_{c}.json")))
+         for c in coins}
+
+    def rel_errs(coin, mdl, key):
+        out = []
+        for sd in [1, 2, 3]:
+            arm = F[coin].get(f"{mdl}-s{sd}", {})
+            vals = []
+            for r in arm.values():
+                mv, rv = r["model"].get(key), r["real"].get(key)
+                if mv is None or rv is None or mv != mv or rv != rv:
+                    continue
+                vals.append(abs(mv - rv) / max(abs(rv), 1e-9))
+            if vals:
+                out.append(sum(vals) / len(vals))
+        return out
+
+    fig, axes = plt.subplots(2, 5, figsize=(7.0, 4.6), sharey=True)
     ylabels, ypos = [], []
     y = 0
     slots = {}
@@ -149,28 +179,33 @@ def fig_forest(D):
             ypos.append(y)
             y += 1
         y += 0.8
-    for ax, (key, ttl) in zip(axes, keys):
+    for ax, (key, ttl) in zip(axes.flat, FACTS):
         for coin in coins:
             for mdl in models:
-                vals = sf_checkpoint_vals(D[coin], mdl, key)
+                vals = rel_errs(coin, mdl, key)
                 if not vals:
                     continue
                 m, c = mean_ci(vals)
-                yy = slots[(coin, mdl)]
                 st = STYLE[mdl]
-                ax.errorbar(m, yy, xerr=(c if c == c else None),
-                            fmt=st["marker"], color=st["color"], ms=3.5,
-                            capsize=1.5, elinewidth=0.8)
-        ax.set_title(ttl)
+                ax.errorbar(m, slots[(coin, mdl)], xerr=(c if c == c else None),
+                            fmt=st["marker"], color=st["color"], ms=3.0,
+                            capsize=1.2, elinewidth=0.7)
+        ax.axvline(1.0, color="k", lw=0.5, ls=":", alpha=0.6)
+        ax.set_title(ttl, fontsize=7)
         ax.set_xscale("log")
-        ax.grid(alpha=0.25, axis="x", which="both", lw=0.4)
+        from matplotlib.ticker import NullFormatter
+        ax.xaxis.set_minor_formatter(NullFormatter())
+        ax.grid(alpha=0.25, axis="x", which="both", lw=0.3)
+        ax.tick_params(labelsize=6)
         ax.invert_yaxis()
-    axes[0].set_yticks(ypos)
-    axes[0].set_yticklabels(ylabels)
-    for coin in coins:
-        y0 = slots[(coin, models[0])]
-        axes[0].text(-0.42, y0 - 0.55, coin_lbl[coin], transform=axes[0].get_yaxis_transform(),
-                     fontsize=7, fontweight="bold", va="center")
+    for row in range(2):
+        axes[row, 0].set_yticks(ypos)
+        axes[row, 0].set_yticklabels(ylabels, fontsize=5.5)
+        for coin in coins:
+            y0 = slots[(coin, models[0])]
+            axes[row, 0].text(-0.55, y0 - 0.55, coin_lbl[coin],
+                              transform=axes[row, 0].get_yaxis_transform(),
+                              fontsize=6.5, fontweight="bold", va="center")
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_forest.pdf"))
     plt.close(fig)
