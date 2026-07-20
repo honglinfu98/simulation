@@ -1,38 +1,27 @@
 \section{Methods}
 \label{sec:method}
 
-\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
-mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
-\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
-hidden representation $h_t$:
-\[
-\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
-\qquad
-\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
-\]
-the second identity holding because $\sum_{e} p(e\mid t)=1$.
-The design principle is to put nonlinearity where it cannot perturb the rate.
-
 
 
 
 
 \subsection{Event constructor}
 \label{subsec:event-construction}
-\input{exhibits/event_construction}
-
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.98\columnwidth]{figs/pipeline}
 \caption{Pipeline. (1)~\emph{Data collector}: synchronized trade records and
 Level-2 order book updates. (2)~\emph{Event constructor}: consecutive book
 snapshots are differenced and aligned with trades to emit atomic typed events. (3)~\emph{Model training}: the
-event-set sequence drives the state-space backbone (LLH layers) whose
+event sequence drives the state-space backbone (LLH layers) whose
 continuous-time hidden representation $h_t$ decodes the bounded total rate
 $\lambda(t)$ and the rate-neutral mark distribution $p(e\mid t)$, giving
 per-type intensities $\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
 \label{fig:pipeline}
 \end{figure}
+\input{exhibits/event_construction} 
+
+
 
 To apply point process modeling to high-frequency limit order book (LOB) data, we
 represent market dynamics as a sequence of \textbf{event sets}
@@ -75,8 +64,24 @@ the existing book depth. This rule set ensures exhaustive mapping from raw order
 book and trade data into atomic order events, enabling a consistent foundation for
 downstream temporal modeling. 
 
+
+\subsection{Stable State-Space Point Process}
+\ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
+mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
+\citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
+hidden representation $h_t$:
+\[
+\lambda_e(t)\;=\;\lambda(t)\cdot p(e\mid t),
+\qquad
+\sum\nolimits_{e\in\mathcal{E}} \lambda_e(t)=\lambda(t),
+\]
+the second identity holding because $\sum_{e} p(e\mid t)=1$.
+The design principle is to put nonlinearity where it cannot perturb the rate.
+
+
+
 \subsection{Softmin-bounded rate head}
-Closed-loop simulation fails through a feedback loop: each sampled event raises
+For s2p2, the closed-loop simulation fails through a feedback loop: each sampled event raises
 the intensity, a higher intensity produces events faster, and with an unbounded
 head the roll-out drifts hot or explodes. The rate head is built to break this
 loop. From the backbone's continuous-time hidden representation $h_t$
@@ -88,12 +93,11 @@ o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
 g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
 z_{\mathrm{raw}} &= w^{\!\top}g+b \ \ (\text{unconstrained}),\notag\\
 z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
-\lambda(t) &= \varsigma\cdot\mathrm{softplus}(z),
-\label{eq:softmin}
+\lambda(t) &= \varsigma\cdot\mathrm{softplus}(z)
 \end{align}
 with a learnable positive scale $\varsigma$ initialized so the baseline rate
 matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
-\varsigma\ln 2$). Eq.~\eqref{eq:softmin} makes four deliberate design
+\varsigma\ln 2$). Above makes four deliberate design
 choices:
 \begin{itemize}
 \item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$, not the raw
@@ -113,16 +117,11 @@ choices:
   exponentially \emph{less} sensitive to further state excursions, so the
   feedback loop loses gain exactly when it is most dangerous. This is what
   makes the closed-loop rate respond smoothly to rescaling --- and hence what
-  makes the model calibratable (see Experiments).
+  makes the model calibratable.
 \item \textbf{Open floor.} The cap is one-sided: as
   $z_{\mathrm{raw}}\to-\infty$, $z\to z_{\mathrm{raw}}$, so
   $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and $\log\lambda$
-  keeps unit gradient however quiet the market gets. An earlier two-sided
-  version of this head also bounded the rate from below; its nonzero floor
-  $\ell_-$ made every quiet gap of length $\Delta t$ pay an irreducible
-  log-likelihood penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$
-  (with $\lambda^{\mathrm{true}}$ the true rate) that no parameter setting
-  can recover.
+  keeps unit gradient however quiet the market gets. 
 \end{itemize}
 The first three choices own simulation stability and calibratability; the
 fourth ensures the bound costs nothing in prediction when the market is quiet.
