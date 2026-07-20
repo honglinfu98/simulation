@@ -79,8 +79,10 @@ downstream temporal modeling.
 Closed-loop simulation fails through a feedback loop: each sampled event raises
 the intensity, a higher intensity produces events faster, and with an unbounded
 head the roll-out drifts hot or explodes. The rate head is built to break this
-loop. From the LayerNorm'd $h_t$, a gate produces a bounded state $g$, which is
-read out through a smooth one-sided cap:
+loop. From the backbone's continuous-time hidden representation $h_t$
+(LayerNorm'd, hence bounded in scale), a gate produces a bounded state $g$,
+which is read out through a smooth one-sided cap with fixed constant
+$z_{\max}$:
 \begin{align}
 o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
 g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
@@ -95,35 +97,33 @@ matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
 roll-out stable:
 \begin{itemize}
 \item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$, not the raw
-  latent state. However far the closed loop drives $h_t$ --- including states
-  training never visited --- the vector feeding the rate stays in a bounded
-  box; an extreme state can change the direction of $g$ but not its magnitude.
+  latent state: however far the closed loop drives $h_t$ --- including states
+  training never visited --- an extreme state can change the direction of $g$
+  but not its magnitude.
 \item \textbf{Hard ceiling.} Since $\mathrm{softplus}(x)>0$ for every $x$,
   $z\le z_{\max}$ holds identically, so
-  $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ for every
-  state and every parameter setting. The worst the roll-out can ever do is
-  behave like a homogeneous Poisson process at the ceiling --- busy, but
-  finite. No training outcome can remove this property, and the ceiling
-  doubles as an \emph{exact} dominating rate for Ogata thinning.
+  $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ for every state
+  and every parameter setting --- no training outcome can remove the bound.
+  The worst the roll-out can ever do is behave like a homogeneous Poisson
+  process at the ceiling, and the ceiling doubles as an \emph{exact}
+  dominating rate for Ogata thinning.
 \item \textbf{Vanishing gain.} Differentiating the cap gives
-  $\partial z/\partial z_{\mathrm{raw}} = \sigma(z_{\max}-z_{\mathrm{raw}})$,
-  which decays exponentially as the rate approaches the ceiling. As a burst
-  pushes the intensity up, the head becomes \emph{less} sensitive to further
-  state excursions --- the feedback loop loses gain exactly when it is most
-  dangerous. The ceiling alone prevents explosion; the vanishing gain is what
-  makes the closed-loop rate respond smoothly to rescaling, and hence makes
-  the model calibratable (see Experiments).
+  $\partial z/\partial z_{\mathrm{raw}} = \sigma(z_{\max}-z_{\mathrm{raw}})$:
+  as a burst pushes the intensity toward the ceiling, the head becomes
+  exponentially \emph{less} sensitive to further state excursions, so the
+  feedback loop loses gain exactly when it is most dangerous. This is what
+  makes the closed-loop rate respond smoothly to rescaling --- and hence what
+  makes the model calibratable (see Experiments).
 \end{itemize}
-The cap is deliberately one-sided. As $z_{\mathrm{raw}}\to-\infty$,
-$z\to z_{\mathrm{raw}}$, so $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$:
-the floor is exactly zero and $\log\lambda$ keeps unit gradient in quiet
-periods. A two-sided cap (an earlier version of this head) also bounds the rate
-from below, and the nonzero floor $\ell_-$ hurts prediction in quiet periods:
-in a quiet gap of length $\Delta t$ the compensator pays an irreducible
-log-likelihood penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$ that no
-parameter setting can recover. The requirement is asymmetric --- a ceiling for
-simulation, a zero floor for prediction --- and the softmin cap builds exactly
-this asymmetry into the nonlinearity.
+The cap is deliberately one-sided: a ceiling for simulation, no floor for
+prediction. As $z_{\mathrm{raw}}\to-\infty$, $z\to z_{\mathrm{raw}}$, so
+$\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and $\log\lambda$
+keeps unit gradient however quiet the market gets. An earlier two-sided version
+of this head also bounded the rate from below, and its nonzero floor $\ell_-$
+made every quiet gap of length $\Delta t$ pay an irreducible log-likelihood
+penalty of $(\ell_--\lambda^{\mathrm{true}})\Delta t$, where
+$\lambda^{\mathrm{true}}$ is the true rate, that no parameter setting can
+recover.
 
 \subsection{Rate-neutral mark head}
 Marks are decoded from the same $h_t$ but never change the total rate:
