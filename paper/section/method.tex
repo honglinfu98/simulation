@@ -93,7 +93,7 @@ o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
 g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
 z_{\mathrm{raw}} &= w^{\!\top}g+b \ \ (\text{unconstrained}),\notag\\
 z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
-\lambda(t) &= \varsigma\cdot\mathrm{softplus}(z)
+\lambda(t) &= \varsigma\cdot\mathrm{softplus}(z)\notag
 \end{align}
 with a learnable positive scale $\varsigma$ initialized so the baseline rate
 matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
