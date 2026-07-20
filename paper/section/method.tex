@@ -24,7 +24,7 @@ per-type intensities $\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
 
 
 To apply point process modeling to high-frequency limit order book (LOB) data, we
-represent market dynamics as a sequence of \textbf{event sets}
+represent market dynamics as a sequence of \textbf{events}
 (pipeline overview in Figure~\ref{fig:pipeline}). We consider the top
 $K=10$ levels on each side (bid and ask).
 
@@ -65,7 +65,7 @@ book and trade data into atomic order events, enabling a consistent foundation f
 downstream temporal modeling. 
 
 
-\subsection{Stable State-Space Point Process}
+\subsection{Stable State-Space Point Process (SS2P2)}
 \ssppp{} factors the per-type intensity into a bounded total rate and a rate-neutral
 mark distribution --- the ground-intensity--mark factorization of set-valued MTPPs
 \citep{chang2024probabilistic} --- both decoded from the \emph{same} continuous-time
@@ -139,10 +139,29 @@ without touching $\lambda$. This decouples the two failure modes: rate stability
 owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 
 \subsection{Likelihood and sampling}
-Training maximizes the standard MTPP likelihood with the compensator evaluated on the
-training window; the mark term is a categorical cross-entropy on $p(e_i\mid t_i)$,
-decoupled from the rate term. Closed-loop sampling uses thinning with the exact
-dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$.
+Training minimizes the negative log-likelihood of each training window. For a
+window with events $(t_1,e_1),\dots,(t_N,e_N)$ and its next event
+$(t_{N+1},e_{N+1})$, the loss is
+\[
+\mathcal{L}
+= -\sum_{i=1}^{N+1}\log\lambda(t_i)
+\;+\;\int_{0}^{t_{N+1}}\!\lambda(u\mid\mathcal{H}_u)\,du
+\;-\;\sum_{i=1}^{N+1}\log p(e_i\mid t_i),
+\]
+where the first two terms score \emph{when} events happen (log-intensity at
+each observed event, minus the compensator that charges for intensity placed
+where no event occurred) and the last term is a categorical cross-entropy that
+scores \emph{what} each event is. By the factorization, the timing terms train
+only the bounded rate head and the mark term trains only the soft-max head.
+Each $\lambda(t_i)$ is evaluated at the left limit --- the state just before
+event $i$ --- so an event never informs its own intensity. The compensator
+integral is approximated by one intensity evaluation per inter-event interval
+(the endpoint rule); this under-weights a decaying intensity and biases the
+learned rate upward, which the post-hoc calibration below corrects.
+Closed-loop sampling uses Ogata thinning with the exact dominating rate
+$\varsigma\cdot\mathrm{softplus}(z_{\max})$: propose arrivals from a
+homogeneous Poisson process at the ceiling and accept each with probability
+$\lambda(t)/\bigl(\varsigma\,\mathrm{softplus}(z_{\max})\bigr)$.
 
 \subsection{Carried-state simulation}
 The standard roll-out protocol re-encodes a sliding window of the last $W$ events
