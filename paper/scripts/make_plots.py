@@ -85,26 +85,30 @@ def fig_hazard(hz):
 
 
 def fig_fano(D):
-    ds = D["btc"]
-    fig, ax = plt.subplots(figsize=(3.3, 2.3))
-    reals, per_model = [], {}
-    for mdl in ["nhp", "pct-lstm", "ss2p2-full"]:
-        curves = []
-        for s in [1, 2, 3]:
-            for v in ds.get(f"{mdl}-s{s}", {}).get("sf", {}).values():
-                curves.append(v["fano_model"])
-                reals.append(v["fano_real"])
-        if curves:
-            per_model[mdl] = np.mean(np.array(curves), axis=0)
-    ax.plot(SCALES, np.mean(np.array(reals), axis=0), color="k", ls="--",
-            marker="x", ms=4, label="real (Coinbase BTC)")
-    for mdl, curve in per_model.items():
-        ax.plot(SCALES, curve, ms=3.5, **STYLE[mdl])
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_xlabel("bucket scale (s)")
-    ax.set_ylabel("Fano factor of event counts")
-    ax.legend(frameon=False, loc="upper left")
-    ax.grid(alpha=0.25, which="both", lw=0.4)
+    coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
+    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.3), sharey=True)
+    for ax, (coin, ttl) in zip(axes, coins):
+        ds = D[coin]
+        reals, per_model = [], {}
+        for mdl in ["nhp", "pct-lstm", "ss2p2-full"]:
+            curves = []
+            for s_ in [1, 2, 3]:
+                for v in ds.get(f"{mdl}-s{s_}", {}).get("sf", {}).values():
+                    curves.append(v["fano_model"])
+                    reals.append(v["fano_real"])
+            if curves:
+                per_model[mdl] = np.mean(np.array(curves), axis=0)
+        ax.plot(SCALES, np.mean(np.array(reals), axis=0), color="k", ls="--",
+                marker="x", ms=4, label="real")
+        for mdl, curve in per_model.items():
+            ax.plot(SCALES, curve, ms=3.5, **STYLE[mdl])
+        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_title(ttl, fontsize=8)
+        ax.set_xlabel("bucket scale (s)")
+        ax.grid(alpha=0.25, which="both", lw=0.4)
+        ax.tick_params(labelsize=7)
+    axes[0].set_ylabel("Fano factor of event counts")
+    axes[0].legend(frameon=False, loc="upper left", fontsize=6.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_fano_scale.pdf"))
     plt.close(fig)
