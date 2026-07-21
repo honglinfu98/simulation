@@ -1,6 +1,20 @@
 \section{Methods}
 \label{sec:method}
 
+\subsection{Data collector}
+\label{subsec:data-collector}
+We obtain both trade and Level-2 limit order book data from Kaiko
+\citep{Kaiko2025TheKaiko}, an institutional provider of digital-asset market
+data, and operate the data collector in partnership with Cloudburst
+Technologies \citep{Cloudburst2025CloudburstTechnologies}, a firm
+specializing in detecting and mitigating market manipulation. Each update record contains a precise
+timestamp, the update type (snapshot or liquidity update), and the
+corresponding price--volume information for bid and ask levels.
+Complementary trade data are retrieved via Kaiko's API and temporally
+aligned with the order book stream. This synchronization of trades and book
+updates, in both time and volume, is what the event constructor below relies
+on to classify every observed book change unambiguously.
+
 
 
 

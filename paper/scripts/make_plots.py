@@ -61,23 +61,30 @@ def mean_ci(xs):
     return m, T975.get(n, 1.96) * sd / math.sqrt(n)
 
 
-def fig_hazard(hz):
-    fig, ax = plt.subplots(figsize=(3.3, 2.3))
-    g = np.array(hz["grid"])
-    emp = np.array([x if x is not None else np.nan
-                    for x in hz["empirical_hazard"]], dtype=float)
-    mid = np.sqrt(g[:-1] * g[1:])
-    ax.plot(mid, emp[:-1], color="k", ls="--", marker="x", ms=4,
-            label=f"empirical hazard (n={hz['n_gaps']})")
-    for tag in hz["models"]:
-        st = STYLE["-".join(tag.split("-")[:-1])]
-        prof = np.array(hz["models"][tag]["profile"])
-        ax.plot(g[:-1], prof[:-1], ms=4.5, **st)
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_xlabel("gap age $\\delta$ (s)")
-    ax.set_ylabel("intensity / hazard (ev/s)")
-    ax.legend(frameon=False, loc="lower left")
-    ax.grid(alpha=0.25, which="both", lw=0.4)
+def fig_hazard(hz_by_coin):
+    """hz_by_coin: {"BTC": hz_dict, ...} -- one panel per asset when multiple."""
+    coins = list(hz_by_coin.items())
+    n = len(coins)
+    fig, axes = plt.subplots(1, n, figsize=(7.0 if n > 1 else 3.4, 2.5),
+                             sharey=False, squeeze=False)
+    for ax, (ttl, hz) in zip(axes[0], coins):
+        g = np.array(hz["grid"])
+        emp = np.array([x if x is not None else np.nan
+                        for x in hz["empirical_hazard"]], dtype=float)
+        mid = np.sqrt(g[:-1] * g[1:])
+        ax.plot(mid, emp[:-1], color="k", ls="--", marker="x", ms=4,
+                label="empirical hazard")
+        for tag in hz["models"]:
+            st = STYLE["-".join(tag.split("-")[:-1])]
+            prof = np.array(hz["models"][tag]["profile"])
+            ax.plot(g[:-1], prof[:-1], ms=3.5, **st)
+        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_title(ttl, fontsize=10)
+        ax.set_xlabel("gap age $\\delta$ (s)")
+        ax.grid(alpha=0.25, which="both", lw=0.4)
+        ax.tick_params(labelsize=8)
+    axes[0][0].set_ylabel("intensity / hazard (ev/s)")
+    axes[0][0].legend(frameon=False, fontsize=7.5, loc="lower left")
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_hazard_profile.pdf"))
     plt.close(fig)
@@ -253,9 +260,16 @@ def main():
     fig_fano(D)
     fig_forest(D)
     fig_ladder(D)
+    hz_multi = {}
+    for c, ttl in [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]:
+        pth = os.path.join(DATA, f"hazard_{c}.json")
+        if os.path.exists(pth):
+            hz_multi[ttl] = json.load(open(pth))
     hz_path = os.path.join(DATA, "hazard_profiles.json")
-    if os.path.exists(hz_path):
-        fig_hazard(json.load(open(hz_path)))
+    if hz_multi:
+        fig_hazard(hz_multi)
+    elif os.path.exists(hz_path):
+        fig_hazard({"BTC": json.load(open(hz_path))})
     else:
         print("SKIP fig_hazard_profile (no hazard_profiles.json yet)")
 
