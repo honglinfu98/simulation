@@ -1,11 +1,10 @@
 \section{Experiments and Evaluations}
 \label{sec:experiments}
 
-In this section, we describe the experimental setup and evaluate \ssppp{}
-against five baselines on three questions: (1)~does the bounded head cost
-predictive accuracy? (2)~does \ssppp{} reproduce the structure of real order
-flow in closed-loop simulation? (3)~can each model be rate-calibrated at all?
-We close with an analysis of computational efficiency.
+We evaluate \ssppp{} against five baselines on three questions: (1)~does the
+bounded head cost predictive accuracy? (2)~does \ssppp{} reproduce the
+structure of real order flow in closed-loop simulation? (3)~can each model be
+rate-calibrated at all? We close with computational efficiency.
 
 \subsection{Experimental Setup}
 \label{sec:setup}
@@ -102,7 +101,7 @@ two subsections.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\columnwidth]{figs/fig_hazard_profile}
+\includegraphics[width=0.80\columnwidth]{figs/fig_hazard_profile}
 \caption{Mean model intensity at gap age $\delta$, among BTC test gaps that
 survive past $\delta$, vs.\ the empirical hazard of the real gap distribution
 (log-log; survivor counts shrink toward the right). \nhp{} tracks the falling
@@ -123,6 +122,16 @@ protocol; its free-running rate collapses to $6$--$10$\,ev/s against
 $24$--$48$ real.}
 \label{tab:multiassetsf}
 \end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.78\textwidth]{figs/fig_forest}
+\caption{All ten stylized facts across assets: relative error vs.\ real
+(whiskers = 95\% CI over checkpoints; roll-out seeds averaged within
+checkpoint). \sppp{} and SAHP omitted where no
+calibrated checkpoints exist.}
+\label{fig:forest}
+\end{figure*}
 
 \subsection{Simulation Quality}
 \label{sec:simulation}
@@ -147,7 +156,7 @@ $6.0$): rate calibration cannot repair a near-critical checkpoint's structure.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\columnwidth]{figs/fig_fano_scale}
+\includegraphics[width=0.80\columnwidth]{figs/fig_fano_scale}
 \caption{Fano factor of simulated event counts vs.\ bucket scale (Coinbase BTC;
 mean over calibrated checkpoints and roll-out seeds). Real order flow is
 super-Poissonian with Fano \emph{rising} in scale; all models under-disperse at
@@ -187,36 +196,24 @@ rate of a failing \sppp{} checkpoint is near-discontinuous in $\kappa$: a
 $10^{-3}$ change flips the realized rate across the entire tolerance band
 (e.g.\ $36\to48.5$\,ev/s), and seed-to-seed variance at fixed $\kappa$ reaches
 ${\sim}30\%$. This is the behaviour of a system parked near criticality, where
-no constant time-rescaling exists. The \ssppp{} response crosses the same target
-smoothly. (An earlier training run of one BTC seed produced a checkpoint
-whose single failure was qualitatively different: a per-lane diagnostic traced
-it to a \emph{metastable} burst-locked regime at ${\sim}2\times$ the target
-rate that individual roll-out lanes enter stochastically, bounded and benign
-next to \sppp's criticality; retraining escaped that basin.) This
-confirms the stability certificate empirically: the same unbounded softplus
-head whose intensity-collapse states produce \sppp's pathological
-expected-time tail (Table~\ref{tab:multiasset}) also places checkpoints near
-criticality in closed loop, and both problems disappear under the softmin
-bound.
+no constant time-rescaling exists. The \ssppp{} response crosses the same
+target smoothly. (An earlier run of one BTC seed produced a qualitatively
+different, single failure: a \emph{metastable} burst-locked regime at
+${\sim}2\times$ the target rate, bounded and benign next to \sppp's
+criticality; retraining escaped that basin.) This confirms the stability
+certificate empirically: the same unbounded softplus head whose
+intensity-collapse states produce \sppp's pathological expected-time tail
+(Table~\ref{tab:multiasset}) also places checkpoints near criticality in
+closed loop, and both problems disappear under the softmin bound.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=0.75\columnwidth]{figs/fig_cal_ladder}
 \caption{Calibration probe ladders on BTC (target band shaded): the failing
 \sppp{} checkpoint's closed-loop rate is near-discontinuous in the rescaling
 constant $\kappa$; the verified \ssppp{} checkpoint crosses the target smoothly.}
 \label{fig:ladder}
 \end{figure}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\textwidth]{figs/fig_forest}
-\caption{All ten stylized facts across assets: relative error vs.\ real
-(whiskers = 95\% CI over checkpoints; roll-out seeds averaged within
-checkpoint). \sppp{} and SAHP omitted where no
-calibrated checkpoints exist.}
-\label{fig:forest}
-\end{figure*}
 
 \subsection{Efficiency Analysis}
 \label{sec:efficiency}
@@ -224,18 +221,15 @@ The state-space backbone is also computationally advantageous once its
 per-event sequential loop is replaced by an exact associative prefix scan
 (Hillis--Steele over the ZOH recurrence; identical states and gradients to
 $2\!\times\!10^{-4}$). Table~\ref{tab:speed} reports wall-clock measurements
-on one GPU with the benchmark configuration and ETH checkpoints: one training
-step (fwd+bwd, batch $64\times1024$ events) and closed-loop simulation
-throughput (simulated events per wall-second, $8\times60$\,s carried-state
-roll-outs at native rates; SAHP re-encodes a sliding window). The scan
-collapses the \sppp-family training step from $3.5$\,s to ${\sim}0.06$\,s:
-attention-class speed, $60\times$ faster than the loop and $73\times$ faster
-than the CT-LSTM, which turns a multi-hour training run into minutes. For
-sampling, \ssppp's exact ceiling makes Ogata thinning available with a
-\emph{constant} dominating rate (no per-step bound estimation; mean acceptance
-$0.54$ on ETH): exactness costs ${\sim}2.5\times$ throughput against the
-approximate inversion sampler shared by all models, and both run far above
-real time ($353$ vs.\ $48$ events/s on the fastest asset).
+on one GPU (ETH checkpoints, benchmark configuration). The scan collapses the
+\sppp-family training step from $3.5$\,s to ${\sim}0.06$\,s: attention-class
+speed, $60\times$ faster than the loop and $73\times$ faster than the
+CT-LSTM, turning a multi-hour training run into minutes. For sampling,
+\ssppp's exact ceiling makes Ogata thinning available with a \emph{constant}
+dominating rate (no per-step bound estimation; mean acceptance $0.54$ on
+ETH): exactness costs ${\sim}2.5\times$ throughput against the approximate
+inversion sampler shared by all models, and both run far above real time
+($353$ vs.\ $48$ events/s on the fastest asset).
 
 \begin{table}[t]
 \centering
@@ -253,9 +247,9 @@ PCT-LSTM  & 0.79  & --           & 1919\\
 \ssppp{}  & 0.059 & $60\times$   & 879 / 353$^{\dag}$\\
 \bottomrule
 \end{tabular}
-\caption{Efficiency on one GPU (ETH checkpoints, benchmark configuration).
-Training: one fwd+bwd on $64\times1024$ events (scan for the \sppp{} family;
-speedup vs.\ their sequential loop). Simulation: events per wall-second,
-$8\times60$\,s roll-outs. $^{\dag}$inversion~/ exact-ceiling Ogata thinning.}
+\caption{Efficiency on one GPU. Training: one fwd+bwd on $64\times1024$
+events (scan for the \sppp{} family; speedup vs.\ their sequential loop).
+Simulation: events per wall-second, $8\times60$\,s roll-outs.
+$^{\dag}$inversion~/ exact-ceiling Ogata thinning.}
 \label{tab:speed}
 \end{table}

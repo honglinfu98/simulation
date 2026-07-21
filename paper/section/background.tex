@@ -2,28 +2,25 @@
 \label{sec:background}
 
 \paragraph{Marked temporal point processes.}
-An MTPP models a sequence $\mathcal{H}_T=\{(t_i,e_i)\}_{i=1}^{N_T}$ of events with
-times $t_i$ and types $e_i\in\mathcal{E}$, a finite set of atomic event types, through
-per-type conditional intensities
-$\lambda_e(t\mid\mathcal{H}_t)$, conditioned on the history $\mathcal{H}_t$ of all
-events up to time $t$ (model parameters $\theta$ suppressed; we abbreviate
-$\lambda_e(t)$ when the conditioning is clear). Writing
-$\lambda(t)=\sum_{e\in\mathcal{E}}\lambda_e(t)$ for the total (ground)
-intensity and $p(e\mid t)=\lambda_e(t)/\lambda(t)$ for the mark distribution,
-the log-likelihood of a sequence is
+An MTPP models a sequence $\mathcal{H}_T=\{(t_i,e_i)\}_{i=1}^{N_T}$ of events
+with times $t_i$ and types $e_i\in\mathcal{E}$, a finite set of atomic event
+types, through per-type conditional intensities $\lambda_e(t\mid\mathcal{H}_t)$
+(parameters suppressed; we write $\lambda_e(t)$ when the conditioning is
+clear). With total intensity $\lambda(t)=\sum_{e}\lambda_e(t)$ and mark
+distribution $p(e\mid t)=\lambda_e(t)/\lambda(t)$, the log-likelihood is
 \[
 \log\mathcal{L}
 =\sum_i \Bigl[\log\lambda(t_i)+\log p(e_i\mid t_i)\Bigr]
 -\int_0^T\!\lambda(u\mid\mathcal{H}_u)\,du ,
 \]
-the integral being the \emph{compensator}
-$\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. By the random time change
-theorem, the rescaled masses $u_i=\Lambda(t_i)$, $\Delta u_i = u_i-u_{i-1}$ are
-i.i.d.\ $\mathrm{Exp}(1)$ iff the intensity is correctly specified; we report
-their mean (target 1) and KS distance as timing-calibration diagnostics.
-Sampling uses Ogata thinning, which requires a dominating rate
+the integral being the compensator
+$\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. By the random time
+change theorem, the rescaled masses $\Delta u_i=\Lambda(t_i)-\Lambda(t_{i-1})$
+are i.i.d.\ $\mathrm{Exp}(1)$ iff the intensity is correctly specified; we
+report their mean (target 1) and KS distance as timing-calibration
+diagnostics. Sampling uses Ogata thinning, which requires a dominating rate
 $\bar\lambda\ge\lambda(t)$; a model whose intensity has no computable upper
-bound must resort to heuristic (and bias-prone) dominating-rate estimates.
+bound must resort to heuristic, bias-prone dominating-rate estimates.
 
 \paragraph{The \sppp{} backbone.}
 \sppp{} \citep{chang2025ctssm,Shi2022StateSimulation} is a state-space point
@@ -39,56 +36,46 @@ $h^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+h^{(\ell-1)}\bigr)
 producing the continuous-time hidden representation
 $h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published model reads the rate from
 $h_t$ through a projection-and-softplus head,
-$\lambda = \mathrm{softplus}(w^{\!\top}h_t+b)$, which is unbounded above and has
-no learnable scale; marks are coupled to the same rate field (our benchmark
-implementation of this baseline splits $h_t$ into disjoint halves for the rate
-and mark heads). \ssppp{} keeps everything up to and including $h_t$ and changes
-only the two heads.
-
-\paragraph{Evaluation axes.}
-We score \emph{prediction} per genuine test event (NLL splits, type accuracy,
-expected-time MAE, time-rescaling diagnostics) and \emph{simulation} by
-calibrated closed-loop roll-outs scored on stylized facts of real order flow
-\citep{cont2001empirical,vyetrenko2020getreal}; the protocol is detailed in
-the Experiments section.
+$\lambda=\mathrm{softplus}(w^{\!\top}h_t+b)$, unbounded above and with no
+learnable scale; marks couple to the same rate field (our benchmark
+implementation splits $h_t$ into disjoint halves for the rate and mark heads).
+\ssppp{} keeps everything up to and including $h_t$ and changes only the two
+heads.
 
 \paragraph{Neural TPPs for event streams.}
 Neural MTPPs learn history-dependent intensities with recurrent
 \citep{du2016recurrent,Mei2017TheProcess}, attention-based
 \citep{zhang2020self,zuo2020thp}, jump-diffusion \citep{zhang2024njdtpp}, and
 continuous-time state-space \citep{chang2025ctssm} encoders
-\citep[survey:][]{Shchur2021NeuralReview}. \citet{Shi2022StateSimulation}
-specialize neural Hawkes models to LOB event streams and evaluate both
-prediction and simulation. Notably, the state-space line is evaluated almost
+\citep[survey:][]{Shchur2021NeuralReview}; \citet{Shi2022StateSimulation}
+specialize neural Hawkes models to LOB streams and evaluate both prediction
+and simulation. The state-space line, however, is evaluated almost
 exclusively teacher-forced: \citet{chang2025ctssm} report state-of-the-art
-held-out likelihood but never roll the model out (they avoid thinning
-altogether). Closed-loop simulation is an unaddressed gap of the \sppp{} paper,
-and our experiments show it is not benign: the unbounded head is frequently
-\emph{uncalibratable} in free roll-out (Table~\ref{tab:caloutcomes}). Our
-contribution is orthogonal: we keep the backbone verbatim and change only what
-is read \emph{out} of it.
+held-out likelihood but never roll the model out. Our contribution is
+orthogonal: we keep the backbone verbatim and change only what is read
+\emph{out} of it.
 
 \paragraph{Hawkes modeling of order flow.}
 Parametric Hawkes processes are the classical LOB event model
-\citep{Hawkes1971,Hawkes2018HawkesReview,Jain2024LimitProcess,jain2024review}, with
-state-dependent extensions \citep{Morariu-Patrichi2022State-dependentModelling}.
-Their linear structure gives exact stationarity certificates but limited
-expressiveness; \ssppp{} takes the complementary route of full neural
-expressiveness with stability restored by a closed-form bound. In the neural
-TPP literature such bounds appear mainly as computational devices for
-thinning; here the bound is a modeling decision with an asymmetric requirement
-(hard ceiling, exactly-zero floor), validated by our calibration study.
+\citep{Hawkes1971,Hawkes2018HawkesReview,Jain2024LimitProcess,jain2024review},
+with state-dependent extensions
+\citep{Morariu-Patrichi2022State-dependentModelling}: exact stationarity
+certificates, limited expressiveness. \ssppp{} takes the complementary route,
+full neural expressiveness with stability restored by a closed-form bound. In
+the neural TPP literature such bounds appear mainly as computational devices
+for thinning; here the bound is a modeling decision with an asymmetric
+requirement (hard ceiling, exactly-zero floor).
 
 \paragraph{Generative LOB simulators.}
 Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
 coletta2022worldagent}, token-level autoregressive state-space models
 \citep{nagy2023lobs5}, diffusion-guided agents \citep{huang2026diga}, and
-foundation-model-scale transformers \citep{mars2025,sood2026tradefm}; agent-based
-simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL workhorse. These
-systems are scored on distributional realism: stylized facts
-\citep{cont2001empirical,vyetrenko2020getreal} and the KS/Wasserstein suites of
-LOB-Bench \citep{nagy2025lobbench}, whose authors report error accumulation over
-long roll-outs. \ssppp{} differs on two counts: one likelihood-based model is
-held to \emph{both} prediction and closed-loop realism, and the simulated rate
-is calibrated and \emph{verified}, a closed-loop stability certificate that no
-generative simulator above carries.
+foundation-model-scale transformers \citep{mars2025,sood2026tradefm};
+agent-based simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL
+workhorse. These systems are scored on distributional realism: stylized facts
+\citep{cont2001empirical,vyetrenko2020getreal} and the KS/Wasserstein suites
+of LOB-Bench \citep{nagy2025lobbench}, whose authors report error
+accumulation over long roll-outs. \ssppp{} differs on two counts: one
+likelihood-based model is held to \emph{both} prediction and closed-loop
+realism, and the simulated rate is calibrated and \emph{verified}, a
+closed-loop stability certificate that no generative simulator above carries.

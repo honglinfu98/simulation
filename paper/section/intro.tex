@@ -2,59 +2,52 @@
 \label{sec:intro}
 
 The limit order book (LOB) is the core mechanism of electronic markets: a
-continuous-time stream of order placements, cancellations, and trades whose fine
-structure drives price discovery and liquidity. Two tasks are asked of a
-generative model of this stream. The first is \emph{prediction}: given the event
-history, score the time and type of the next event. The second is
+continuous-time stream of order placements, cancellations, and trades whose
+fine structure drives price discovery and liquidity. Two tasks are asked of a
+generative model of this stream. The first is \emph{prediction}: given the
+event history, score the time and type of the next event. The second is
 \emph{simulation}: roll the model forward freely, feeding its own samples back
 as history, and reproduce the stylized facts of real order flow, such as
 calibrated event rates, burst--lull clustering, and heavy-tailed returns
-\citep{cont2001empirical}. Simulation is the harder task and, for downstream use
-(market-making world models, agent training, counterfactual analysis), the more
-valuable one \citep{mars2025,nagy2025lobbench}.
+\citep{cont2001empirical}. Simulation is the harder task and, for downstream
+use (market-making world models, agent training, counterfactual analysis), the
+more valuable one \citep{mars2025,nagy2025lobbench}.
 
 Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview}
-excel at prediction, and continuous-time state-space variants
-\citep{chang2025ctssm,Shi2022StateSimulation} push held-out likelihood to the
-state of the art. But that literature evaluates almost exclusively
-teacher-forced. The \sppp{} paper itself \citep{chang2025ctssm} reports
-state-of-the-art held-out likelihood yet never rolls the model out, leaving
-closed-loop simulation an open gap. Two obstacles stand between a trained MTPP
-and a usable simulator. \emph{First, instability}: the self-excitation that wins
-the one-step likelihood becomes a liability closed-loop, because each sampled
-event raises the intensity, which produces more events, and with no mechanism
-bounding the rate the roll-out drifts hot or explodes. \emph{Second,
-uncalibratability}: the standard patch, rescaling the intensity until the
-simulated rate matches reality, turns out to be unavailable exactly where it is
-needed most. We find trained unbounded state-space checkpoints whose closed-loop
-rate is \emph{near-discontinuous} in the rescaling constant (a $10^{-3}$ change
-flips the rate across the entire tolerance band), so that no constant rescaling
-exists; on one of our three assets, this leaves the unbounded model with no
-usable simulator at all. The field thus faces a trade-off between expressivity
-and stability: expressive models predict well but cannot be trusted (or even
-calibrated) in closed loop, while simple stable models simulate safely but
-predict poorly.
+excel at prediction, and the continuous-time state-space model \sppp{}
+\citep{chang2025ctssm,Shi2022StateSimulation} is the current state of the art:
+it holds the best held-out likelihood among neural TPPs. It is therefore the
+natural candidate for an LOB simulator. But its predictive power has only ever
+been demonstrated teacher-forced; the \sppp{} paper never rolls the model out,
+and we find that when it is rolled out, the state-of-the-art predictor is not
+a usable simulator. Two obstacles are responsible. \emph{First, instability}:
+the self-excitation that wins the one-step likelihood becomes a liability in
+closed loop, because each sampled event raises the intensity, which produces
+more events, and with no mechanism bounding the rate the roll-out drifts hot
+or explodes. \emph{Second, uncalibratability}: the standard patch, rescaling
+the intensity until the simulated rate matches reality, turns out to be
+unavailable exactly where it is needed most. We find trained \sppp{}
+checkpoints whose closed-loop rate is \emph{near-discontinuous} in the
+rescaling constant, so that no constant rescaling exists; on one of our three
+assets, every \sppp{} checkpoint fails, leaving no usable simulator at all.
+The gap, then, is concrete: the model with the best prediction power cannot
+simulate stably, while simple stable models simulate safely but predict
+poorly.
 
-\ssppp{} changes only the output heads of \sppp{}; the backbone is untouched.
-We keep the stacked latent-linear-Hawkes state-space backbone verbatim, with
-its diagonal zero-order-hold dynamics, parallel-scan computability, and
-LayerNorm'd stack output $h_t$, and replace only what comes after $h_t$: a
-\textbf{softmin-bounded rate head}, whose intensity has a hard closed-form
-ceiling (an exact dominating rate for Ogata thinning) and an exactly-zero
-floor with unit log-intensity gradient in quiet periods; and a
-\textbf{rate-neutral mark head}, a soft-max over event types that cannot
-change the total rate no matter how deep its network is.
-
-Because the backbone is identical, differences against the unbounded parent
-(\sppp) are attributable to the heads. Our contributions:
+\ssppp{} changes only the output heads of \sppp{}. The stacked
+latent-linear-Hawkes state-space backbone is kept verbatim, with its diagonal
+zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
+output $h_t$; everything after $h_t$ is replaced. Because the backbone is
+identical, differences against the unbounded parent are attributable to the
+heads. Our contributions:
 \begin{enumerate}
-\item \textbf{The \ssppp{} head pair} (softmin-bounded rate $\times$
-  rate-neutral marks). It turns \sppp{}, which is state-of-the-art
-  teacher-forced but unstable and often uncalibratable in free-running
-  simulation, into a \emph{provably stable simulator}: a bounded,
-  thinning-exact intensity on the unmodified state-space backbone, trained
-  with stateful (TBPTT) likelihood and simulated with $O(1)$-per-event carried
-  state.
+\item \textbf{The \ssppp{} head pair}: a softmin-bounded rate head, whose
+  intensity has a hard closed-form ceiling (an exact dominating rate for
+  Ogata thinning) and an exactly-zero floor with unit log-intensity gradient
+  in quiet periods, times a rate-neutral soft-max mark head that cannot
+  change the total rate however deep its network. Together they turn \sppp{}
+  into a provably stable simulator, trained with stateful (TBPTT) likelihood
+  and simulated with $O(1)$-per-event carried state.
 \item \textbf{Calibratability as a measurable model property.} Every model is
   rate-calibrated by a mark-preserving bisection with \emph{full-scale
   verification}: the unbounded head fails on 7/9 checkpoints with a

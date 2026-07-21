@@ -1,28 +1,19 @@
 \begin{abstract}
-Simulating limit-order-book (LOB) order flow is a fundamental generative task for
-market-making world models, agent training, and counterfactual market analysis.
-Neural marked temporal point processes (MTPPs) predict the next LOB event
-accurately, but their simulation behaviour is largely unexamined: closed-loop,
-the learned self-excitation drifts or explodes, and we show that the standard
-remedy of rescaling the intensity to match the real event rate often has
-\emph{no solution} for unbounded models. To close this gap we propose \ssppp{}
-(Stable State-Space Point Process), which keeps the expressive state-space
-backbone of \sppp{} and replaces only the output heads: a \emph{softmin-bounded
-rate head} whose intensity carries a hard closed-form ceiling (an exact
-dominating rate for Ogata thinning) with a floor of exactly zero, and a
-\emph{rate-neutral} soft-max mark head that can be arbitrarily deep without
-perturbing the total rate. Extensive experiments on three Coinbase assets,
-against five baselines with three training seeds each, lossless streaming
-evaluation, and \emph{verified} rate calibration for every model, show that
+Simulating limit-order-book (LOB) order flow is a core generative task for
+market-making world models, agent training, and counterfactual analysis.
+State-Space Point Process (S2P2) predicts the next LOB event
+accurately, but in closed loop its learned self-excitation drifts or
+explodes. We propose \ssppp{} (Stable State-Space Point Process), which keeps the
+state-space backbone of \sppp{} and replaces only the output heads: a
+softmin-bounded rate head whose intensity has a hard closed-form ceiling (an
+exact dominating rate for Ogata thinning) and a floor of exactly zero, and a
+rate-neutral soft-max mark head that can be arbitrarily deep without
+perturbing the total rate. On three Coinbase assets, against five baselines
+with three training seeds each and verified rate calibration for every model,
 \ssppp{} is the strongest predictor on two of three assets while remaining
-verifiably calibratable closed-loop with competitive simulated structure. Our
-sharpest finding is that whether a model \emph{can} be calibrated is itself a
-measurable property. The unbounded parent model fails verified calibration on 7
-of 9 checkpoints (on one asset, no checkpoint can be calibrated at all) because
-its simulated rate responds almost discontinuously to the rescaling constant;
-the bounded head passes on all nine. A per-gap decomposition shows that the
-remaining prediction gap comes almost entirely from quiet periods, which is the
-expected and accepted cost of bounding the intensity. \ssppp{} trains with an
-exact parallel scan, simulates with $O(1)$ cost per event using Ogata thinning,
-and matches real event rates after verification.
+verifiably calibratable in closed loop with competitive simulated structure.
+\ssppp{} trains with an exact parallel scan and simulates in $O(1)$ per event
+by exact Ogata thinning. These results establish \ssppp{} as a 
+likelihood-trained model that both predicts accurately and simulates stably,
+a practical foundation for market-making world models.
 \end{abstract}

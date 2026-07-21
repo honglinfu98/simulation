@@ -1,69 +1,43 @@
 \section{Methods}
 \label{sec:method}
 
-
-
-
-
 \subsection{Event constructor}
 \label{subsec:event-construction}
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.98\columnwidth]{figs/pipeline}
+\includegraphics[width=0.88\columnwidth]{figs/pipeline}
 \caption{Pipeline. (1)~\emph{Data collector}: synchronized trade records and
 Level-2 order book updates. (2)~\emph{Event constructor}: consecutive book
-snapshots are differenced and aligned with trades to emit atomic typed events. (3)~\emph{Model training}: the
-event sequence drives the state-space backbone (LLH layers) whose
-continuous-time hidden representation $h_t$ decodes the bounded total rate
-$\lambda(t)$ and the rate-neutral mark distribution $p(e\mid t)$, giving
-per-type intensities $\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
+snapshots are differenced and aligned with trades to emit atomic typed
+events. (3)~\emph{Model training}: the event sequence drives the state-space
+backbone (LLH layers) whose continuous-time hidden representation $h_t$
+decodes the bounded total rate $\lambda(t)$ and the rate-neutral mark
+distribution $p(e\mid t)$, giving per-type intensities
+$\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
 \label{fig:pipeline}
 \end{figure}
-\input{exhibits/event_construction} 
+\input{exhibits/event_construction}
 
+We represent market dynamics as a sequence of typed events over the top
+$K=10$ price levels on each side of the book (Figure~\ref{fig:pipeline}).
+An \emph{atomic event type} $e=(c,s,\delta)\in\mathcal{E}$ combines an event
+class $c$, a side $s\in\{b,a\}$ (bid or ask), and a level index
+$\delta\in\{1,\dots,K\}$. The four classes are \textbf{limit order} (LO,
+liquidity added at one of the top-$K$ levels), \textbf{cancel order} (CO,
+liquidity withdrawn), \textbf{market order} (MO, execution against the best
+quote), and \textbf{inside-spread order} (IS, a new order improving the best
+quote). For LO/CO, $\delta$ is the distance from the best quote; for IS, the
+number of ticks of improvement; for MO, $\delta=1$ always.
 
-
-To apply point process modeling to high-frequency limit order book (LOB) data, we
-represent market dynamics as a sequence of \textbf{events}
-(pipeline overview in Figure~\ref{fig:pipeline}). We consider the top
-$K=10$ levels on each side (bid and ask).
-
-\paragraph{Atomic Events.}
-We define a finite set $\mathcal{E}$ of \emph{atomic event types}, each denoted
-$e=(c,s,\delta)$, where:
-\begin{itemize}
-    \item $c \in \{\text{LO}, \text{MO}, \text{CO}, \text{IS}\}$ is the \emph{event class}:
-        \begin{itemize}
-            \item \textbf{Limit Order (LO)}: liquidity provision at one of the top-$K$ levels.
-            \item \textbf{Cancel Order (CO)}: liquidity withdrawal at one of the top-$K$ levels.
-            \item \textbf{Market Order (MO)}: liquidity consumption at the best quote.
-            \item \textbf{Inside-Spread Order (IS)}: a new order placed inside the spread, improving the prevailing best quote.
-        \end{itemize}
-    \item $s \in \{b,a\}$ is the \emph{side} (bid or ask).
-    \item $\delta$ is the \emph{level index}:
-        \begin{itemize}
-            \item For LO/CO, $\delta \in \{1,\dots,K\}$ indicates distance from the best quote ($\delta=1$ = best bid/ask, $\delta=10$ = tenth level).
-            \item For MO, $\delta=1$ always, since market orders execute against the current best quote.
-            \item For IS, $\delta \in \{1,\dots,K\}$ denotes the number of ticks by which the new quote improves the spread (e.g., $\text{IS}_{b,2}$ = new bid order two ticks inside the spread).
-        \end{itemize}
-\end{itemize}
-
-\paragraph{Event Construction from LOB and Trade Data.}
-As illustrated in Figure~\ref{fig:graph_infer}, each atomic order event is inferred by differencing consecutive Level-2 order book
-snapshots and aligning them with trade records at identical timestamps. Because
-trades and book updates are perfectly synchronized in both time and volume, every
-observed change can be classified without ambiguity through a three-step decision
-tree. First, if the best-quote liquidity decreases and a trade is recorded at the
-same price, the change corresponds to a \textbf{Market Order}, a direct execution
-against standing quotes. Second, if liquidity decreases at any level without a
-matching trade, the reduction represents a \textbf{Cancel Order}, reflecting
-liquidity withdrawal. Finally, when liquidity increases, the classification depends
-on the price position: if the new order appears inside the spread, it forms an
-\textbf{Inside-Spread Order}; otherwise, it is a \textbf{Limit Order} placed within
-the existing book depth. This rule set ensures exhaustive mapping from raw order
-book and trade data into atomic order events, enabling a consistent foundation for
-downstream temporal modeling. 
-
+Events are constructed by differencing consecutive Level-2 snapshots and
+aligning them with trade records at identical timestamps. Because trades and
+book updates are synchronized in both time and volume, every observed change
+is classified unambiguously by a three-step decision tree
+(Figure~\ref{fig:graph_infer}): a liquidity
+decrease at the best quote with a matching trade is an MO; a decrease at any
+level without one is a CO; an increase inside the spread is an IS; any other
+increase is an LO. This maps raw book and trade data exhaustively onto atomic
+events.
 
 \subsection{Stable State-Space Point Process (SS2P2)}
 \ssppp{} factors the per-type intensity into a bounded total rate and a
@@ -78,16 +52,13 @@ set-valued MTPPs \citep{chang2024probabilistic}, both decoded from the
 the second identity holding because $\sum_{e} p(e\mid t)=1$.
 The design principle is to put nonlinearity where it cannot perturb the rate.
 
-
-
 \subsection{Softmin-bounded rate head}
-For s2p2, the closed-loop simulation fails through a feedback loop: each sampled event raises
-the intensity, a higher intensity produces events faster, and with an unbounded
-head the roll-out drifts hot or explodes. The rate head is built to break this
-loop. From the backbone's continuous-time hidden representation $h_t$
-(LayerNorm'd, hence bounded in scale), a gate produces a bounded state $g$,
-which is read out through a smooth one-sided cap with fixed constant
-$z_{\max}$:
+The closed-loop failure of \sppp{} is a feedback loop: each sampled event
+raises the intensity, a higher intensity produces events faster, and with an
+unbounded head the roll-out drifts hot or explodes. The rate head is built to
+break this loop. From the backbone's continuous-time hidden representation
+$h_t$ (LayerNorm'd, hence bounded in scale), a gate produces a bounded state
+$g$, read out through a smooth one-sided cap with fixed constant $z_{\max}$:
 \begin{align}
 o &= \sigma(W_o h_t + b_o)\in(0,1)^H,\notag\\
 g &= o\odot\tanh(h_t)\in(-1,1)^H,\notag\\
@@ -97,9 +68,8 @@ z &= z_{\max}-\mathrm{softplus}\bigl(z_{\max}-z_{\mathrm{raw}}\bigr),\notag\\
 \end{align}
 with a learnable positive scale $\varsigma$ initialized so the baseline rate
 matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
-\varsigma\ln 2$). Above makes four deliberate design
-choices:
-\begin{itemize}
+\varsigma\ln 2$). This makes four deliberate design choices:
+\begin{itemize}\setlength\itemsep{1pt}
 \item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$, not the raw
   latent state: however far the closed loop drives $h_t$, including states
   training never visited, an extreme state can change the direction of $g$
@@ -107,10 +77,10 @@ choices:
 \item \textbf{Hard ceiling.} Since $\mathrm{softplus}(x)>0$ for every $x$,
   $z\le z_{\max}$ holds identically, so
   $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ for every state
-  and every parameter setting; no training outcome can remove the bound.
-  The worst the roll-out can ever do is behave like a homogeneous Poisson
-  process at the ceiling, and the ceiling doubles as an \emph{exact}
-  dominating rate for Ogata thinning.
+  and every parameter setting; no training outcome can remove the bound. The
+  worst the roll-out can do is behave as a homogeneous Poisson process at the
+  ceiling, and the ceiling doubles as an \emph{exact} dominating rate for
+  Ogata thinning.
 \item \textbf{Vanishing gain.} Differentiating the cap gives
   $\partial z/\partial z_{\mathrm{raw}} = \sigma(z_{\max}-z_{\mathrm{raw}})$:
   as a burst pushes the intensity toward the ceiling, the head becomes
@@ -121,7 +91,7 @@ choices:
 \item \textbf{Open floor.} The cap is one-sided: as
   $z_{\mathrm{raw}}\to-\infty$, $z\to z_{\mathrm{raw}}$, so
   $\lambda \sim \varsigma\,e^{z_{\mathrm{raw}}}\to 0$ and $\log\lambda$
-  keeps unit gradient however quiet the market gets. 
+  keeps unit gradient however quiet the market gets.
 \end{itemize}
 The first three choices own simulation stability and calibratability; the
 fourth ensures the bound costs nothing in prediction when the market is quiet.
@@ -135,8 +105,9 @@ p(e\mid t)=\mathrm{softmax}\bigl(\mathrm{MLP}(h_t)\bigr)_e,
 \]
 Because the soft-max lives on the simplex, the mark network can be arbitrarily
 deep (or later conditioned on exogenous state such as an agent's resting
-quotes) without touching $\lambda$. This decouples the two failure modes: rate stability is
-owned entirely by the bounded head, mark expressiveness entirely by the simplex.
+quotes) without touching $\lambda$. This decouples the two failure modes:
+rate stability is owned entirely by the bounded head, mark expressiveness
+entirely by the simplex.
 
 \subsection{Likelihood and sampling}
 Training minimizes the negative log-likelihood of each training window,
@@ -146,64 +117,63 @@ covering its events $(t_i,e_i)$ and the next event after the window:
 = \int_{0}^{T}\!\lambda(u\mid\mathcal{H}_u)\,du
 \;-\;\sum_{i}\Bigl[\log\lambda(t_i) + \log p(e_i\mid t_i)\Bigr],
 \]
-with $T$ the next-event time. The integral and the $\log\lambda$ terms score
-\emph{when} events happen (the compensator charges for intensity placed where
-no event occurred); the $\log p$ term is a categorical cross-entropy scoring
-\emph{what} each event is. By the factorization, the timing terms train
-only the bounded rate head and the mark term trains only the soft-max head.
-Each $\lambda(t_i)$ is evaluated at the left limit, the state just before
-event $i$, so an event never informs its own intensity. The compensator
-integral is approximated by one intensity evaluation per inter-event interval
-(the endpoint rule); this under-weights a decaying intensity and biases the
-learned rate upward, which the post-hoc calibration below corrects.
-Closed-loop sampling uses Ogata thinning with the exact dominating rate
-$\varsigma\cdot\mathrm{softplus}(z_{\max})$: propose arrivals from a
-homogeneous Poisson process at the ceiling and accept each with probability
-$\lambda(t)/\bigl(\varsigma\,\mathrm{softplus}(z_{\max})\bigr)$.
+with $T$ the next-event time. By the factorization, the timing terms train
+only the bounded rate head and the mark term (a categorical cross-entropy)
+trains only the soft-max head. Each $\lambda(t_i)$ is evaluated at the left
+limit, the state just before event $i$, so an event never informs its own
+intensity. The compensator integral is approximated by one intensity
+evaluation per inter-event interval (the endpoint rule); this under-weights a
+decaying intensity and biases the learned rate upward, which the post-hoc
+calibration below corrects. Closed-loop sampling uses Ogata thinning with the
+exact dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$: propose
+arrivals from a homogeneous Poisson process at the ceiling and accept each
+with probability $\lambda(t)/\bigl(\varsigma\,\mathrm{softplus}(z_{\max})\bigr)$.
 
 \subsection{Carried-state simulation}
-The standard roll-out protocol re-encodes a sliding window of the last $W$ events
-from a zero state at every step. This is faithful to windowed training but has two
-costs: $O(W)$ work per simulated event, and a hard memory ceiling. Nothing
-older than $W$ events can influence the future, so long-memory stylized facts
-(the slow decay of $|r|$ autocorrelation) are \emph{architecturally}
-unreachable regardless of the model. Because the backbone is a state-space recursion, both costs vanish: we
-carry the packed decoder state and advance it with only the new event, which is
-mathematically identical to encoding the entire history from the seed, at
-$O(1)$ cost per event: an order of magnitude faster than window re-encoding,
-with no memory ceiling. Attention- and window-shaped baselines have no such Markov state
-and retain the sliding window.
+The standard roll-out protocol re-encodes a sliding window of the last $W$
+events from a zero state at every step: $O(W)$ work per simulated event, and
+a hard memory ceiling, since nothing older than $W$ events can influence the
+future and long-memory stylized facts (the slow decay of $|r|$
+autocorrelation) become \emph{architecturally} unreachable. Because the
+backbone is a state-space recursion, both costs vanish: we carry the packed
+decoder state and advance it with only the new event, mathematically
+identical to encoding the entire history from the seed, at $O(1)$ cost per
+event. Attention- and window-shaped baselines have no such Markov state and
+retain the sliding window.
 
 \subsection{Stateful (TBPTT) training}
-Windowed maximum likelihood encodes every training window from a cold initial state,
-so the model only ever trains in a ``history just began'' transient and MLE explains
-the observed rate with an inflated baseline; the free roll-out, whose state is
-warm, then double-counts. We train instead with truncated backpropagation through
-time: batch lanes walk contiguous stretches of the stream in order, and the decoder
-state at the end of window $t$ is passed, \emph{detached}, as the initial state
-of window $t{+}1$ (resets only at genuine stream boundaries, to the learned initial
-state). Gradients remain window-local; state values flow from the start of the
-stream. This makes the training regime consistent with carried-state simulation, at
-unchanged per-step cost; it requires non-overlapping windows (stride $=$ window
-length), so our controls match that setting.
+Windowed maximum likelihood encodes every training window from a cold initial
+state, so the model only ever trains in a ``history just began'' transient
+and MLE explains the observed rate with an inflated baseline; the free
+roll-out, whose state is warm, then double-counts. We train instead with
+truncated backpropagation through time: batch lanes walk contiguous stretches
+of the stream in order, and the decoder state at the end of window $t$ is
+passed, \emph{detached}, as the initial state of window $t{+}1$ (resetting
+only at genuine stream boundaries): gradients remain window-local, state
+values flow from the start of the stream. This makes training consistent with
+carried-state simulation at unchanged per-step cost; it requires
+non-overlapping windows (stride $=$ window length), so our controls match
+that setting.
 
 \subsection{Post-hoc rate calibration}
 \label{sec:calibration}
-The factorization buys one more property: $\lambda = \varsigma\cdot\mathrm{softplus}(z)$ is
-\emph{exactly linear} in the learnable scale $\varsigma$, the thinning ceiling
-$\varsigma\cdot\mathrm{softplus}(z_{\max})$ scales with it, and the mark head is untouched by
-construction. The free-running rate, which is monotone but nonlinear in $\varsigma$
-through the closed-loop feedback, can therefore be calibrated by a one-dimensional
-geometric bisection on a multiplier $\kappa$: roll out briefly at $\kappa\,\varsigma$, compare the
-realized rate to the target, and iterate over a handful of probe roll-outs. The
-result is a certificate-preserving, sampling-exact simulator at any prescribed mean
-rate. For \emph{any} decoder, a constant $\kappa$ multiplying the sim-time intensity
-is still mark-preserving (type probabilities $\lambda_e/\lambda$ are
-unchanged), so the same bisection applies to every baseline; what is lost
-off-family is only the exactness of the thinning bound. We make the procedure falsifiable: the target
-is the \emph{validation}-split rate, the bisection must bracket and converge, and a
-full-scale validation roll-out must verify the target within tolerance (failures
-escalate to full-scale probes; unresolved failures exclude the checkpoint and are
-reported). Transfer to the test split is reported, never gated. We use calibration as a \emph{post-hoc} correction for the residual rate
-inflation caused by the biased endpoint-rule training compensator, and, in the
-experiments, as a measurement instrument in its own right.
+The factorization buys one more property:
+$\lambda=\varsigma\cdot\mathrm{softplus}(z)$ is \emph{exactly linear} in the
+learnable scale $\varsigma$, the thinning ceiling scales with it, and the
+mark head is untouched by construction. The free-running rate, monotone but
+nonlinear in $\varsigma$ through the closed-loop feedback, can therefore be
+calibrated by a one-dimensional geometric bisection on a multiplier $\kappa$:
+roll out briefly at $\kappa\,\varsigma$, compare the realized rate to the
+target, iterate over a handful of probe roll-outs. The result is a
+certificate-preserving, sampling-exact simulator at any prescribed mean rate.
+For \emph{any} decoder, a constant $\kappa$ multiplying the sim-time
+intensity is still mark-preserving (type probabilities $\lambda_e/\lambda$
+are unchanged), so the same bisection applies to every baseline; what is lost
+off-family is only the exactness of the thinning bound. We make the procedure
+falsifiable: the target is the \emph{validation}-split rate, the bisection
+must bracket and converge, and a full-scale validation roll-out must verify
+the target within tolerance (failures escalate to full-scale probes;
+unresolved failures exclude the checkpoint and are reported). Transfer to the
+test split is reported, never gated. Calibration corrects the residual rate
+inflation from the endpoint-rule compensator and, in the experiments, serves
+as a measurement instrument in its own right.
