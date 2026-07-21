@@ -16,10 +16,10 @@ distribution $p(e\mid t)=\lambda_e(t)/\lambda(t)$, the log-likelihood is
 the integral being the compensator
 $\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. By the random time
 change theorem, the rescaled masses $\Delta u_i=\Lambda(t_i)-\Lambda(t_{i-1})$
-are i.i.d.\ $\mathrm{Exp}(1)$ iff the intensity is correctly specified; we
+are i.i.d.\ $\mathrm{Exp}(1)$ iff the intensity is correctly specified. We
 report their mean (target 1) and KS distance as timing-calibration
 diagnostics. Sampling uses Ogata thinning, which requires a dominating rate
-$\bar\lambda\ge\lambda(t)$; a model whose intensity has no computable upper
+$\bar\lambda\ge\lambda(t)$. A model whose intensity has no computable upper
 bound must resort to heuristic, bias-prone dominating-rate estimates.
 
 \paragraph{The \sppp{} backbone.}
@@ -37,7 +37,7 @@ producing the continuous-time hidden representation
 $h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published model reads the rate from
 $h_t$ through a projection-and-softplus head,
 $\lambda=\mathrm{softplus}(w^{\!\top}h_t+b)$, unbounded above and with no
-learnable scale; marks couple to the same rate field (our benchmark
+learnable scale. Marks couple to the same rate field (our benchmark
 implementation splits $h_t$ into disjoint halves for the rate and mark heads).
 \ssppp{} keeps everything up to and including $h_t$ and changes only the two
 heads.
@@ -47,7 +47,7 @@ Neural MTPPs learn history-dependent intensities with recurrent
 \citep{du2016recurrent,Mei2017TheProcess}, attention-based
 \citep{zhang2020self,zuo2020thp}, jump-diffusion \citep{zhang2024njdtpp}, and
 continuous-time state-space \citep{chang2025ctssm} encoders
-\citep[survey:][]{Shchur2021NeuralReview}; \citet{Shi2022StateSimulation}
+\citep[survey:][]{Shchur2021NeuralReview}. \citet{Shi2022StateSimulation}
 specialize neural Hawkes models to LOB streams and evaluate both prediction
 and simulation. The state-space line, however, is evaluated almost
 exclusively teacher-forced: \citet{chang2025ctssm} report state-of-the-art
@@ -63,15 +63,15 @@ with state-dependent extensions
 certificates, limited expressiveness. \ssppp{} takes the complementary route,
 full neural expressiveness with stability restored by a closed-form bound. In
 the neural TPP literature such bounds appear mainly as computational devices
-for thinning; here the bound is a modeling decision with an asymmetric
+for thinning. Here the bound is a modeling decision with an asymmetric
 requirement (hard ceiling, exactly-zero floor).
 
 \paragraph{Generative LOB simulators.}
 Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
 coletta2022worldagent}, token-level autoregressive state-space models
 \citep{nagy2023lobs5}, diffusion-guided agents \citep{huang2026diga}, and
-foundation-model-scale transformers \citep{mars2025,sood2026tradefm};
-agent-based simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL
+foundation-model-scale transformers \citep{mars2025,sood2026tradefm}.
+Agent-based simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL
 workhorse. These systems are scored on distributional realism: stylized facts
 \citep{cont2001empirical,vyetrenko2020getreal} and the KS/Wasserstein suites
 of LOB-Bench \citep{nagy2025lobbench}, whose authors report error

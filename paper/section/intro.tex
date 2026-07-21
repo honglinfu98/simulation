@@ -18,7 +18,7 @@ excel at prediction, and the continuous-time state-space model \sppp{}
 \citep{chang2025ctssm,Shi2022StateSimulation} is the current state of the art:
 it holds the best held-out likelihood among neural TPPs. It is therefore the
 natural candidate for an LOB simulator. But its predictive power has only ever
-been demonstrated teacher-forced; the \sppp{} paper never rolls the model out,
+been demonstrated teacher-forced. The \sppp{} paper never rolls the model out,
 and we find that when it is rolled out, the state-of-the-art predictor is not
 a usable simulator. Two obstacles are responsible. \emph{First, instability}:
 the self-excitation that wins the one-step likelihood becomes a liability in
@@ -28,7 +28,7 @@ or explodes. \emph{Second, uncalibratability}: the standard patch, rescaling
 the intensity until the simulated rate matches reality, turns out to be
 unavailable exactly where it is needed most. We find trained \sppp{}
 checkpoints whose closed-loop rate is \emph{near-discontinuous} in the
-rescaling constant, so that no constant rescaling exists; on one of our three
+rescaling constant, so that no constant rescaling exists. On one of our three
 assets, every \sppp{} checkpoint fails, leaving no usable simulator at all.
 The gap, then, is concrete: the model with the best prediction power cannot
 simulate stably, while simple stable models simulate safely but predict
@@ -37,7 +37,7 @@ poorly.
 \ssppp{} changes only the output heads of \sppp{}. The stacked
 latent-linear-Hawkes state-space backbone is kept verbatim, with its diagonal
 zero-order-hold dynamics, parallel-scan computability, and LayerNorm'd stack
-output $h_t$; everything after $h_t$ is replaced. Because the backbone is
+output $h_t$. Everything after $h_t$ is replaced. Because the backbone is
 identical, differences against the unbounded parent are attributable to the
 heads. Our contributions:
 \begin{enumerate}
@@ -46,18 +46,18 @@ heads. Our contributions:
   Ogata thinning) and an exactly-zero floor with unit log-intensity gradient
   in quiet periods, times a rate-neutral soft-max mark head that cannot
   change the total rate however deep its network. Together they turn \sppp{}
-  into a provably stable simulator, trained with stateful (TBPTT) likelihood
-  and simulated with $O(1)$-per-event carried state.
-\item \textbf{Calibratability as a measurable model property.} Every model is
-  rate-calibrated by a mark-preserving bisection with \emph{full-scale
-  verification}: the unbounded head fails on 7/9 checkpoints with a
-  critical-point signature, including all three seeds on SOL where no usable
-  simulator remains, while the bounded head verifies on all nine. To our
-  knowledge this is the first cross-asset quantification of closed-loop
-  calibratability for neural TPPs.
-\item \textbf{Exact post-hoc rate calibration} for factorized heads. The rate
-  is linear in a learnable scale, the ceiling scales with it, and the mark
-  distribution is untouched, so calibration is a one-dimensional root-find
-  that keeps the guarantee intact and \emph{improves} every structure metric
-  by correcting the simulated clock rate.
+  into a provably stable simulator.
+\item \textbf{Stable training and simulation.} Stateful (TBPTT) training
+  walks contiguous stretches of the stream so the model never trains in a
+  cold-start transient, and closed-loop roll-outs carry the packed decoder
+  state at $O(1)$ cost per event, mathematically identical to encoding the
+  full history and free of the sliding window's memory ceiling. Training and
+  simulation see the same regime.
+\item \textbf{Verified, exact post-hoc rate calibration.} For the factorized
+  head the rate is linear in a learnable scale, the ceiling scales with it,
+  and marks are untouched, so calibration is a one-dimensional root-find that
+  keeps the guarantee intact. A mark-preserving variant applies to every
+  baseline, with full-scale verification. Under this test, calibratability
+  becomes a measurable model property: the unbounded parent frequently fails
+  with a critical-point signature while the bounded head always verifies.
 \end{enumerate}

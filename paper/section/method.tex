@@ -77,7 +77,7 @@ matches a target rate ($g\!\to\!0 \Rightarrow \lambda \approx
 \item \textbf{Hard ceiling.} Since $\mathrm{softplus}(x)>0$ for every $x$,
   $z\le z_{\max}$ holds identically, so
   $\lambda(t)\le \varsigma\cdot\mathrm{softplus}(z_{\max})$ for every state
-  and every parameter setting; no training outcome can remove the bound. The
+  and every parameter setting. No training outcome can remove the bound. The
   worst the roll-out can do is behave as a homogeneous Poisson process at the
   ceiling, and the ceiling doubles as an \emph{exact} dominating rate for
   Ogata thinning.
@@ -122,7 +122,7 @@ only the bounded rate head and the mark term (a categorical cross-entropy)
 trains only the soft-max head. Each $\lambda(t_i)$ is evaluated at the left
 limit, the state just before event $i$, so an event never informs its own
 intensity. The compensator integral is approximated by one intensity
-evaluation per inter-event interval (the endpoint rule); this under-weights a
+evaluation per inter-event interval (the endpoint rule). This under-weights a
 decaying intensity and biases the learned rate upward, which the post-hoc
 calibration below corrects. Closed-loop sampling uses Ogata thinning with the
 exact dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$: propose
@@ -144,14 +144,14 @@ retain the sliding window.
 \subsection{Stateful (TBPTT) training}
 Windowed maximum likelihood encodes every training window from a cold initial
 state, so the model only ever trains in a ``history just began'' transient
-and MLE explains the observed rate with an inflated baseline; the free
+and MLE explains the observed rate with an inflated baseline. The free
 roll-out, whose state is warm, then double-counts. We train instead with
 truncated backpropagation through time: batch lanes walk contiguous stretches
 of the stream in order, and the decoder state at the end of window $t$ is
 passed, \emph{detached}, as the initial state of window $t{+}1$ (resetting
 only at genuine stream boundaries): gradients remain window-local, state
 values flow from the start of the stream. This makes training consistent with
-carried-state simulation at unchanged per-step cost; it requires
+carried-state simulation at unchanged per-step cost. It requires
 non-overlapping windows (stride $=$ window length), so our controls match
 that setting.
 
@@ -168,7 +168,7 @@ target, iterate over a handful of probe roll-outs. The result is a
 certificate-preserving, sampling-exact simulator at any prescribed mean rate.
 For \emph{any} decoder, a constant $\kappa$ multiplying the sim-time
 intensity is still mark-preserving (type probabilities $\lambda_e/\lambda$
-are unchanged), so the same bisection applies to every baseline; what is lost
+are unchanged), so the same bisection applies to every baseline. What is lost
 off-family is only the exactness of the thinning bound. We make the procedure
 falsifiable: the target is the \emph{validation}-split rate, the bisection
 must bracket and converge, and a full-scale validation roll-out must verify
