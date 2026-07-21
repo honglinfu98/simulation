@@ -86,7 +86,7 @@ def fig_hazard(hz):
 
 def fig_fano(D):
     coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
-    fig, axes = plt.subplots(3, 1, figsize=(3.5, 6.4), sharex=True)
+    fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.6), sharey=True)
     for ax, (coin, ttl) in zip(axes, coins):
         ds = D[coin]
         reals, per_model = [], {}
@@ -99,15 +99,15 @@ def fig_fano(D):
             if curves:
                 per_model[mdl] = np.mean(np.array(curves), axis=0)
         ax.plot(SCALES, np.mean(np.array(reals), axis=0), color="k", ls="--",
-                marker="x", ms=6, lw=1.8, label="real")
+                marker="x", ms=5, lw=1.6, label="real")
         for mdl, curve in per_model.items():
-            ax.plot(SCALES, curve, ms=5, lw=1.6, **STYLE[mdl])
+            ax.plot(SCALES, curve, ms=4.5, **STYLE[mdl])
         ax.set_xscale("log"); ax.set_yscale("log")
         ax.set_title(ttl, fontsize=11)
-        ax.set_ylabel("Fano factor", fontsize=10)
+        ax.set_xlabel("bucket scale (s)")
         ax.grid(alpha=0.25, which="both", lw=0.4)
-        ax.tick_params(labelsize=9)
-    axes[-1].set_xlabel("bucket scale (s)", fontsize=10)
+        ax.tick_params(labelsize=8)
+    axes[0].set_ylabel("Fano factor of event counts")
     axes[0].legend(frameon=False, loc="upper left", fontsize=9)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_fano_scale.pdf"))
@@ -172,29 +172,28 @@ def fig_forest(D):
                 out.append(sum(vals) / len(vals))
         return out
 
-    fig, axes = plt.subplots(5, 2, figsize=(3.5, 8.2), sharey=True)
-    from matplotlib.ticker import MaxNLocator
+    fig, axes = plt.subplots(2, 5, figsize=(7.4, 4.0), sharey=True)
     for ax, (key, ttl) in zip(axes.flat, FACTS):
         for yi, mdl in enumerate(models):
             vals = []
             for coin in coins:
-                vals.extend(rel_errs(coin, mdl, key))
+                vals.extend(rel_errs(coin, mdl, key))   # one value per checkpoint
             if not vals:
                 continue
             m, c = mean_ci(vals)
             st = STYLE[mdl]
             ax.errorbar(m, yi, xerr=(c if c == c else None),
-                        fmt=st["marker"], color=st["color"], ms=5.5,
-                        capsize=2.0, elinewidth=1.0)
+                        fmt=st["marker"], color=st["color"], ms=5.0,
+                        capsize=1.5, elinewidth=0.8)
         ax.set_title(ttl, fontsize=10)
         ax.set_xlim(left=0)
+        from matplotlib.ticker import MaxNLocator
         ax.xaxis.set_major_locator(MaxNLocator(3))
         ax.tick_params(labelsize=9)
         ax.invert_yaxis()
-    for row in range(5):
+    for row in range(2):
         axes[row, 0].set_yticks(range(len(models)))
-        axes[row, 0].set_yticklabels([STYLE[m]["label"] for m in models],
-                                     fontsize=9)
+        axes[row, 0].set_yticklabels([STYLE[m]["label"] for m in models], fontsize=9.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_forest.pdf"))
     plt.close(fig)
