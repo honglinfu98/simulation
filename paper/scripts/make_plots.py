@@ -191,7 +191,6 @@ def fig_forest(D):
                             fmt=st["marker"], color=st["color"], ms=3.0,
                             capsize=1.2, elinewidth=0.7)
         ax.set_title(ttl, fontsize=7)
-        ax.grid(alpha=0.25, axis="x", lw=0.3)
         ax.set_xlim(left=0)
         ax.tick_params(labelsize=6)
         ax.invert_yaxis()
