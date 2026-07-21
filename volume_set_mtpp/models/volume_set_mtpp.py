@@ -914,7 +914,18 @@ def create_volume_set_mtpp(
             recurrent_hidden_size=config['recurrent_hidden_size']
         )
     elif decoder_type == 'pct-lstm':
-        # Alias: per-type continuous-time LSTM == PerTypeS2P2Decoder.
+        # PCT-LSTM baseline: faithful SD-PNHP / CT4LSTM-PPP port
+        # (Shi & Cartlidge), per-type parallel CT-LSTM streams.
+        from .sdpnhp_decoder import SDPNHPDecoder
+        decoder = SDPNHPDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            per_type_dim=config.get('ptp_dim', 8),
+        )
+    elif decoder_type == 'ptp-s2p2':
+        # Legacy per-type s2p2 (the pre-2026-07-22 pct-lstm backbone), kept
+        # selectable so banked checkpoints remain reproducible.
         if PerTypeS2P2Decoder is None:
             raise ImportError('PerTypeS2P2Decoder is unavailable')
         decoder = PerTypeS2P2Decoder(

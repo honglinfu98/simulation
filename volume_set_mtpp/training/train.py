@@ -299,7 +299,7 @@ def main():
                              'scale. -1 = measure it from the TRAIN split only (no val/test '
                              'leakage into the initialization)')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2'],
                         default='hawkes',
                         help='Decoder/backbone: SS2P2 (ours), or baselines: S2P2 diagonal SSM, '
                              'Neural Hawkes CT-LSTM (hawkes/ct-lstm), RMTPP LSTM, plain LSTM, '
