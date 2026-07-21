@@ -27,9 +27,9 @@ T975 = {2: 12.706, 3: 4.303}
 SCALES = [1, 2, 5, 10, 20, 50]  # bucket aggregation scales (s), stylized_facts.py
 
 plt.rcParams.update({
-    "font.size": 7.5, "axes.titlesize": 8, "axes.labelsize": 7.5,
-    "legend.fontsize": 6.5, "xtick.labelsize": 7, "ytick.labelsize": 7,
-    "lines.linewidth": 1.2, "figure.dpi": 200,
+    "font.size": 9, "axes.titlesize": 9.5, "axes.labelsize": 9,
+    "legend.fontsize": 8, "xtick.labelsize": 8, "ytick.labelsize": 8,
+    "lines.linewidth": 1.4, "figure.dpi": 200,
 })
 
 STYLE = {
@@ -72,7 +72,7 @@ def fig_hazard(hz):
     for tag in hz["models"]:
         st = STYLE["-".join(tag.split("-")[:-1])]
         prof = np.array(hz["models"][tag]["profile"])
-        ax.plot(g[:-1], prof[:-1], ms=3.5, **st)
+        ax.plot(g[:-1], prof[:-1], ms=4.5, **st)
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("gap age $\\delta$ (s)")
     ax.set_ylabel("intensity / hazard (ev/s)")
@@ -101,14 +101,14 @@ def fig_fano(D):
         ax.plot(SCALES, np.mean(np.array(reals), axis=0), color="k", ls="--",
                 marker="x", ms=4, label="real")
         for mdl, curve in per_model.items():
-            ax.plot(SCALES, curve, ms=3.5, **STYLE[mdl])
+            ax.plot(SCALES, curve, ms=4.5, **STYLE[mdl])
         ax.set_xscale("log"); ax.set_yscale("log")
-        ax.set_title(ttl, fontsize=8)
+        ax.set_title(ttl, fontsize=10)
         ax.set_xlabel("bucket scale (s)")
         ax.grid(alpha=0.25, which="both", lw=0.4)
-        ax.tick_params(labelsize=7)
+        ax.tick_params(labelsize=8)
     axes[0].set_ylabel("Fano factor of event counts")
-    axes[0].legend(frameon=False, loc="upper left", fontsize=6.5)
+    axes[0].legend(frameon=False, loc="upper left", fontsize=8)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_fano_scale.pdf"))
     plt.close(fig)
@@ -172,7 +172,7 @@ def fig_forest(D):
                 out.append(sum(vals) / len(vals))
         return out
 
-    fig, axes = plt.subplots(2, 5, figsize=(7.0, 3.0), sharey=True)
+    fig, axes = plt.subplots(2, 5, figsize=(7.4, 3.6), sharey=True)
     for ax, (key, ttl) in zip(axes.flat, FACTS):
         for yi, mdl in enumerate(models):
             vals = []
@@ -183,15 +183,15 @@ def fig_forest(D):
             m, c = mean_ci(vals)
             st = STYLE[mdl]
             ax.errorbar(m, yi, xerr=(c if c == c else None),
-                        fmt=st["marker"], color=st["color"], ms=4.0,
+                        fmt=st["marker"], color=st["color"], ms=5.0,
                         capsize=1.5, elinewidth=0.8)
-        ax.set_title(ttl, fontsize=7)
+        ax.set_title(ttl, fontsize=8.5)
         ax.set_xlim(left=0)
-        ax.tick_params(labelsize=6)
+        ax.tick_params(labelsize=8)
         ax.invert_yaxis()
     for row in range(2):
         axes[row, 0].set_yticks(range(len(models)))
-        axes[row, 0].set_yticklabels([STYLE[m]["label"] for m in models], fontsize=6.5)
+        axes[row, 0].set_yticklabels([STYLE[m]["label"] for m in models], fontsize=8)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_forest.pdf"))
     plt.close(fig)
@@ -227,18 +227,18 @@ def fig_ladder(D):
                 continue
             pts.sort()
             k = [p[0] for p in pts]; r = [p[1] for p in pts]
-            ax.plot(k, r, ms=3.5, ls="-", **{**st, "label": lbl})
+            ax.plot(k, r, ms=4.5, ls="-", **{**st, "label": lbl})
             if target:
                 tol = 0.05 * target
                 ax.axhspan(target - tol, target + tol, color="k", alpha=0.08, lw=0)
                 ax.axhline(target, color="k", lw=0.6, ls=":")
-        ax.set_title(ttl, fontsize=8)
+        ax.set_title(ttl, fontsize=10)
         ax.set_xlabel("rate-scale constant $\\kappa$")
         ax.set_yscale("log")
         ax.grid(alpha=0.25, which="both", lw=0.4)
-        ax.tick_params(labelsize=7)
+        ax.tick_params(labelsize=8)
     axes[0].set_ylabel("closed-loop rate (ev/s)")
-    axes[0].legend(frameon=False, loc="upper left", fontsize=6.5)
+    axes[0].legend(frameon=False, loc="upper left", fontsize=8)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_cal_ladder.pdf"))
     plt.close(fig)
