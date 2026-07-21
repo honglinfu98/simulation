@@ -168,40 +168,26 @@ def fig_forest(D):
                 out.append(sum(vals) / len(vals))
         return out
 
-    fig, axes = plt.subplots(2, 5, figsize=(7.0, 4.6), sharey=True)
-    ylabels, ypos = [], []
-    y = 0
-    slots = {}
-    for coin in coins:
-        for mdl in models:
-            slots[(coin, mdl)] = y
-            ylabels.append(STYLE[mdl]["label"])
-            ypos.append(y)
-            y += 1
-        y += 0.8
+    fig, axes = plt.subplots(2, 5, figsize=(7.0, 3.0), sharey=True)
     for ax, (key, ttl) in zip(axes.flat, FACTS):
-        for coin in coins:
-            for mdl in models:
-                vals = rel_errs(coin, mdl, key)
-                if not vals:
-                    continue
-                m, c = mean_ci(vals)
-                st = STYLE[mdl]
-                ax.errorbar(m, slots[(coin, mdl)], xerr=(c if c == c else None),
-                            fmt=st["marker"], color=st["color"], ms=3.0,
-                            capsize=1.2, elinewidth=0.7)
+        for yi, mdl in enumerate(models):
+            vals = []
+            for coin in coins:
+                vals.extend(rel_errs(coin, mdl, key))   # one value per checkpoint
+            if not vals:
+                continue
+            m, c = mean_ci(vals)
+            st = STYLE[mdl]
+            ax.errorbar(m, yi, xerr=(c if c == c else None),
+                        fmt=st["marker"], color=st["color"], ms=4.0,
+                        capsize=1.5, elinewidth=0.8)
         ax.set_title(ttl, fontsize=7)
         ax.set_xlim(left=0)
         ax.tick_params(labelsize=6)
         ax.invert_yaxis()
     for row in range(2):
-        axes[row, 0].set_yticks(ypos)
-        axes[row, 0].set_yticklabels(ylabels, fontsize=5.5)
-        for coin in coins:
-            y0 = slots[(coin, models[0])]
-            axes[row, 0].text(-0.55, y0 - 0.55, coin_lbl[coin],
-                              transform=axes[row, 0].get_yaxis_transform(),
-                              fontsize=6.5, fontweight="bold", va="center")
+        axes[row, 0].set_yticks(range(len(models)))
+        axes[row, 0].set_yticklabels([STYLE[m]["label"] for m in models], fontsize=6.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_forest.pdf"))
     plt.close(fig)
@@ -224,27 +210,31 @@ def parse_ladder(cal_lines, rollout="r1"):
 
 
 def fig_ladder(D):
-    fig, ax = plt.subplots(figsize=(3.3, 2.3))
-    for dsn, tag, st, lbl in [
-            ("btc", "s2p2-s1", STYLE["s2p2"], "S2P2 (btc-s1, fails)"),
-            ("btc", "ss2p2-full-s1", STYLE["ss2p2-full"],
-             "SS2P2 (btc-s1, verifies)")]:
-        pts, target = parse_ladder(D[dsn][tag]["cal"])
-        if not pts:
-            continue
-        pts.sort()
-        k = [p[0] for p in pts]; r = [p[1] for p in pts]
-        ax.plot(k, r, ms=3.5, ls="-", **{**st, "label": lbl})
-        if target:
-            tol = 0.05 * target
-            ax.axhspan(target - tol, target + tol, color="k", alpha=0.08,
-                       lw=0)
-            ax.axhline(target, color="k", lw=0.6, ls=":")
-    ax.set_xlabel("rate-scale constant $k$")
-    ax.set_ylabel("closed-loop rate (ev/s)")
-    ax.set_yscale("log")
-    ax.legend(frameon=False, loc="upper left")
-    ax.grid(alpha=0.25, which="both", lw=0.4)
+    coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
+    fig, axes = plt.subplots(1, 3, figsize=(7.0, 2.3))
+    for ax, (dsn, ttl) in zip(axes, coins):
+        for tag, st, lbl in [
+                ("s2p2-s1", STYLE["s2p2"], "S2P2 (fails)"),
+                ("ss2p2-full-s1", STYLE["ss2p2-full"], "SS2P2 (verifies)")]:
+            arm = D[dsn].get(tag, {})
+            cal = arm.get("cal") or []
+            pts, target = parse_ladder(cal)
+            if not pts:
+                continue
+            pts.sort()
+            k = [p[0] for p in pts]; r = [p[1] for p in pts]
+            ax.plot(k, r, ms=3.5, ls="-", **{**st, "label": lbl})
+            if target:
+                tol = 0.05 * target
+                ax.axhspan(target - tol, target + tol, color="k", alpha=0.08, lw=0)
+                ax.axhline(target, color="k", lw=0.6, ls=":")
+        ax.set_title(ttl, fontsize=8)
+        ax.set_xlabel("rate-scale constant $\\kappa$")
+        ax.set_yscale("log")
+        ax.grid(alpha=0.25, which="both", lw=0.4)
+        ax.tick_params(labelsize=7)
+    axes[0].set_ylabel("closed-loop rate (ev/s)")
+    axes[0].legend(frameon=False, loc="upper left", fontsize=6.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_cal_ladder.pdf"))
     plt.close(fig)
