@@ -5,28 +5,29 @@ We held six neural MTPPs to both sides of the prediction--simulation tension on
 three Coinbase assets at production event rates ($24$--$48$ events/s), under a
 protocol designed so that failures are visible and reported: lossless streaming
 prediction, multi-seed checkpoint-level confidence intervals, and verified rate
-calibration whose failures count as results. The
-\ssppp{} heads --- a softmin-bounded rate with a closed-form thinning ceiling and
-an exactly-zero floor, times a rate-neutral simplex mark head on an unchanged
-state-space backbone --- win every prediction metric on SOL, lead ETH, tie the strongest
+calibration whose failures count as results. The \ssppp{} heads (a
+softmin-bounded rate with a closed-form thinning ceiling and an exactly-zero
+floor, times a rate-neutral simplex mark head on an unchanged state-space
+backbone) win every prediction metric on SOL, lead ETH, tie the strongest
 baseline on BTC marks, and remain verifiably calibratable with competitive
-simulated structure throughout, while a per-gap
-hazard decomposition shows that the remaining prediction gap comes from quiet
-periods --- the expected cost of bounding the rate. The sharpest finding
-is that \emph{calibratability is a model property}: the unbounded parent head
-fails verified rate calibration on 7 of 9 checkpoints --- all three on SOL ---
-with a critical-point signature, while the bounded head verifies on all nine.
-This confirms the stability certificate empirically. Stateful training and carried-state roll-out contribute temporal structure
-that calibration alone cannot. Because the mark head is rate-neutral,
-conditioning it on exogenous state --- an agent's resting quotes --- cannot
-destabilize the rate, making \ssppp{} a suitable environment model for
-market-making world models; that action-conditioned extension is future work.
-The same factorized intensity also supports the importance-sampling
-probabilistic queries of \citet{chang2024probabilistic} --- ``event $A$ before
-event $B$, given the history'' --- which map directly onto the quantities a
-market maker needs from a world model: fill probability (an aggressing order
-reaches our resting level before the quote moves away) and adverse-selection
-risk (the probability that flow continues against us conditional on a fill),
-estimated consistently from one likelihood-trained model rather than by
-separate ad-hoc regressions. All tables and figures
-are regenerated end-to-end by the released collection and display scripts.
+simulated structure throughout. A per-gap hazard decomposition shows that the
+remaining prediction gap comes from quiet periods, the expected cost of
+bounding the rate. The sharpest finding is that \emph{calibratability is a
+model property}: the unbounded parent head fails verified rate calibration on 7
+of 9 checkpoints, including all three on SOL, with a critical-point signature,
+while the bounded head verifies on all nine. This confirms the stability
+certificate empirically. Stateful training and carried-state roll-out
+contribute temporal structure that calibration alone cannot. Because the mark
+head is rate-neutral, conditioning it on exogenous state such as an agent's
+resting quotes cannot destabilize the rate, so \ssppp{} can serve as an
+environment model for market-making world models; that action-conditioned
+extension is future work. The same factorized intensity also supports the
+importance-sampling probabilistic queries of \citet{chang2024probabilistic},
+queries of the form ``event $A$ before event $B$, given the history,'' which
+map directly onto the quantities a market maker needs from a world model: fill
+probability (an aggressing order reaches our resting level before the quote
+moves away) and adverse-selection risk (the probability that flow continues
+against us conditional on a fill), estimated consistently from one
+likelihood-trained model rather than by separate ad-hoc regressions. All tables
+and figures are regenerated end-to-end by the released collection and display
+scripts.
