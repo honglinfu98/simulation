@@ -153,10 +153,27 @@ without touching $\lambda$. This decouples the two failure modes: rate stability
 owned entirely by the bounded head, mark expressiveness entirely by the simplex.
 
 \subsection{Likelihood and sampling}
-Training maximizes the standard MTPP likelihood with the compensator evaluated on the
-training window; the mark term is a categorical cross-entropy on $p(e_i\mid t_i)$,
-decoupled from the rate term. Closed-loop sampling uses thinning with the exact
-dominating rate $\varsigma\cdot\mathrm{softplus}(z_{\max})$.
+Training minimizes the negative log-likelihood of each training window,
+covering its events $(t_i,e_i)$ and the next event after the window:
+\[
+\mathcal{L}
+= \int_{0}^{T}\!\lambda(u\mid\mathcal{H}_u)\,du
+\;-\;\sum_{i}\Bigl[\log\lambda(t_i) + \log p(e_i\mid t_i)\Bigr],
+\]
+with $T$ the next-event time. The integral and the $\log\lambda$ terms score
+\emph{when} events happen (the compensator charges for intensity placed where
+no event occurred); the $\log p$ term is a categorical cross-entropy scoring
+\emph{what} each event is. By the factorization, the timing terms train only
+the bounded rate head and the mark term trains only the soft-max head. Each
+$\lambda(t_i)$ is evaluated at the left limit, the state just before event
+$i$, so an event never informs its own intensity. The compensator integral is
+approximated by one intensity evaluation per inter-event interval (the
+endpoint rule); this under-weights a decaying intensity and biases the learned
+rate upward, which the post-hoc calibration below corrects. Closed-loop
+sampling uses Ogata thinning with the exact dominating rate
+$\varsigma\cdot\mathrm{softplus}(z_{\max})$: propose arrivals from a
+homogeneous Poisson process at the ceiling and accept each with probability
+$\lambda(t)/\bigl(\varsigma\,\mathrm{softplus}(z_{\max})\bigr)$.
 
 \subsection{Carried-state simulation}
 The standard roll-out protocol re-encodes a sliding window of the last $W$ events
