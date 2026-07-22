@@ -118,47 +118,6 @@ calibrated checkpoints.}
 \label{fig:forest}
 \end{figure*}
 
-\subsection{Simulation Quality}
-\label{sec:simulation}
-\ssppp{} is the only model that pairs competitive
-closed-loop simulation with top-tier prediction. Figure~\ref{fig:forest}
-scores the calibrated roll-outs on all ten stylized facts of real order flow,
-pooled across the three assets: \ssppp{} sits at or near the front on most
-facts and is clearly strongest on aggregated kurtosis (F7), the volatility
-decay exponent (F8), and heavy tails (F2a); every model's rate is separately
-verified against its target during calibration, so these are structural
-comparisons at matched clocks.
-
-The per-asset Fano view in Figure~\ref{fig:fano} details the burst structure.
-PCT-LSTM and \ssppp{} track the rising real curve furthest on every asset,
-with PCT-LSTM slightly ahead on BTC and ETH and \ssppp{} ahead on SOL; but
-PCT-LSTM has the weakest type accuracy in Table~\ref{tab:multiasset}, so its
-simulation strength does not come with prediction strength. \nhp, the best
-BTC predictor, flattens by ${\sim}5$\,s on every asset; the LSTM simulates a
-near-Poisson stream (its Fano curve stays flat near 1), the trivially-stable
-end of the trade-off; and the one surviving \sppp{} arm on ETH calibrates in
-rate but over-disperses wildly, so rate calibration cannot repair a
-near-critical checkpoint's structure. Real Fano rises from ${\sim}70$ at
-1\,s to ${\sim}1300$ at 50\,s; every model under-disperses at this context
-length, \ssppp{} and PCT-LSTM least.
-
-The insight is that prediction and simulation quality are distinct axes: no
-unbounded model wins both, and the two families that simulate burst structure
-best do it through opposite designs (per-type parallel streams vs.\ a bounded
-shared rate), of which only the bounded design also predicts at the top of the
-table.
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.85\textwidth]{figs/fig_fano_scale}
-\caption{Real order flow is super-Poissonian with Fano \emph{rising} in
-scale, and every model under-disperses at this context length, \ssppp{} and
-PCT-LSTM least; the pattern is identical on all three assets. Curves are Fano
-factors of simulated event counts vs.\ bucket scale (mean over calibrated
-checkpoints and roll-out seeds).}
-\label{fig:fano}
-\end{figure*}
-
 \subsection{Calibratability}
 \label{sec:calibratability}
 Post-hoc rate calibration (Methods) applies to \emph{every} decoder, because a
@@ -217,6 +176,47 @@ extremely on SOL, while the verified \ssppp{} checkpoints cross each target
 smoothly. Curves are calibration probe ladders (seed-1 checkpoints; target
 band shaded).}
 \label{fig:ladder}
+\end{figure*}
+
+\subsection{Simulation Quality}
+\label{sec:simulation}
+\ssppp{} is the only model that pairs competitive
+closed-loop simulation with top-tier prediction. Figure~\ref{fig:forest}
+scores the calibrated roll-outs on all ten stylized facts of real order flow,
+pooled across the three assets: \ssppp{} sits at or near the front on most
+facts and is clearly strongest on aggregated kurtosis (F7), the volatility
+decay exponent (F8), and heavy tails (F2a); every model's rate is separately
+verified against its target during calibration, so these are structural
+comparisons at matched clocks.
+
+The per-asset Fano view in Figure~\ref{fig:fano} details the burst structure.
+PCT-LSTM and \ssppp{} track the rising real curve furthest on every asset,
+with PCT-LSTM slightly ahead on BTC and ETH and \ssppp{} ahead on SOL; but
+PCT-LSTM has the weakest type accuracy in Table~\ref{tab:multiasset}, so its
+simulation strength does not come with prediction strength. \nhp, the best
+BTC predictor, flattens by ${\sim}5$\,s on every asset; the LSTM simulates a
+near-Poisson stream (its Fano curve stays flat near 1), the trivially-stable
+end of the trade-off; and the one surviving \sppp{} arm on ETH calibrates in
+rate but over-disperses wildly, so rate calibration cannot repair a
+near-critical checkpoint's structure. Real Fano rises from ${\sim}70$ at
+1\,s to ${\sim}1300$ at 50\,s; every model under-disperses at this context
+length, \ssppp{} and PCT-LSTM least.
+
+The insight is that prediction and simulation quality are distinct axes: no
+unbounded model wins both, and the two families that simulate burst structure
+best do it through opposite designs (per-type parallel streams vs.\ a bounded
+shared rate), of which only the bounded design also predicts at the top of the
+table.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figs/fig_fano_scale}
+\caption{Real order flow is super-Poissonian with Fano \emph{rising} in
+scale, and every model under-disperses at this context length, \ssppp{} and
+PCT-LSTM least; the pattern is identical on all three assets. Curves are Fano
+factors of simulated event counts vs.\ bucket scale (mean over calibrated
+checkpoints and roll-out seeds).}
+\label{fig:fano}
 \end{figure*}
 
 \subsection{Efficiency Analysis}
