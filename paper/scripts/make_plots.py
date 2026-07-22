@@ -151,15 +151,17 @@ def fig_forest(D):
     coin_lbl = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
     models = ["nhp", "lstm", "pct-lstm", "ss2p2-full"]
     FACTS = [
+        ("__rate__", "F0 event rate"),
         ("f1_mean_abs_acf_1_10", "F1 |ACF r|"),
         ("f2_excess_kurtosis", "F2a kurtosis"),
         ("f2_hill_index", "F2b Hill index"),
         ("f3_skewness", "F3 skewness"),
-        ("f6_mean_acf_abs_1_10", "F6 ACF |r|"),
+        ("__fano__", "F5 Fano"),
+        ("f6_mean_acf_abs_1_10", "F6 clustering"),
         ("f7_rescaled_kurtosis", "F7 agg. kurtosis"),
         ("f8_powerlaw_exponent", "F8 decay exp."),
         ("f9_mean_leverage_1_10", "F9 leverage"),
-        ("f10_volume_volatility_corr", "F10 act.-vol corr"),
+        ("f10_volume_volatility_corr", "F10 act.--vol"),
         ("f11_timescale_asymmetry", "F11 asymmetry"),
     ]
     F = {c: json.load(open(os.path.join(DATA, f"sf_facts_{c}.json")))
@@ -168,6 +170,21 @@ def fig_forest(D):
     def rel_errs(coin, mdl, key):
         out = []
         for sd in [1, 2, 3]:
+            if key in ("__rate__", "__fano__"):
+                sf = (D[coin].get(f"{mdl}-s{sd}", {}) or {}).get("sf") or {}
+                vals = []
+                for r in sf.values():
+                    if key == "__rate__":
+                        vals.append(abs(r["rate_model"] - r["rate_real"])
+                                    / max(abs(r["rate_real"]), 1e-9))
+                    else:
+                        fm = np.array(r["fano_model"], float)
+                        fr = np.array(r["fano_real"], float)
+                        vals.append(float(np.mean(np.abs(fm - fr)
+                                                  / np.maximum(np.abs(fr), 1e-9))))
+                if vals:
+                    out.append(sum(vals) / len(vals))
+                continue
             arm = F[coin].get(f"{mdl}-s{sd}", {})
             vals = []
             for r in arm.values():
@@ -179,7 +196,7 @@ def fig_forest(D):
                 out.append(sum(vals) / len(vals))
         return out
 
-    fig, axes = plt.subplots(2, 5, figsize=(7.4, 4.0), sharey=True)
+    fig, axes = plt.subplots(2, 6, figsize=(7.6, 4.0), sharey=True)
     for ax, (key, ttl) in zip(axes.flat, FACTS):
         for yi, mdl in enumerate(models):
             vals = []
