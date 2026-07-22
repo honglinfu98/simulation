@@ -110,12 +110,12 @@ def fig_fano(D):
         for mdl, curve in per_model.items():
             ax.plot(SCALES, curve, ms=4.5, **STYLE[mdl])
         ax.set_xscale("log"); ax.set_yscale("log")
-        ax.set_title(ttl, fontsize=11)
+        ax.set_title(ttl, fontsize=9, pad=2)
         ax.set_xlabel("bucket scale (s)")
         ax.grid(alpha=0.25, which="both", lw=0.4)
         ax.tick_params(labelsize=8)
     axes[0].set_ylabel("Fano factor of event counts")
-    axes[0].legend(frameon=False, loc="upper left", fontsize=9)
+    axes[0].legend(frameon=False, loc="upper left", fontsize=7.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_fano_scale.pdf"))
     plt.close(fig)
@@ -241,7 +241,7 @@ def parse_ladder(cal_lines, rollout="r1"):
 
 def fig_ladder(D):
     coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
-    fig, axes = plt.subplots(3, 1, figsize=(3.4, 6.2))
+    fig, axes = plt.subplots(3, 1, figsize=(3.3, 4.0))
     for ax, (dsn, ttl) in zip(axes, coins):
         for tag, st, lbl in [
                 ("s2p2-s1", STYLE["s2p2"], "S2P2 (fails)"),
@@ -258,14 +258,14 @@ def fig_ladder(D):
                 tol = 0.05 * target
                 ax.axhspan(target - tol, target + tol, color="k", alpha=0.08, lw=0)
                 ax.axhline(target, color="k", lw=0.6, ls=":")
-        ax.set_title(ttl, fontsize=11)
+        ax.set_title(ttl, fontsize=9, pad=2)
         ax.set_yscale("log")
         ax.grid(alpha=0.25, which="both", lw=0.4)
         ax.tick_params(labelsize=8)
     axes[-1].set_xlabel("rate-scale constant $\\kappa$")
     for ax in axes:
         ax.set_ylabel("rate (ev/s)")
-    axes[0].legend(frameon=False, loc="upper left", fontsize=9)
+    axes[0].legend(frameon=False, loc="upper left", fontsize=7.5)
     fig.tight_layout()
     fig.savefig(os.path.join(FIGS, "fig_cal_ladder.pdf"))
     plt.close(fig)
