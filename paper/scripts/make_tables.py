@@ -169,12 +169,18 @@ def main():
                       .get("overall_nll_per_event") for s in [1, 2, 3]]
             vals_a = [(D[coin].get(f"{mdl}-s{s}", {}).get("genuine") or {})
                       .get("genuine_mark_accuracy") for s in [1, 2, 3]]
+            vals_m = [(D[coin].get(f"{mdl}-s{s}", {}).get("genuine") or {})
+                      .get("time_mae_seconds") for s in [1, 2, 3]]
             mo, co, _ = mean_ci(vals_o)
             ma, ca, _ = mean_ci(vals_a)
-            cells += [fmt(mo, co, 2), fmt(ma, ca, 3)]
+            mm, cm, _ = mean_ci(vals_m)
+            # MAE spans 0.03 s to 46 s across models: print small values with
+            # more precision, pathological ones compactly
+            dm = 3 if (mm == mm and mm < 0.1) else 1
+            cells += [fmt(mo, co, 2), fmt(ma, ca, 3), fmt(mm, cm, dm)]
         lines.append((mdl, cells))
     # bold best per column
-    ncol = len(COINS) * 2
+    ncol = len(COINS) * 3
     matrix = []
     for mdl, cells in lines:
         row_vals = []
@@ -190,15 +196,15 @@ def main():
                if finite(matrix[i][j])]
         if not col:
             continue
-        best = (max if j % 2 == 1 else min)(col, key=lambda t: t[1])[0]
+        best = (max if j % 3 == 1 else min)(col, key=lambda t: t[1])[0]
         lines[best][1][j] = r"\textbf{" + lines[best][1][j] + "}"
     body = "\n".join(LABEL[m] + " & " + " & ".join(c) + r"\\"
                      for m, c in lines)
-    w(os.path.join(OUT, "tab_multiasset_prediction.tex"), rf"""\begin{{tabular}}{{lcccccc}}
+    w(os.path.join(OUT, "tab_multiasset_prediction.tex"), rf"""\begin{{tabular}}{{lccccccccc}}
 \toprule
- & \multicolumn{{2}}{{c}}{{BTC}} & \multicolumn{{2}}{{c}}{{ETH}} & \multicolumn{{2}}{{c}}{{SOL}}\\
-\cmidrule(lr){{2-3}}\cmidrule(lr){{4-5}}\cmidrule(lr){{6-7}}
-model & overall$\downarrow$ & ACC$\uparrow$ & overall$\downarrow$ & ACC$\uparrow$ & overall$\downarrow$ & ACC$\uparrow$\\
+ & \multicolumn{{3}}{{c}}{{BTC}} & \multicolumn{{3}}{{c}}{{ETH}} & \multicolumn{{3}}{{c}}{{SOL}}\\
+\cmidrule(lr){{2-4}}\cmidrule(lr){{5-7}}\cmidrule(lr){{8-10}}
+model & NLL$\downarrow$ & ACC$\uparrow$ & MAE$\downarrow$ & NLL$\downarrow$ & ACC$\uparrow$ & MAE$\downarrow$ & NLL$\downarrow$ & ACC$\uparrow$ & MAE$\downarrow$\\
 \midrule
 {body}
 \bottomrule
