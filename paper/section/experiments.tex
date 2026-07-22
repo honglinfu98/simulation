@@ -61,8 +61,8 @@ strict end-to-end:
 
 
 \begin{table*}[t]
-\centering\small
-\setlength{\tabcolsep}{5.5pt}
+\centering\footnotesize
+\setlength{\tabcolsep}{3.5pt}
 \input{tables/tab_multiasset_prediction}
 \caption{Prediction per genuine test event (mean $\pm$ 95\% CI over three
 training seeds; streaming lossless evaluator). NLL = overall negative
@@ -75,8 +75,8 @@ tail of the unbounded head.}
 
 \subsection{Prediction Quality}
 \label{sec:prediction}
-\textbf{Finding: bounding the intensity does not cost predictive accuracy;
-\ssppp{} is the strongest predictor on two of the three assets.} According to
+\ssppp{} is the strongest predictor on two of the three assets and bounding 
+the intensity does not cost predictive accuracy. According to
 Table~\ref{tab:multiasset}, \ssppp{} wins NLL and accuracy on SOL by a wide
 margin ($0.27$ vs.\ the strongest baseline's $0.38$ overall NLL; $0.192$ vs.\
 $0.184$ accuracy), wins both outright on ETH ($-0.87$ vs.\ PCT-LSTM's
