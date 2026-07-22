@@ -25,7 +25,10 @@ differ only in the decoder.
   continuous-time LSTM.
 \item \textbf{SAHP} \citep{zhang2020self}: a causal-attention decoder (adapted
   generic backbone).
-\item \textbf{PCT-LSTM}: a per-type parallel continuous-time LSTM.
+\item \textbf{PCT-LSTM} \citep{Shi2022StateSimulation}: the state-dependent
+  parallel neural Hawkes process (CT4LSTM-PPP), ported faithfully; its
+  market-state input is disabled because the closed-loop protocol provides no
+  exogenous state stream.
 \item \textbf{\sppp{}} \citep{chang2025ctssm}: the unbounded state-space
   parent; identical backbone to \ssppp{}, unbounded softplus head.
 \end{itemize}

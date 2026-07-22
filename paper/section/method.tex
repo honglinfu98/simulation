@@ -95,7 +95,7 @@ The design principle is to put nonlinearity where it cannot perturb the rate.
 
 
 \subsection{Softmin-bounded rate head}
-For s2p2, the closed-loop simulation fails through a feedback loop: each sampled event raises
+For S2P2, the closed-loop simulation fails through a feedback loop: each sampled event raises
 the intensity, a higher intensity produces events faster, and with an unbounded
 head the roll-out drifts hot or explodes. The rate head is built to break this
 loop. From the backbone's continuous-time hidden representation $h_t$
