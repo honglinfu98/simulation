@@ -75,42 +75,51 @@ or recurrent baseline), the intensity-collapse tail of the unbounded head.}
 
 \subsection{Prediction Quality}
 \label{sec:prediction}
-According to Table~\ref{tab:multiasset}, \ssppp{} is the strongest predictor
-on two of the three assets: it wins \emph{every} prediction metric on SOL by a
-wide margin ($0.27$ vs.\ $0.53$ overall NLL; $0.192$ vs.\ $0.184$ accuracy),
-wins overall NLL and accuracy outright on ETH ($-0.87$ vs.\ \nhp's $-0.81$;
-$0.345$ vs.\ $0.341$), and ties \nhp{} on BTC marks while conceding overall
-likelihood. It achieves this while remaining verifiably calibratable in
-closed loop (Table~\ref{tab:caloutcomes}). No baseline combines both.
+\textbf{Finding: bounding the intensity does not cost predictive accuracy ---
+\ssppp{} is the strongest predictor on two of the three assets.} According to
+Table~\ref{tab:multiasset}, \ssppp{} wins every prediction metric on SOL by a
+wide margin ($0.27$ vs.\ the strongest baseline's $0.38$ overall NLL; $0.192$
+vs.\ $0.184$ accuracy), wins overall NLL and accuracy outright on ETH ($-0.87$
+vs.\ PCT-LSTM's $-0.84$; $0.345$ vs.\ \nhp's $0.341$), and on BTC ties
+\nhp{} on marks ($0.448$ vs.\ $0.449$) while conceding overall likelihood.
+It achieves this while remaining verifiably calibratable in closed loop
+(Table~\ref{tab:caloutcomes}); no baseline combines both.
 
-The remaining gap is in timing, and we can locate it precisely. A per-gap
-decomposition of timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$
-compensator mass) on BTC, the asset where \nhp{} leads, shows that burst
-sharpness is \emph{not} the issue: the state-space family's event terms beat
-\nhp's ($-4.95$ \ssppp{} vs.\ $-4.23$), and intensity-ceiling saturation is
-comparable across models (${\sim}25\%$). The entire gap is compensator mass in
-\emph{quiet gaps}: mean per-gap rescaled mass is $1.88$ (\ssppp) and $2.26$
-(\sppp) against \nhp's near-ideal $1.03$ (target $1$). The excess accrues in
-gaps beyond $0.1$\,s, which are rare at $38$\,ev/s but expensive
-(\ssppp{} integrates $10.0$ units of hazard across a $0.5$--$2$\,s gap where
-\nhp{} integrates $6.0$; \sppp{} $16.4$). Figure~\ref{fig:hazard} shows why:
-\nhp's per-dimension decay toward a \emph{learned steady state} tracks the
-falling empirical hazard of real gaps, while the state-space family, whose
-quiet-state behaviour is an emergent readout of decaying latents with no
-dedicated resting-rate parameter, stays hot through quiet gaps. This cost
-is the deliberate price of stability. What it buys is the subject of the next
-two subsections.
+The remaining gap is in timing, and a per-gap decomposition of timeNLL
+$= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator mass) locates
+it precisely on BTC, the asset where \nhp{} leads. Burst sharpness is
+\emph{not} the issue: the state-space family's event terms beat \nhp's
+($-4.87$ \ssppp{} vs.\ $-4.29$), and intensity-ceiling saturation is
+comparable across models (${\sim}25\%$). The entire gap is compensator mass
+in \emph{quiet gaps}: mean per-gap rescaled mass is $1.85$ (\ssppp) and
+$2.38$ (\sppp) against \nhp's near-ideal $1.07$ (target $1$). The excess
+accrues in gaps beyond $0.1$\,s, which are rare at $38$\,ev/s but expensive:
+\ssppp{} integrates $4.3$ units of intensity across a $0.5$--$2$\,s gap where
+\nhp{} integrates $0.8$ (\sppp{} $3.0$).
 
-\begin{figure}[t]
+The insight, visible in Figure~\ref{fig:hazard} on all three assets, is
+mechanistic. \nhp's per-dimension decay toward a \emph{learned steady state}
+tracks the falling empirical hazard of real gaps, while the state-space
+family, whose quiet-state behaviour is an emergent readout of decaying latents
+with no dedicated resting-rate parameter, stays hot through quiet gaps. On SOL
+the unbounded \sppp{} additionally shows the opposite failure at long gaps:
+its intensity collapses below the hazard, the same intensity-collapse
+pathology behind its pathological expected-time errors. This quiet-gap cost is
+the deliberate price of stability; what it buys is the subject of the next two
+subsections.
+
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{figs/fig_hazard_profile}
-\caption{Mean model intensity at gap age $\delta$, among BTC test gaps that
-survive past $\delta$, vs.\ the empirical hazard of the real gap distribution
-(log-log; survivor counts shrink toward the right). \nhp{} tracks the falling
-hazard; the state-space family stays hot through quiet gaps, where the timeNLL
-gap of Table~\ref{tab:multiasset} accrues.}
+\includegraphics[width=0.85\textwidth]{figs/fig_hazard_profile}
+\caption{\nhp{} tracks the falling empirical hazard of real gaps; the
+state-space family stays hot through quiet gaps on every asset. Each panel
+shows mean model intensity at gap age $\delta$, among test gaps surviving past
+$\delta$, vs.\ the empirical hazard (log-log; survivor counts shrink toward
+the right). The quiet-gap timeNLL cost of Table~\ref{tab:multiasset} accrues
+where the model curves sit above the hazard; on SOL, \sppp's collapse below
+it at long gaps mirrors its broken expected-time predictions.}
 \label{fig:hazard}
-\end{figure}
+\end{figure*}
 
 \begin{table*}[t]
 \centering\small
@@ -127,7 +136,7 @@ $24$--$48$ real.}
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=\textwidth]{figs/fig_forest}
+\includegraphics[width=0.85\textwidth]{figs/fig_forest}
 \caption{All ten stylized facts, pooled across the three assets: relative
 error vs.\ real (whiskers = 95\% CI over asset--checkpoint pairs; roll-out
 seeds averaged within checkpoint). \sppp{} and SAHP omitted: too few
@@ -137,34 +146,42 @@ calibrated checkpoints.}
 
 \subsection{Simulation Quality}
 \label{sec:simulation}
-Table~\ref{tab:multiassetsf} and Figure~\ref{fig:forest} score calibrated
-closed-loop roll-outs on the stylized facts of real order flow. Every
-calibrated model lands its rate (rel-err $0.06$--$0.42$). The discriminating
-columns are structural, and there \ssppp{} is the only model that pairs
-competitive simulation with top-tier prediction: it is at or near the front on
-every structural column of every asset, and it leads clustering on SOL.
-Among the baselines, PCT-LSTM leads the Fano column but sits mid-table in
-prediction; \nhp, the best BTC predictor, is mid-pack in simulation on every
-asset; and the LSTM pins Fano rel-err at ${\approx}0.99$ throughout, because it
-simulates a near-Poisson stream, the trivially-stable end of the trade-off.
-Prediction and simulation quality are distinct axes, and no unbounded model
-wins both.
+\textbf{Finding: \ssppp{} is the only model that pairs competitive
+closed-loop simulation with top-tier prediction.} According to
+Table~\ref{tab:multiassetsf} and Figure~\ref{fig:forest}, every calibrated
+model lands its target rate (rel-err $0.09$--$0.42$), so the discriminating
+columns are structural, and there \ssppp{} is at or near the front on every
+column of every asset and leads both the Fano and clustering columns on SOL.
 
-Figure~\ref{fig:fano} shows the level-and-rise view on BTC: real Fano rises
-from ${\sim}60$ at 1\,s to ${\sim}1000$ at 50\,s. Every model under-disperses
-at this context length, \ssppp{} and PCT-LSTM least. The one surviving
-\sppp{} arm on ETH calibrates in rate but over-disperses wildly (Fano rel-err
-$6.0$): rate calibration cannot repair a near-critical checkpoint's structure.
+Among the baselines, each strength comes with a weakness elsewhere. PCT-LSTM
+leads the Fano column on BTC and ETH but has the weakest type accuracy in
+Table~\ref{tab:multiasset}; \nhp, the best BTC predictor, is mid-pack in
+simulation on every asset; the LSTM pins Fano rel-err at ${\approx}0.99$
+throughout because it simulates a near-Poisson stream, the trivially-stable
+end of the trade-off; and the one surviving \sppp{} arm on ETH calibrates in
+rate but over-disperses wildly (Fano rel-err $6.0$): rate calibration cannot
+repair a near-critical checkpoint's structure. Figure~\ref{fig:fano} shows
+the level-and-rise view: real Fano rises from ${\sim}70$ at 1\,s to
+${\sim}1300$ at 50\,s on BTC, and the same pattern repeats on ETH and SOL.
+Every model under-disperses at this context length, \ssppp{} and PCT-LSTM
+least.
 
-\begin{figure}[t]
+The insight is that prediction and simulation quality are distinct axes: no
+unbounded model wins both, and the two families that simulate burst structure
+best do it through opposite designs (per-type parallel streams vs.\ a bounded
+shared rate), of which only the bounded design also predicts at the top of the
+table.
+
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{figs/fig_fano_scale}
-\caption{Fano factor of simulated event counts vs.\ bucket scale (Coinbase BTC;
-mean over calibrated checkpoints and roll-out seeds). Real order flow is
-super-Poissonian with Fano \emph{rising} in scale; all models under-disperse at
-this context length, \ssppp{} and PCT-LSTM least.}
+\includegraphics[width=0.85\textwidth]{figs/fig_fano_scale}
+\caption{Real order flow is super-Poissonian with Fano \emph{rising} in
+scale, and every model under-disperses at this context length, \ssppp{} and
+PCT-LSTM least; the pattern is identical on all three assets. Curves are Fano
+factors of simulated event counts vs.\ bucket scale (mean over calibrated
+checkpoints and roll-out seeds).}
 \label{fig:fano}
-\end{figure}
+\end{figure*}
 
 \subsection{Calibratability}
 \label{sec:calibratability}
@@ -189,34 +206,42 @@ SAHP diverges at the model level on every asset.}
 \label{tab:caloutcomes}
 \end{table}
 
-Table~\ref{tab:caloutcomes} is, to our knowledge, the first cross-asset
-quantification of closed-loop calibratability for neural TPPs: the bounded
-\ssppp{} head verifies on \emph{all nine} checkpoints, while the unbounded
-\sppp{} head fails on 7 of 9, and on SOL the model class is excluded
-outright. Figure~\ref{fig:ladder} shows the failure signature. The closed-loop
-rate of a failing \sppp{} checkpoint is near-discontinuous in $\kappa$: a
-$10^{-3}$ change flips the realized rate across the entire tolerance band
-(e.g.\ $36\to48.5$\,ev/s), and seed-to-seed variance at fixed $\kappa$ reaches
-${\sim}30\%$. This is the behaviour of a system parked near criticality, where
-no constant time-rescaling exists. The \ssppp{} response crosses the same
-target smoothly. (An earlier run of one BTC seed produced a qualitatively
-different, single failure: a \emph{metastable} burst-locked regime at
-${\sim}2\times$ the target rate, bounded and benign next to \sppp's
-criticality; retraining escaped that basin.) This confirms the stability
-certificate empirically: the same unbounded softplus head whose
-intensity-collapse states produce \sppp's pathological expected-time tail
-(Table~\ref{tab:multiasset}) also places checkpoints near criticality in
-closed loop, and both problems disappear under the softmin bound.
+\textbf{Finding: whether a model can be calibrated at all is a measurable
+property, and the bound decides it.} Table~\ref{tab:caloutcomes} is, to our
+knowledge, the first cross-asset quantification of closed-loop calibratability
+for neural TPPs: the bounded \ssppp{} head verifies on \emph{all nine}
+checkpoints, while the unbounded \sppp{} head fails on 7 of 9, and on SOL the
+model class is excluded outright.
 
-\begin{figure}[t]
+Figure~\ref{fig:ladder} shows the failure in detail. The closed-loop rate of
+a failing \sppp{} checkpoint is near-discontinuous in $\kappa$: an
+$8\times10^{-4}$ change flips the realized rate across the entire tolerance
+band ($34.8\to42.3$\,ev/s), and repeated probes at fixed $\kappa$ differ by
+${\sim}20\%$. This is the behaviour of a system parked near criticality,
+where no constant time-rescaling exists. The \ssppp{} response crosses the
+same target smoothly on every asset. (An earlier training run of one BTC seed
+produced a checkpoint whose single failure was qualitatively different: a
+per-lane diagnostic traced it to a \emph{metastable} burst-locked regime at
+${\sim}2\times$ the target rate that individual roll-out lanes enter
+stochastically, bounded and benign next to \sppp's criticality; retraining
+escaped that basin.)
+
+The insight closes the loop on the certificate: the same unbounded softplus
+head whose intensity-collapse states produce \sppp's pathological
+expected-time tail (Table~\ref{tab:multiasset}) also places checkpoints near
+criticality in closed loop, and both problems disappear under the softmin
+bound.
+
+\begin{figure*}[t]
 \centering
-\includegraphics[width=\columnwidth]{figs/fig_cal_ladder}
-\caption{Calibration probe ladders on all three assets (target band shaded,
-seed-1 checkpoints): the failing \sppp{} checkpoints' closed-loop rates are
-near-discontinuous in the rescaling constant $\kappa$, most extremely on SOL;
-the verified \ssppp{} checkpoints cross each target smoothly.}
+\includegraphics[width=0.85\textwidth]{figs/fig_cal_ladder}
+\caption{The failing \sppp{} checkpoints' closed-loop rates are
+near-discontinuous in the rescaling constant $\kappa$ on every asset, most
+extremely on SOL, while the verified \ssppp{} checkpoints cross each target
+smoothly. Curves are calibration probe ladders (seed-1 checkpoints; target
+band shaded).}
 \label{fig:ladder}
-\end{figure}
+\end{figure*}
 
 \subsection{Efficiency Analysis}
 \label{sec:efficiency}

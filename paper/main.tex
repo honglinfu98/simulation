@@ -31,6 +31,13 @@
 }
 
 \setcounter{secnumdepth}{0} % no section numbers (AAAI default)
+% Float placement: the experiments section carries six double-column floats;
+% defaults strand them on trailing float pages.
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.8}
+\setcounter{dbltopnumber}{3}
 
 % Title in Title Case.
 \title{SS2P2: A Stable State-Space Point Process for Limit-Order-Book Simulation}
