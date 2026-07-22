@@ -1,6 +1,11 @@
 \section{Methods}
 \label{sec:method}
 
+To apply point process modeling to high-frequency limit order book (LOB) data, we
+represent market dynamics as a sequence of \textbf{events} (pipeline overview in
+Figure~\ref{fig:pipeline}). We collect the data, construct events, and train a 
+Stable State-Space Point Process (\ssppp{}) model to learn the underlying dynamics.
+
 \subsection{Data collector}
 \label{subsec:data-collector}
 We obtain both trade and Level-2 limit order book data from Kaiko
@@ -38,8 +43,7 @@ per-type intensities $\lambda_e(t)=\lambda(t)\,p(e\mid t)$.}
 
 
 To apply point process modeling to high-frequency limit order book (LOB) data, we
-represent market dynamics as a sequence of \textbf{events}
-(pipeline overview in Figure~\ref{fig:pipeline}). We consider the top
+represent market dynamics as a sequence of \textbf{events}. We consider the top
 $K=10$ levels on each side (bid and ask).
 
 \paragraph{Atomic Events.}

@@ -45,7 +45,9 @@ continuous-time state-space \citep{chang2025ctssm} encoders
 specialize neural Hawkes models to LOB streams and evaluate both prediction
 and simulation. The state-space line, however, is evaluated almost
 exclusively teacher-forced: \citet{chang2025ctssm} report state-of-the-art
-held-out likelihood but never roll the model out. 
+held-out likelihood but never roll the model out. Our contribution is
+orthogonal: we keep the backbone verbatim and change only what is read
+\emph{out} of it.
 
 \paragraph{Hawkes modeling of order flow.}
 Parametric Hawkes processes are the classical LOB event model
