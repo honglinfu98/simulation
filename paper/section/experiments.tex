@@ -112,8 +112,9 @@ subject of the next two subsections.
 \centering
 \includegraphics[width=0.85\textwidth]{figs/fig_forest}
 \caption{The full stylized-fact battery, pooled across the three assets:
-relative error vs.\ real for event rate (F0), Fano factor averaged over
-1--50\,s scales (F5), and the ten distributional facts F1--F11 (whiskers =
+relative error vs.\ real for the twelve facts F0--F11: event rate (F0),
+Fano factor averaged over 1--50\,s scales (F2), and the distributional facts
+(whiskers =
 95\% CI over asset--checkpoint pairs; roll-out seeds averaged within
 checkpoint). \sppp{} and SAHP omitted: too few calibrated checkpoints.}
 \label{fig:forest}
@@ -183,11 +184,11 @@ band shaded).}
 \label{sec:simulation}
 \ssppp{} is the only model that pairs competitive
 closed-loop simulation with top-tier prediction. Figure~\ref{fig:forest}
-scores the calibrated roll-outs on the full stylized-fact battery (event rate,
-Fano factor, and the ten distributional facts), pooled across the three
-assets: \ssppp{} sits at or near the front on most
+scores the calibrated roll-outs on the full stylized-fact battery (twelve
+facts: event rate, Fano factor, and ten distributional facts), pooled across
+the three assets: \ssppp{} sits at or near the front on most
 facts and is clearly strongest on aggregated kurtosis (F7), the volatility
-decay exponent (F8), and heavy tails (F2a); every model's rate is separately
+decay exponent (F8), and heavy tails (F3); every model's rate is separately
 verified against its target during calibration, so these are structural
 comparisons at matched clocks.
 
