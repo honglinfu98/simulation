@@ -241,7 +241,7 @@ def parse_ladder(cal_lines, rollout="r1"):
 
 def fig_ladder(D):
     coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
-    fig, axes = plt.subplots(3, 1, figsize=(3.3, 4.0))
+    fig, axes = plt.subplots(3, 1, figsize=(3.3, 3.7))
     for ax, (dsn, ttl) in zip(axes, coins):
         for tag, st, lbl in [
                 ("s2p2-s1", STYLE["s2p2"], "S2P2 (fails)"),

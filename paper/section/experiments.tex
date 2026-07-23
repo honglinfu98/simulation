@@ -120,6 +120,39 @@ checkpoint). \sppp{} and SAHP omitted: too few calibrated checkpoints.}
 \label{fig:forest}
 \end{figure*}
 
+\subsection{Simulation Quality}
+\label{sec:simulation}
+\textbf{Finding: two of the six models cannot simulate stably at all, and
+among those that can, \ssppp{} is the only one that pairs competitive
+simulation with top-tier prediction.} The instabilities are of two kinds.
+SAHP's free-running rate collapses to $6$--$10$\,ev/s against real rates of
+$24$--$48$, unstable across warm-starts, so it is reported uncalibrated
+(\dag). The unbounded \sppp{} drifts hot instead: calibration fails
+verification on 7 of 9 checkpoints (all three on SOL), and its one surviving
+ETH arm lands the rate but over-disperses wildly (Fano rel-err $6.0$); even a
+nominally calibrated near-critical checkpoint does not simulate real
+structure. The next subsection examines this failure mode in detail.
+
+Among the stable models, Figure~\ref{fig:forest} scores the calibrated
+roll-outs on the full stylized-fact battery (twelve facts: event rate, Fano
+factor, and ten distributional facts), pooled across the three assets:
+\ssppp{} sits at or near the front on most facts and is clearly strongest on
+aggregated kurtosis (F7), the volatility decay exponent (F8), and heavy tails
+(F3). The F2 (Fano) panel separates the families most sharply. The LSTM's
+relative error pins at ${\approx}0.99$ with a negligible interval because it
+simulates a near-Poisson stream, the trivially-stable end of the trade-off;
+real Fano instead rises from ${\sim}70$ at 1\,s to ${\sim}1300$ at 50\,s.
+\nhp, the best BTC predictor, is mid-pack on F2 and on most structural facts.
+PCT-LSTM and \ssppp{} err least on F2, but PCT-LSTM has the weakest type
+accuracy in Table~\ref{tab:multiasset}, so its simulation strength does not
+come with prediction strength.
+
+The insight is that prediction and simulation quality are distinct axes: no
+unbounded model wins both, and the two families that simulate burst structure
+best do it through opposite designs (per-type parallel streams vs.\ a bounded
+shared rate), of which only the bounded design also predicts at the top of the
+table.
+
 \subsection{Calibratability}
 \label{sec:calibratability}
 Post-hoc rate calibration applies to \emph{every} decoder, because a
@@ -156,12 +189,10 @@ $8\times10^{-4}$ change flips the realized rate across the entire tolerance
 band ($34.8\to42.3$\,ev/s), and repeated probes at fixed $\kappa$ differ by
 ${\sim}20\%$. This is the behaviour of a system parked near criticality,
 where no constant time-rescaling exists. The \ssppp{} response crosses the
-same target smoothly on every asset. (An earlier training run of one BTC seed
-produced a checkpoint whose single failure was qualitatively different: a
-per-lane diagnostic traced it to a \emph{metastable} burst-locked regime at
-${\sim}2\times$ the target rate that individual roll-out lanes enter
-stochastically, bounded and benign next to \sppp's criticality; retraining
-escaped that basin.)
+same target smoothly on every asset. (One earlier-trained BTC seed failed differently: a
+\emph{metastable} burst-locked regime at ${\sim}2\times$ target that
+roll-out lanes enter stochastically, bounded and benign next to \sppp's
+criticality; retraining escaped it.)
 
 The insight closes the loop on the certificate: the same unbounded softplus
 head whose intensity-collapse states produce \sppp's pathological
@@ -171,7 +202,7 @@ bound.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.74\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=0.70\columnwidth]{figs/fig_cal_ladder}
 \caption{The failing \sppp{} checkpoints' closed-loop rates are
 near-discontinuous in the rescaling constant $\kappa$ on every asset, most
 extremely on SOL, while the verified \ssppp{} checkpoints cross each target
@@ -179,37 +210,6 @@ smoothly. Curves are calibration probe ladders (seed-1 checkpoints; target
 band shaded).}
 \label{fig:ladder}
 \end{figure}
-
-\subsection{Simulation Quality}
-\label{sec:simulation}
-\ssppp{} is the only model that pairs competitive
-closed-loop simulation with top-tier prediction. Figure~\ref{fig:forest}
-scores the calibrated roll-outs on the full stylized-fact battery (twelve
-facts: event rate, Fano factor, and ten distributional facts), pooled across
-the three assets: \ssppp{} sits at or near the front on most
-facts and is clearly strongest on aggregated kurtosis (F7), the volatility
-decay exponent (F8), and heavy tails (F3); every model's rate is separately
-verified against its target during calibration, so these are structural
-comparisons at matched clocks.
-
-The F2 (Fano) panel separates the families most sharply. The LSTM's relative
-error pins at ${\approx}0.99$ with a negligible interval because it simulates
-a near-Poisson stream, the trivially-stable end of the trade-off; real Fano
-instead rises from ${\sim}70$ at 1\,s to ${\sim}1300$ at 50\,s. \nhp, the
-best BTC predictor, is mid-pack on F2 and on most structural facts. PCT-LSTM
-and \ssppp{} err least on F2, but PCT-LSTM has the weakest type accuracy in
-Table~\ref{tab:multiasset}, so its simulation strength does not come with
-prediction strength. The one surviving \sppp{} arm on ETH calibrates in rate
-but over-disperses wildly (Fano rel-err $6.0$): rate calibration cannot repair
-a near-critical checkpoint's structure.
-
-The insight is that prediction and simulation quality are distinct axes: no
-unbounded model wins both, and the two families that simulate burst structure
-best do it through opposite designs (per-type parallel streams vs.\ a bounded
-shared rate), of which only the bounded design also predicts at the top of the
-table.
-
-
 
 \subsection{Efficiency Analysis}
 \label{sec:efficiency}
