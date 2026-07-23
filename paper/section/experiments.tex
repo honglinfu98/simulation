@@ -3,7 +3,7 @@
 
 We evaluate \ssppp{} against five baselines on three questions: (1)~does the
 bounded head cost predictive accuracy? (2)~does \ssppp{} reproduce the
-structure of real order flow in closed-loop simulation? (3)~can each model be
+structure of real order flow in closed-loop simulation stably? (3)~can the \ssppp{} model be
 rate-calibrated at all? We close with computational efficiency.
 
 \subsection{Experimental Setup}
@@ -87,23 +87,20 @@ time within $0.030$--$0.050$\,s of the truth on every asset, within about a
 millisecond of the best model, while the unbounded \sppp{} is pathological
 ($2.3$, $10.2$, $46.2$\,s): its intensity-collapse states place essentially
 no mass where events occur, and the expectation integral diverges toward the
-horizon. \ssppp{} achieves all of this while remaining verifiably
-calibratable in closed loop (Table~\ref{tab:caloutcomes}); no baseline
-combines both.
-
-The remaining gap to \nhp{} is in timing on BTC, and a per-gap decomposition
-of timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator
-mass) shows it is not about bursts: the state-space family's event terms beat
-\nhp's ($-4.87$ \ssppp{} vs.\ $-4.29$). The entire gap is compensator mass
-in \emph{quiet gaps}: mean per-gap rescaled mass is $1.85$ (\ssppp) and
-$2.38$ (\sppp) against \nhp's near-ideal $1.07$ (target $1$), with the
-excess accruing in gaps beyond $0.1$\,s: \ssppp{} integrates $4.3$ units
-of intensity across a $0.5$--$2$\,s lull where \nhp{} integrates $0.8$. The
-insight is mechanistic: \nhp{} decays toward a \emph{learned steady state}
-that tracks the falling empirical hazard of long gaps, while the state-space
-family, with no dedicated resting-rate parameter, stays hot through lulls.
-This quiet-gap cost is the deliberate price of stability; what it buys is the
-subject of the next two subsections.
+horizon. 
+% The remaining gap to \nhp{} is in timing on BTC, and a per-gap decomposition
+% of timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator
+% mass) shows it is not about bursts: the state-space family's event terms beat
+% \nhp's ($-4.87$ \ssppp{} vs.\ $-4.29$). The entire gap is compensator mass
+% in \emph{quiet gaps}: mean per-gap rescaled mass is $1.85$ (\ssppp) and
+% $2.38$ (\sppp) against \nhp's near-ideal $1.07$ (target $1$), with the
+% excess accruing in gaps beyond $0.1$\,s: \ssppp{} integrates $4.3$ units
+% of intensity across a $0.5$--$2$\,s lull where \nhp{} integrates $0.8$. The
+% insight is mechanistic: \nhp{} decays toward a \emph{learned steady state}
+% that tracks the falling empirical hazard of long gaps, while the state-space
+% family, with no dedicated resting-rate parameter, stays hot through lulls.
+% This quiet-gap cost is the deliberate price of stability; what it buys is the
+% subject of the next two subsections.
 
 
 
@@ -122,18 +119,17 @@ checkpoint). \sppp{} and SAHP omitted: too few calibrated checkpoints.}
 
 \subsection{Simulation Quality}
 \label{sec:simulation}
-\textbf{Finding: two of the six models cannot simulate stably at all, and
-among those that can, \ssppp{} is the only one that pairs competitive
-simulation with top-tier prediction.} The instabilities are of two kinds.
-SAHP's free-running rate collapses to $6$--$10$\,ev/s against real rates of
-$24$--$48$, unstable across warm-starts, so it is reported uncalibrated
-(\dag). The unbounded \sppp{} drifts hot instead: calibration fails
-verification on 7 of 9 checkpoints (all three on SOL), and its one surviving
-ETH arm lands the rate but over-disperses wildly (Fano rel-err $6.0$); even a
-nominally calibrated near-critical checkpoint does not simulate real
-structure. The next subsection examines this failure mode in detail.
+\ssppp{} is the only one that pairs competitive simulation with top-tier prediction, and
+two of the six models cannot simulate stably during roll-out at all. The
+instabilities are of two kinds. SAHP's free-running rate collapses to
+$6$--$10$\,ev/s against real rates of $24$--$48$, unstable across warm-starts
+(\dag{} in Table~\ref{tab:multiasset}). The unbounded \sppp{} drifts hot
+instead: on 7 of 9 checkpoints (all three on SOL) the roll-out rate runs away
+from the data, and the one ETH arm that holds a plausible rate still
+over-disperses wildly (Fano rel-err $6.0$), so even its steadiest checkpoint
+does not simulate real structure.
 
-Among the stable models, Figure~\ref{fig:forest} scores the calibrated
+Among the stable models, Figure~\ref{fig:forest} scores the
 roll-outs on the full stylized-fact battery (twelve facts: event rate, Fano
 factor, and ten distributional facts), pooled across the three assets:
 \ssppp{} sits at or near the front on most facts and is clearly strongest on
@@ -177,8 +173,8 @@ SAHP diverges at the model level on every asset.}
 \end{table}
 
 Whether a model can be calibrated at all is a measurable
-property, and the bound decides it. Table~\ref{tab:caloutcomes} is, to our
-knowledge, the first cross-asset quantification of closed-loop calibratability
+property, and the bound decides it. Table~\ref{tab:caloutcomes} is a 
+cross-asset quantification of closed-loop calibratability
 for neural TPPs: the bounded \ssppp{} head verifies on \emph{all nine}
 checkpoints, while the unbounded \sppp{} head fails on 7 of 9, and on SOL the
 model class is excluded outright.
@@ -189,10 +185,7 @@ $8\times10^{-4}$ change flips the realized rate across the entire tolerance
 band ($34.8\to42.3$\,ev/s), and repeated probes at fixed $\kappa$ differ by
 ${\sim}20\%$. This is the behaviour of a system parked near criticality,
 where no constant time-rescaling exists. The \ssppp{} response crosses the
-same target smoothly on every asset. (One earlier-trained BTC seed failed differently: a
-\emph{metastable} burst-locked regime at ${\sim}2\times$ target that
-roll-out lanes enter stochastically, bounded and benign next to \sppp's
-criticality; retraining escaped it.)
+same target smoothly on every asset. 
 
 The insight closes the loop on the certificate: the same unbounded softplus
 head whose intensity-collapse states produce \sppp's pathological
@@ -202,7 +195,7 @@ bound.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.70\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=\columnwidth]{figs/fig_cal_ladder}
 \caption{The failing \sppp{} checkpoints' closed-loop rates are
 near-discontinuous in the rescaling constant $\kappa$ on every asset, most
 extremely on SOL, while the verified \ssppp{} checkpoints cross each target
