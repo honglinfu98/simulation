@@ -24,7 +24,7 @@ import argparse
 import json
 import os
 
-MODELS = ["nhp", "lstm", "sahp", "pct-lstm", "s2p2", "ss2p2-full"]
+MODELS = ["nhp", "lstm", "sahp", "pct-lstm", "s2p2", "s2p2-pub", "ss2p2-full"]
 SEEDS = [1, 2, 3]
 ROLLOUTS = [1, 2, 3]
 GENUINE_KEYS = [
