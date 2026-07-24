@@ -15,9 +15,11 @@ and replaces the two output heads:
         z     = c - softplus(c - z_raw)                  (smooth one-sided cap)
         lambda(t) = scale * softplus(z)
     z <= c always  =>  lambda <= scale*softplus(c): a HARD closed-form ceiling
-    (no runaway; exact dominating rate for thinning).  z_raw -> -inf  =>
-    z ~ z_raw  =>  lambda ~ scale*e^{z_raw} -> 0: the floor is exactly 0 and
-    log-lambda keeps unit gradient in the quiet regime.  The old G1 sandwich
+    (no runaway; exact dominating rate for thinning).  The cap is one-sided:
+    z ~ z_raw as z_raw -> -inf, so the low-rate regime is undistorted; for
+    FIXED parameters h in (-1,1)^H gives z_raw > b - ||w||_1, i.e. a strictly
+    positive parameter-dependent floor (zero infimum only over parameters --
+    see the paper's Proposition 2).  The old G1 sandwich
     was symmetric (lambda >= scale*softplus(b-cap) ~ 0.36 ev/s), which welded
     the quiet floor to the burst scale and caused the quiet-regime deficit vs
     NHP; the asymmetric requirement (ceiling for simulation stability, zero

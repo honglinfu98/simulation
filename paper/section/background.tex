@@ -12,29 +12,41 @@ distribution $p(e\mid t)=\lambda_e(t)/\lambda(t)$, the log-likelihood is
 -\int_0^T\!\lambda(u\mid\mathcal{H}_u)\,du ,
 \]
 the integral being the compensator
-$\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. Sampling uses Ogata thinning, which requires a dominating rate
-$\bar\lambda\ge\lambda(t)$. A model whose intensity has no computable upper
-bound must resort to heuristic, bias-prone dominating-rate estimates.
+$\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. Sampling uses Ogata
+thinning \citep{lewis1979thinning,ogata1981lewis}, which requires a
+dominating rate $\bar\lambda\ge\lambda(t)$; models exposing no practical
+dominating rate fall back on heuristic bound estimates, which can bias
+samples when the estimate is exceeded.
 
 \paragraph{The \sppp{} backbone.}
-\sppp{} \citep{chang2025ctssm,Shi2022StateSimulation} is a state-space point
-process: $L$ stacked latent-linear-Hawkes/SSM layers with diagonal state,
-ZOH-discretized between events and computable by parallel scan,
+\sppp{} \citep{chang2025ctssm} is a state-space point process: $L$ stacked
+latent-linear-Hawkes/SSM layers with diagonal state, ZOH-discretized between
+events and computable by parallel scan,
 \[
 x^{(\ell)}_{t'}=\bar A^{(\ell)} x^{(\ell)}_{t}
-+(\bar A^{(\ell)}\!-\!I)\,\tilde B^{(\ell)} h^{(\ell-1)}
-\;\bigl[+\,\tilde E^{(\ell)}\alpha\ \text{at an event}\bigr],
++(\bar A^{(\ell)}\!-\!I)\tilde B^{(\ell)} h^{(\ell-1)}
+\bigl[+\tilde E^{(\ell)}\alpha\ \text{at an event}\bigr],
 \]
-with a LayerNorm'd residual readout
-$h^{(\ell)}=\mathrm{LayerNorm}\bigl(\mathrm{GELU}(y^{(\ell)})+h^{(\ell-1)}\bigr)$
-producing the continuous-time hidden representation
-$h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published model reads the rate from
-$h_t$ through a projection-and-softplus head,
-$\lambda=\mathrm{softplus}(w^{\!\top}h_t+b)$, unbounded above and with no
-learnable scale. Marks couple to the same rate field (our benchmark
-implementation splits $h_t$ into disjoint halves for the rate and mark heads).
-\ssppp{} keeps everything up to and including $h_t$ and changes only the two
-heads.
+with a post-norm residual readout (LayerNorm \citep{ba2016layernorm} after
+each layer's residual sum) producing the continuous-time hidden
+representation $h_t:=h^{(L)}(t)\in\mathbb{R}^{H}$. The published decoder
+reads \emph{per-type} intensities from $h_t$ through a linear projection
+followed by a scaled softplus with a learnable per-type sharpness,
+$\lambda_e=\mathrm{softplus}\bigl(\beta_e\,a_e\bigr)/\beta_e$ with
+$a=Wh_t+b$. Each $\beta_e$ reshapes the curvature near zero, but the map is
+asymptotically linear with unit slope, so the head carries no explicit
+output ceiling.
+
+Our experiments use a \emph{factorized, uncapped} variant, denoted
+\spppu{}: a scalar total rate $\lambda=\mathrm{softplus}(w^{\!\top}h_t+b)$
+on one half of $h_t$, a soft-max mark head on the other, built on our
+real-valued reimplementation of the backbone (real diagonal states in place
+of the complex DPLR spectrum; same ZOH input drive, input-dependent
+dynamics, and post-norm readout). It shares the published head's operative
+property, a softplus rate with no explicit ceiling, but is not the
+published per-type decoder, and we label it accordingly. \ssppp{} keeps
+everything up to and including $h_t$ and changes only the heads, so
+\ssppp{}--\spppu{} differences are attributable to the head pair.
 
 \paragraph{Neural TPPs for event streams.}
 Neural MTPPs learn history-dependent intensities with recurrent
@@ -45,20 +57,18 @@ continuous-time state-space \citep{chang2025ctssm} encoders
 specialize neural Hawkes models to LOB streams and evaluate both prediction
 and simulation. The state-space line, however, is evaluated almost
 exclusively teacher-forced: \citet{chang2025ctssm} report state-of-the-art
-held-out likelihood but never roll the model out. Our contribution is
-orthogonal: we keep the backbone verbatim and change only what is read
-\emph{out} of it.
+held-out likelihood but never roll the model out.
 
 \paragraph{Hawkes modeling of order flow.}
 Parametric Hawkes processes are the classical LOB event model
 \citep{Hawkes1971,Hawkes2018HawkesReview,Jain2024LimitProcess,jain2024review},
 with state-dependent extensions
 \citep{Morariu-Patrichi2022State-dependentModelling}: exact stationarity
-certificates, limited expressiveness. \ssppp{} takes the complementary route,
-full neural expressiveness with stability restored by a closed-form bound. In
-the neural TPP literature such bounds appear mainly as computational devices
-for thinning. Here the bound is a modeling decision with an asymmetric
-requirement (hard ceiling, exactly-zero floor).
+certificates, limited expressiveness. \ssppp{} takes the complementary
+route: full neural expressiveness with a closed-form rate bound restoring
+non-explosiveness. In the neural TPP literature such bounds appear mainly
+as computational devices for thinning; here the bound is a modeling
+decision, one-sided so the quiet regime is left undistorted.
 
 \paragraph{Generative LOB simulators.}
 Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
@@ -71,5 +81,6 @@ workhorse. These systems are scored on distributional realism: stylized facts
 of LOB-Bench \citep{nagy2025lobbench}, whose authors report error
 accumulation over long roll-outs. \ssppp{} differs on two counts: one
 likelihood-based model is held to \emph{both} prediction and closed-loop
-realism, and the simulated rate is calibrated and \emph{verified}, a
-closed-loop stability certificate that no generative simulator above carries.
+realism, and the simulated mean rate is calibrated and checked by a
+full-scale verification roll-out, an empirical closed-loop test the
+simulators above do not report.
