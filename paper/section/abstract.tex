@@ -1,19 +1,22 @@
 \begin{abstract}
 Simulating limit-order-book (LOB) order flow is a core generative task for
 market-making world models, agent training, and counterfactual analysis.
-State-Space Point Process (S2P2) predicts the next LOB event
-accurately, but in closed loop its learned self-excitation drifts or
-explodes. We propose \ssppp{} (Stable State-Space Point Process), which keeps the
-state-space backbone of \sppp{} and replaces only the output heads: a
-softmin-bounded rate head whose intensity has a hard closed-form ceiling (an
-exact dominating rate for Ogata thinning) and a floor of exactly zero, and a
-rate-neutral soft-max mark head that can be arbitrarily deep without
-perturbing the total rate. On three Coinbase assets, against five baselines
-with three training seeds each and verified rate calibration for every model,
-\ssppp{} is the strongest predictor on two of three assets while remaining
-verifiably calibratable in closed loop with competitive simulated structure.
-\ssppp{} trains with an exact parallel scan and simulates in $O(1)$ per event
-by exact Ogata thinning. These results establish \ssppp{} as a 
-likelihood-trained model that both predicts accurately and simulates stably,
-a practical foundation for market-making world models.
+The state-space point process \sppp{} predicts the next LOB event
+accurately, but we find that an uncapped decoder built on its backbone
+drifts or explodes when rolled out in closed loop. We propose \ssppp{}
+(Stable State-Space Point Process), which keeps the backbone and replaces
+only the output heads: a softmin-bounded rate head whose intensity has a
+hard closed-form ceiling (an exact dominating rate for Ogata thinning), and
+a soft-max mark head that is rate-neutral at a fixed state. The bounded
+intensity makes \ssppp{} stable in the point-process sense: the process is
+non-explosive, and the event count over any finite horizon is
+stochastically dominated by a homogeneous Poisson process at the ceiling. On three Coinbase assets,
+against five baselines with three training seeds each and empirically
+verified mean-rate calibration (15\% tolerance), \ssppp{} attains the best
+NLL and type accuracy on two of three assets and verifies calibration on
+all nine checkpoints, where the uncapped variant fails on six. \ssppp{}
+trains with a parallel scan and simulates with constant-cost state updates
+by exact thinning: a likelihood-trained model that predicts accurately and
+simulates reliably within our protocol, a practical foundation for
+market-making world models.
 \end{abstract}
