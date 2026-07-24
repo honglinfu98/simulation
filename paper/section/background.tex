@@ -45,10 +45,10 @@ of the backbone. The reimplementation keeps the published configuration's
 block structure (backward-ZOH input drive, input-dependent dynamics,
 post-norm GELU residual readout, event impulses, left-limit likelihood) and
 deviates in four respects: real diagonal states with log-spaced timescale
-initialization replace the complex DPLR spectrum; a learned skip projection
-replaces the identity residual with diagonal feedthrough; dynamics gates
-condition on each interval's end rather than its start; and between-event
-queries hold inter-layer inputs at their last-event values. Our variant
+initialization (vs.\ the complex DPLR spectrum); a learned skip projection
+(vs.\ identity residual with diagonal feedthrough); dynamics gates
+conditioned at each interval's end (vs.\ start); and between-event queries
+holding inter-layer inputs at last-event values. Our variant
 shares the published head's operative property, a softplus rate with no
 explicit ceiling, though its head is factorized rather than per-type.
 \ssppp{} keeps everything up to and including $h_t$ and changes only the

@@ -13,9 +13,9 @@ for every $h_t$ and every $(W_o,b_o,w,b)$.
 \emph{Proof.} $\mathrm{softplus}(x)>0$ for all $x$, so
 $z=z_{\max}-\mathrm{softplus}(z_{\max}-z_{\mathrm{raw}})<z_{\max}$;
 $\mathrm{softplus}$ is increasing, so
-$\lambda<\varsigma\,\mathrm{softplus}(z_{\max})$. \hfill$\square$
+$\lambda<\varsigma\,\mathrm{softplus}(z_{\max})$. 
 
-\paragraph{Consequences.} (i) The conditional intensity is globally bounded,
+(i) The conditional intensity is globally bounded,
 so for any finite horizon $T$ the compensator satisfies
 $\Lambda(T)\le\bar\lambda T<\infty$ and the process is non-explosive on
 $[0,T]$. (ii) The event count $N(T)$ is stochastically dominated by a
@@ -55,7 +55,8 @@ is not assumed or proven; it held empirically over every successful bracket.
 Calibrated multipliers $\kappa$ (seeds 1/2/3): \ssppp{} BTC
 $0.545/0.569/0.648$, ETH $0.723/0.707/0.582$, SOL $0.557/0.595/0.621$;
 \spppu{} (passing checkpoints only) BTC $0.534$ (s2), $0.751$ (s3), ETH
-$1.102$ (s3).
+$1.102$ (s3); \spppub{} (passing) BTC $0.608$ (s1), $0.439$ (s2), ETH
+$0.322/0.310/0.439$, SOL $0.534$ (s2).
 
 \subsection{C. Metric definitions}
 \textbf{NLL} is per-event negative log-likelihood with the compensator
@@ -100,7 +101,11 @@ log-parameterized and initialized from the training-split rate
 zero; rate weights Xavier-uniform (gain $0.5$). Simulation: carried-state
 roll-outs, $32$ sequences $\times$ $600$\,s, three roll-out seeds, thinning
 for \ssppp{} (constant ceiling $\varsigma\,\mathrm{softplus}(z_{\max})$),
-compensator-inversion sampling for baselines.
+compensator-inversion sampling for baselines. The \spppub{} port sizes are
+benchmark-matched ($H{=}64$, two layers, complex state dimension $P{=}64$
+per layer); its architecture follows the official example configuration
+(\texttt{Int\_Backward\_LLH}, \texttt{relative\_time}, post-norm, GELU) and
+was verified value-level against the official classes.
 
 \subsection{F. Efficiency table}
 \begin{table}[t]

@@ -1,7 +1,7 @@
 \section{Experiments and Evaluations}
 \label{sec:experiments}
 
-We evaluate \ssppp{} against five baselines on three questions: (1)~does
+We evaluate \ssppp{} against six baselines on three questions: (1)~does
 the bounded head reduce predictive accuracy? (2)~does \ssppp{} reproduce
 real order-flow structure in closed loop? (3)~which models pass verified
 rate calibration? We close with efficiency.
@@ -33,6 +33,11 @@ differ only in the decoder.
 \item \textbf{\sppp{}} \citep{chang2025ctssm}: our factorized, uncapped
   benchmark implementation: identical backbone to \ssppp{}, scalar softplus
   rate with no ceiling (Background; the published head is per-type).
+\item \textbf{\spppub{}}: a faithful port of the published configuration
+  (complex DPLR states, backward-ZOH drive, relative-time dynamics,
+  post-norm, per-type ScaledSoftplus head), verified value-level against
+  the official code; the published training recipe differs (larger rate,
+  300 epochs, MC compensator).
 \end{itemize}
 
 \paragraph{Training and evaluation protocol.}
@@ -51,9 +56,8 @@ strict end-to-end:
 \item \textbf{Simulation} uses carried-state closed-loop roll-outs
   ($32\times600$\,s, three roll-out seeds per checkpoint) against
   equal-duration bootstrap samples of real segments. \ssppp{} samples by
-  Ogata thinning with its exact closed-form ceiling; the baseline heads
-  expose no closed-form dominating rate and share a common
-  compensator-inversion sampler. Stylized facts are computed on an
+  Ogata thinning with its exact closed-form ceiling; baselines expose no
+  closed-form dominating rate and share a compensator-inversion sampler. Stylized facts are computed on an
   order-flow proxy (signed counts of price-moving events per 1\,s bucket),
   identically for real and simulated streams (appendix).
 \item \textbf{Calibration}: models are rate-calibrated before scoring by a
@@ -61,9 +65,9 @@ strict end-to-end:
   targeting the \emph{validation}-split rate; a full-scale validation
   roll-out must then reproduce the target within 15\% (protocol in the
   appendix). Failing checkpoints are excluded and the failure is reported as
-  a result. SAHP is the exception: after its free-running rate collapsed on
-  every asset, calibration was not attempted for it (protocol decision) and
-  it is reported uncalibrated (\dag).
+  a result. SAHP is the exception: after its free-running rate collapsed
+  on every asset, calibration was not attempted (protocol decision); it is
+  reported uncalibrated (\dag).
 \item \textbf{Statistics}: roll-out seeds are averaged within each checkpoint.
   95\% CIs are $t$-based across three training seeds, indicative only at
   this sample size. Any batch failure or non-finite value aborts the run.
@@ -90,16 +94,19 @@ that run into the evaluator's horizon clamp on a subset of states.}
 \label{sec:prediction}
 \ssppp{} leads NLL and type accuracy on two of the three assets, and
 bounding the intensity did not reduce predictive performance in these
-experiments. In Table~\ref{tab:multiasset}, \ssppp{} wins overall NLL on
-SOL by a wide margin ($0.27$ vs.\ the strongest baseline's $0.38$) with the
-best accuracy ($0.192$ vs.\ $0.184$), wins both outright on ETH ($-0.87$
-vs.\ PCT-LSTM's $-0.84$; $0.345$ vs.\ \nhp's $0.341$), and on BTC ties
-\nhp{} on marks ($0.448$ vs.\ $0.449$) while conceding overall likelihood.
+experiments: it wins overall NLL on SOL by a wide margin ($0.27$ vs.\
+$0.38$) with the best accuracy ($0.192$ vs.\ $0.184$), wins both on ETH
+($-0.87$ vs.\ $-0.84$; $0.345$ vs.\ $0.341$), and ties \nhp{} on BTC marks
+($0.448$ vs.\ $0.449$) while conceding overall likelihood
+(Table~\ref{tab:multiasset}).
 Expected-time MAE is within $0.030$--$0.050$\,s of the truth on every
 asset, approximately 1--3\,ms behind the best model per asset (PCT-LSTM has
 the lowest MAE on ETH and SOL); the uncapped \spppu{} is pathological
 ($2.3$, $10.2$, $46.2$\,s), consistent with near-zero-intensity states
-whose expected-time integral runs to the evaluation horizon.
+whose expected-time integral runs to the evaluation horizon. The faithful
+\spppub{} port is erratic across seeds under this budget (ETH NLL spans
+$0.28$--$9.1$): a protocol-matched reference, not the published model's
+attainable accuracy.
 % The remaining gap to \nhp{} is in timing on BTC, and a per-gap decomposition
 % of timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator
 % mass) shows it is not about bursts: the state-space family's event terms beat
@@ -124,90 +131,89 @@ whose expected-time integral runs to the evaluation horizon.
 construction for real and simulated streams), pooled across assets:
 relative error vs.\ real for facts F0--F11 (whiskers = 95\% $t$-CI over
 asset--checkpoint pairs, indicative at $n{=}3$ seeds; roll-out seeds
-averaged within checkpoint). \spppu{} and SAHP omitted: too few calibrated
-checkpoints.}
+averaged within checkpoint). \spppu{}, \spppub{}, and SAHP omitted: too few
+calibrated checkpoints for a nine-pair pooled comparison.}
 \label{fig:forest}
 \end{figure*}
 
 \subsection{Simulation Quality}
 \label{sec:simulation}
 \ssppp{} is the only model pairing reliable closed-loop simulation with
-top-tier prediction; the two strongest baseline predictors are unusable or
+top-tier prediction; the strongest baseline predictors are unusable or
 erratic in closed loop. SAHP's free-running rate collapses to
-$5$--$16$\,ev/s against matched real segments at $20$--$35$\,ev/s, under
-half the real rate on every asset; per protocol it was not calibrated
-(\dag{} in Table~\ref{tab:multiasset}). The uncapped \spppu{} drifts hot
+$5$--$16$\,ev/s against real segments at $20$--$35$\,ev/s (under half on
+every asset); per protocol it was not calibrated (\dag{} in
+Table~\ref{tab:multiasset}). The uncapped \spppu{} drifts hot
 instead: 6 of 9 checkpoints, all three on SOL among them, fail verified
 calibration (Table~\ref{tab:caloutcomes}), and the three that pass are
 erratic, with roll-out Fano relative errors of $0.27$, $2.2$, and $6.0$:
-simulated dispersion quality is seed luck.
+simulated dispersion quality is seed luck. The faithful \spppub{} port
+behaves likewise: it free-runs $14$--$19\times$ hot at $\kappa=1$ and
+fails verified calibration on 3 of 9 with the same signatures
+(non-monotone BTC ladder; SOL probe--verification mismatches to 44\%):
+the instability is a property of the unbounded family, not our ablation.
 
-Among the remaining models, Figure~\ref{fig:forest} scores the roll-outs on
-the stylized-fact battery (twelve facts on the order-flow proxy), pooled
-across assets. \ssppp{} has the lowest mean relative error on five of
-twelve (heavy tails F3, Hill index F4, volatility decay F8, leverage F9,
-asymmetry F11), ties PCT-LSTM for best on the Fano panel F2 ($0.73$ both),
-and is mid-pack on the rest; confidence intervals overlap heavily on most
-panels, so we read the figure as broad competitiveness, not dominance. The F2 panel still separates
-the families most sharply: the LSTM pins at ${\approx}0.99$ with a
-negligible interval because it simulates a near-Poisson stream, the
-trivially-stable end of the trade-off, while real Fano rises from
-${\sim}40$--$70$ at 1\,s to ${\sim}340$--$1400$ at 50\,s across assets.
-\nhp, the best BTC predictor, leads the rate and activity panels (F0, F10)
-but is mid-pack on burst structure; PCT-LSTM matches \ssppp{} on F2 and
-leads aggregated kurtosis F7, but has the weakest type accuracy in
-Table~\ref{tab:multiasset}. Prediction and simulation quality are distinct
+Figure~\ref{fig:forest} scores the remaining models' roll-outs on the
+twelve-fact battery (order-flow proxy), pooled across assets. \ssppp{} has
+the lowest mean relative error on five of twelve (F3 tails, F4 Hill, F8
+decay, F9 leverage, F11 asymmetry), ties PCT-LSTM on F2 ($0.73$ both), and
+is mid-pack elsewhere; intervals overlap heavily, so we read the figure as
+broad competitiveness, not dominance. The F2 panel separates the
+families most sharply: the LSTM pins at ${\approx}0.99$ (a near-Poisson
+stream, the trivially-stable end of the trade-off) while real Fano rises
+from ${\sim}40$--$70$ at 1\,s to ${\sim}340$--$1400$ at 50\,s. \nhp{}
+leads the rate and activity panels (F0, F10) but is mid-pack on burst
+structure; PCT-LSTM matches \ssppp{} on F2 and leads F7 but has the
+weakest type accuracy (Table~\ref{tab:multiasset}). Prediction and simulation quality are distinct
 axes: no baseline wins both, and only the bounded design tracks burst
 structure while predicting at the top of the table.
 
 \subsection{Calibratability}
 \label{sec:calibratability}
-Post-hoc rate calibration applies to \emph{every} decoder, because a
-constant $\kappa$ rescales sim-time intensity while preserving conditional
-type ratios at a fixed history; we calibrate every model except SAHP
-(excluded above) and treat the \emph{outcome} as a result. The
-protocol is falsifiable: probes must bracket and converge to the validation
-target, a full-scale roll-out must reproduce it within 15\%, and every
-failure is reproducible (deterministic probe seeds; retried failures
-reproduce their brackets bit-identically).
+Post-hoc rate calibration applies to \emph{every} decoder: a constant
+$\kappa$ rescales sim-time intensity while preserving conditional type
+ratios at a fixed history, so we calibrate all models but SAHP (excluded
+above) and treat the \emph{outcome} as a result. The protocol is
+falsifiable: probes must bracket and converge to the validation target, a
+full-scale roll-out must reproduce it within 15\%, and failures are
+reproducible (deterministic seeds, bit-identical retry brackets).
 
 \begin{table}[t]
 \centering\small
 \setlength{\tabcolsep}{6pt}
 \input{tables/tab_calibration_outcomes}
-\caption{Checkpoints passing calibration $+$ full-scale verification, out of
-three training seeds per asset (bold marks failures). The uncapped \spppu{}
-head fails on 6 of 9 checkpoints, including \emph{all three} on SOL where no
-usable simulator remains, while the bounded \ssppp{} head verifies on all
-nine. SAHP's free-running rate collapses on every asset; it was not
-calibrated (protocol decision) and is reported uncalibrated.}
+\caption{Checkpoints passing calibration $+$ full-scale verification, out
+of three training seeds per asset (bold marks failures). The uncapped
+\spppu{} head fails on 6 of 9 checkpoints, including \emph{all three} on
+SOL where no usable simulator remains, and the faithful \spppub{} port
+fails on 3 of 9 with the same signatures, while the bounded \ssppp{} head
+verifies on all nine. SAHP's free-running rate collapses on every asset; it
+was not calibrated (protocol decision) and is reported uncalibrated.}
 \label{tab:caloutcomes}
 \end{table}
 
 Whether a checkpoint passes this test is measurable, and in our benchmark
 the bound decided it: Table~\ref{tab:caloutcomes} shows the bounded
-\ssppp{} head verifying on \emph{all nine} checkpoints, while the uncapped
-\spppu{} head fails on 6 of 9, and on SOL the model class is excluded
-outright.
+\ssppp{} head verifying on \emph{all nine} checkpoints, while \spppu{}
+fails on 6 of 9 (SOL excluded outright) and \spppub{} on 3 of 9.
 
-Figure~\ref{fig:ladder} shows the failure in detail (shaded band: the
-bisection's $\pm5\%$ probe tolerance; the 15\% rule applies to full-scale
-verification). The failing BTC \spppu{} checkpoint responds extremely
-sharply to $\kappa$: an $8\times10^{-4}$ change moves the probe rate across
-the band ($34.8\to42.3$\,ev/s, target $38.3$), repeat probes at fixed
-$\kappa$ differ by tens of percent (nearly $2\times$ in places), and
-full-scale verification then missed by 22\%. This rescaling sensitivity is
-consistent with near-critical behavior; the procedure found no multiplier
-satisfying verification, while the \ssppp{} response crossed the same
-target smoothly on every asset. The same uncapped head whose
-near-zero-intensity states produce \spppu's pathological expected-time
-tail (Table~\ref{tab:multiasset}) also produced the erratic closed-loop
-response; both problems were absent under the softmin bound in every
-reported run --- an empirical regularity, not a theorem.
+Figure~\ref{fig:ladder} shows the failure in detail (shaded band: $\pm5\%$
+probe tolerance; the 15\% rule governs full-scale verification). The
+failing BTC \spppu{} checkpoint responds near-discontinuously: an
+$8\times10^{-4}$ change in $\kappa$ moves the probe rate across the band
+($34.8\to42.3$\,ev/s, target $38.3$), repeat probes at fixed $\kappa$
+differ by tens of percent, and full-scale verification missed by 22\%.
+This sensitivity is consistent with near-critical behavior; no multiplier
+satisfied verification, while the \ssppp{} response crossed the same
+target smoothly on every asset. The same uncapped head behind \spppu's
+pathological expected-time tail (Table~\ref{tab:multiasset}) also produced
+the erratic closed-loop response; both problems were absent under the
+softmin bound in every reported run --- an empirical regularity, not a
+theorem.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.77\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=0.74\columnwidth]{figs/fig_cal_ladder}
 \caption{Failing \spppu{} checkpoints respond near-discontinuously to the
 rescaling constant $\kappa$ on every asset, most extremely on SOL; verified
 \ssppp{} checkpoints cross each target smoothly. Probe ladders, seed-1

@@ -30,6 +30,8 @@ plt.rcParams.update({
     "font.size": 9, "axes.titlesize": 9.5, "axes.labelsize": 9,
     "legend.fontsize": 8, "xtick.labelsize": 8, "ytick.labelsize": 8,
     "lines.linewidth": 1.4, "figure.dpi": 200,
+    # venue compliance: embed TrueType (Type 42), never Type 3
+    "pdf.fonttype": 42, "ps.fonttype": 42,
 })
 
 STYLE = {
@@ -241,7 +243,7 @@ def parse_ladder(cal_lines, rollout="r1"):
 
 def fig_ladder(D):
     coins = [("btc", "BTC"), ("eth", "ETH"), ("sol", "SOL")]
-    fig, axes = plt.subplots(3, 1, figsize=(3.3, 3.7))
+    fig, axes = plt.subplots(3, 1, figsize=(3.3, 2.7))
     for ax, (dsn, ttl) in zip(axes, coins):
         for tag, st, lbl in [
                 ("s2p2-s1", STYLE["s2p2"], "S2P2 (fails)"),

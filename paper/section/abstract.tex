@@ -1,7 +1,7 @@
 \begin{abstract}
 Simulating limit-order-book (LOB) order flow is a core generative task for
 market-making world models, agent training, and counterfactual analysis.
-The state-space point process \sppp{} predicts the next LOB event
+The \sppp{} (State-Space Point Process) predicts the next LOB event
 accurately, but we find that an uncapped decoder built on its backbone
 drifts or explodes when rolled out in closed loop. We propose \ssppp{}
 (Stable State-Space Point Process), which keeps the backbone and replaces
@@ -11,7 +11,7 @@ a soft-max mark head that is rate-neutral at a fixed state. The bounded
 intensity makes \ssppp{} stable in the point-process sense: the process is
 non-explosive, and the event count over any finite horizon is
 stochastically dominated by a homogeneous Poisson process at the ceiling. On three Coinbase assets,
-against five baselines with three training seeds each and empirically
+against six baselines with three training seeds each and empirically
 verified mean-rate calibration (15\% tolerance), \ssppp{} attains the best
 NLL and type accuracy on two of three assets and verifies calibration on
 all nine checkpoints, where the uncapped variant fails on six. \ssppp{}

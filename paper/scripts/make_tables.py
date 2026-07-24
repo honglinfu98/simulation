@@ -19,9 +19,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "data", "results.json")
 OUT = os.path.join(HERE, "..", "tables")
 T975 = {2: 12.706, 3: 4.303}
-MODELS = ["nhp", "lstm", "sahp", "pct-lstm", "s2p2", "ss2p2-full"]
+MODELS = ["nhp", "lstm", "sahp", "pct-lstm", "s2p2", "s2p2-pub", "ss2p2-full"]
 LABEL = {"nhp": r"\nhp{}", "lstm": "LSTM", "sahp": r"SAHP\,\dag",
-         "pct-lstm": "PCT-LSTM", "s2p2": r"\sppp{}", "ss2p2-full": r"\ssppp{}"}
+         "pct-lstm": "PCT-LSTM", "s2p2": r"\spppu{}", "s2p2-pub": r"\spppub{}",
+         "ss2p2-full": r"\ssppp{}"}
 COINS = ["btc", "eth", "sol"]
 COIN_LABEL = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
 
@@ -54,7 +55,11 @@ def fmt(m, c, d=3):
         return "--"
     s = f"{m:.{d}f}"
     if finite(c):
-        s += f"$\\pm${c:.{d}f}"
+        # never print a bare +-0.000: widen CI precision (cap 4 decimals)
+        dc = d
+        while dc < 4 and c > 0 and round(c, dc) == 0:
+            dc += 1
+        s += f"$\\pm${c:.{dc}f}"
     return s
 
 
@@ -247,7 +252,7 @@ model & rate\_re & Fano\_re & clus\_re & rate\_re & Fano\_re & clus\_re & rate\_
     lines = []
     for mdl in MODELS:
         if mdl == "sahp":
-            cells = [r"\multicolumn{3}{c}{\emph{model-level divergence: reported uncalibrated}}"]
+            cells = [r"\multicolumn{3}{c}{\emph{rate collapse; not calibrated (protocol)}}"]
             lines.append(LABEL[mdl] + " & " + cells[0] + r"\\")
             continue
         cells = []
