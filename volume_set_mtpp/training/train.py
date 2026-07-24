@@ -299,11 +299,17 @@ def main():
                              'scale. -1 = measure it from the TRAIN split only (no val/test '
                              'leakage into the initialization)')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2', 's2p2-pub'],
                         default='hawkes',
                         help='Decoder/backbone: SS2P2 (ours), or baselines: S2P2 diagonal SSM, '
-                             'Neural Hawkes CT-LSTM (hawkes/ct-lstm), RMTPP LSTM, plain LSTM, '
-                             'SAHP causal attention, per-type parallel CT-LSTM (pct-lstm)')
+                             'faithful published S2P2 (s2p2-pub: complex DPLR, per-type '
+                             'ScaledSoftplus head), Neural Hawkes CT-LSTM (hawkes/ct-lstm), '
+                             'RMTPP LSTM, plain LSTM, SAHP causal attention, per-type '
+                             'parallel CT-LSTM (pct-lstm)')
+    parser.add_argument('--pub-state-dim', type=int, default=64,
+                        help='Complex state dim P per layer for --decoder-type s2p2-pub')
+    parser.add_argument('--pub-layers', type=int, default=2,
+                        help='Number of LLH layers for --decoder-type s2p2-pub')
     parser.add_argument('--sahp-heads', type=int, default=4,
                         help='Number of attention heads for --decoder-type sahp')
     parser.add_argument('--sahp-layers', type=int, default=2,
@@ -400,6 +406,9 @@ def main():
         'set_loss_reduction': args.set_loss_reduction,
         'decoder_type': args.decoder_type,
         'ptp_dim': args.ptp_dim,
+        'pub_state_dim': args.pub_state_dim,
+        'pub_layers': args.pub_layers,
+        'pub_use_scan': bool(args.s2p2_scan),
         'target_rate': args.target_rate,
         'tbptt': args.tbptt,
         's2p2_readout': args.s2p2_readout,

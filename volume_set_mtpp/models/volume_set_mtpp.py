@@ -923,6 +923,19 @@ def create_volume_set_mtpp(
             num_channels=num_channels,
             per_type_dim=config.get('ptp_dim', 8),
         )
+    elif decoder_type == 's2p2-pub':
+        # Faithful published-S2P2 (Chang et al.): complex DPLR LLH stack,
+        # impulse-input, pre-norm full-GLU, per-type ScaledSoftplus head.
+        from .s2p2_pub_decoder import PublishedS2P2Decoder
+        decoder = PublishedS2P2Decoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            state_dim=config.get('pub_state_dim', 64),
+            n_layers=config.get('pub_layers', 2),
+            dropout=config.get('pub_dropout', 0.0),
+            use_scan=config.get('pub_use_scan', True),
+        )
     elif decoder_type == 'ptp-s2p2':
         # Legacy per-type s2p2 (the pre-2026-07-22 pct-lstm backbone), kept
         # selectable so banked checkpoints remain reproducible.
@@ -936,7 +949,7 @@ def create_volume_set_mtpp(
         )
     else:
         raise ValueError(f"Unknown decoder_type {decoder_type!r}; expected 'ss2p2', 's2p2', "
-                         "'hawkes', 'rmtpp', 'lstm', 'sahp', 'ct-lstm', or 'pct-lstm'")
+                         "'s2p2-pub', 'hawkes', 'rmtpp', 'lstm', 'sahp', 'ct-lstm', or 'pct-lstm'")
 
     # Create model
     model = VolumeSetMTPP(
