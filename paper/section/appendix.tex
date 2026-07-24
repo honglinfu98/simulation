@@ -1,0 +1,143 @@
+\section{Technical Appendix}
+\label{sec:appendix}
+
+\subsection{A. The architectural rate bound}
+\paragraph{Proposition 1 (global ceiling).}
+For the head $g=o\odot\tanh(h_t)$, $z_{\mathrm{raw}}=w^{\!\top}g+b$,
+$z=z_{\max}-\mathrm{softplus}(z_{\max}-z_{\mathrm{raw}})$,
+$\lambda=\varsigma\,\mathrm{softplus}(z)$ with $\varsigma>0$:
+\[
+\lambda(t)\;\le\;\bar\lambda:=\varsigma\,\mathrm{softplus}(z_{\max})
+\]
+for every $h_t$ and every $(W_o,b_o,w,b)$.
+\emph{Proof.} $\mathrm{softplus}(x)>0$ for all $x$, so
+$z=z_{\max}-\mathrm{softplus}(z_{\max}-z_{\mathrm{raw}})<z_{\max}$;
+$\mathrm{softplus}$ is increasing, so
+$\lambda<\varsigma\,\mathrm{softplus}(z_{\max})$. \hfill$\square$
+
+\paragraph{Consequences.} (i) The conditional intensity is globally bounded,
+so for any finite horizon $T$ the compensator satisfies
+$\Lambda(T)\le\bar\lambda T<\infty$ and the process is non-explosive on
+$[0,T]$. (ii) The event count $N(T)$ is stochastically dominated by a
+homogeneous Poisson count with mean $\bar\lambda T$: the process can be
+constructed by thinning a homogeneous Poisson process of rate $\bar\lambda$,
+and thinning only removes points. (iii) $\bar\lambda$ is an exact dominating
+rate for Ogata thinning \citep{lewis1979thinning,ogata1981lewis}. The bound
+establishes nothing beyond (i)--(iii); stationarity, ergodicity, and
+realism are empirical matters.
+
+\paragraph{Proposition 2 (parameter-dependent floor and pre-cap bound).}
+Since $g\in(-1,1)^H$, for fixed trained parameters
+$b-\lVert w\rVert_1<z_{\mathrm{raw}}<b+\lVert w\rVert_1$. Hence, even
+without the cap, $\lambda\le\varsigma\,\mathrm{softplus}(b+\lVert
+w\rVert_1)$ is a computable post-training ceiling; and with the cap,
+\[
+\lambda\;\ge\;\varsigma\,\mathrm{softplus}\bigl(z_{\max}
+-\mathrm{softplus}(z_{\max}-b+\lVert w\rVert_1)\bigr)\;>\;0,
+\]
+a strictly positive, typically numerically negligible floor. The intensity
+therefore has zero infimum only in the limit of unbounded parameters, not
+for any fixed trained model. The cap's contribution over the pre-cap bound
+is that $\bar\lambda$ is user-chosen, independent of the trained magnitudes
+of $w$ and $b$, and invariant under training.
+
+\subsection{B. Calibration protocol}
+Targets are validation-split rates ($38.27$, $47.92$, $23.98$ ev/s for BTC,
+ETH, SOL). For each checkpoint: (1)~probe roll-outs of $600$\,s at
+multiplier $\kappa$ starting from a geometric grid until the target is
+bracketed; (2)~bisection in $\log\kappa$, at most ten steps, until a probe
+lands within $5\%$ of the target; (3)~a full-scale validation roll-out must
+reproduce the target within $15\%$; (4)~failures escalate to full-scale
+probes, and unresolved failures exclude the checkpoint and are reported.
+Probe seeds are deterministic; retried failures reproduce their bisection
+brackets bit-identically. Monotonicity of the closed-loop rate in $\kappa$
+is not assumed or proven; it held empirically over every successful bracket.
+Calibrated multipliers $\kappa$ (seeds 1/2/3): \ssppp{} BTC
+$0.545/0.569/0.648$, ETH $0.723/0.707/0.582$, SOL $0.557/0.595/0.621$;
+\spppu{} (passing checkpoints only) BTC $0.534$ (s2), $0.751$ (s3), ETH
+$1.102$ (s3).
+
+\subsection{C. Metric definitions}
+\textbf{NLL} is per-event negative log-likelihood with the compensator
+integrated by a 32-point log-spaced quadrature per inter-event gap
+(horizon $60$\,s; beyond the grid the intensity is extended at its terminal
+value). \textbf{Type accuracy} is top-1 accuracy of $p(e\mid t^{*})$
+evaluated at the \emph{observed} next-event time $t^{*}$ (accuracy
+conditional on the observed time). \textbf{Expected-time MAE} computes
+$\hat{\mathbb{E}}[\Delta t]$ by survival quadrature on the same log-spaced
+grid, adds the tail term $S(T_{\max})/\lambda(T_{\max})$, clamps the result
+to $[10^{-6},2T_{\max}]$ with $T_{\max}=60$\,s, and reports the mean
+absolute error against the true gap. All prediction metrics are computed by
+a streaming evaluator with carried state, one cold start per genuine stream
+segment, which hard-fails if any test event goes unscored.
+
+\subsection{D. Stylized-fact construction (order-flow proxy)}
+The models emit event times and types only, so the battery operates on an
+order-flow proxy applied identically to real and simulated streams. Events
+are bucketed at $1$\,s. Per bucket, \emph{activity} $a_t$ is the total
+event count and the \emph{proxy return} $r_t$ is the signed count of
+price-moving events (unit tick): market orders and best-level inside-spread
+improvements, bid side positive, ask side negative. F0 is the event rate;
+F2 is the Fano factor $\mathrm{Var}/\mathrm{Mean}$ of bucket counts
+aggregated at scales $\{1,2,5,10,20,50\}$\,s, averaged over scales; F1, F3--F9,
+and F11 are standard stylized-fact statistics of $r_t$ (autocorrelation,
+kurtosis, Hill index, skewness, clustering, aggregated kurtosis, power-law
+decay of $|r|$ autocorrelation, leverage, timescale asymmetry); F10
+correlates $a_t$ with $|r_t|$ (activity--volatility). None of these are
+statistics of asset price returns; we label them accordingly.
+
+\subsection{E. Model and training configuration}
+All models share the input embedding (channel embedding 64, time embedding
+64) and differ only in the decoder. Backbone/decoder hidden size 64, two
+layers. Training: AdamW, learning rate $2\times10^{-3}$, weight decay
+$10^{-6}$, gradient clipping at norm $0.5$, ReduceLROnPlateau (factor 0.5,
+patience 5), batch 64 lanes, window 1024 events with stride 1024
+(non-overlapping, TBPTT with detached carried state), 12 epochs, best
+checkpoint by validation loss, three training seeds $\{1,2,3\}$, TF32
+matmuls, no dropout. \ssppp{} rate head: $z_{\max}=6$; $\varsigma$
+log-parameterized and initialized from the training-split rate
+($\varsigma_0=\text{rate}/\ln 2$); gate bias and rate bias initialized to
+zero; rate weights Xavier-uniform (gain $0.5$). Simulation: carried-state
+roll-outs, $32$ sequences $\times$ $600$\,s, three roll-out seeds, thinning
+for \ssppp{} (constant ceiling $\varsigma\,\mathrm{softplus}(z_{\max})$),
+compensator-inversion sampling for baselines.
+
+\subsection{F. Efficiency table}
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccc}
+\toprule
+ & train step (s) & vs.\ seq.\ loop & sim.\ ev/s\\
+\midrule
+\nhp{}    & 4.35  & --           & 1253\\
+LSTM      & 0.019 & --           & 2083\\
+SAHP      & 0.059 & --           & 583\\
+PCT-LSTM  & 0.79  & --           & 1919\\
+\spppu{}   & 0.055 & $64\times$   & 1163\\
+\ssppp{}  & 0.059 & $60\times$   & 879 / 353$^{\dag}$\\
+\bottomrule
+\end{tabular}
+\caption{Efficiency on one GPU. Training: one fwd+bwd on $64\times1024$
+events (scan for the \sppp{} family; speedup vs.\ their sequential loop).
+Simulation: events per wall-second, $8\times60$\,s roll-outs.
+$^{\dag}$inversion~/ exact-ceiling Ogata thinning.}
+\label{tab:speed}
+\end{table}
+
+\subsection{G. Dataset}
+Coinbase BTC-USD, ETH-USD, and SOL-USD trades and Level-2 book updates,
+seven days per asset, encoded into $|\mathcal{E}|=62$ atomic types
+($20+20+2+20$ over LO/CO/MO/IS $\times$ side $\times$ level). Genuine test
+events scored: $3{,}226{,}821$ (BTC), $3{,}623{,}575$ (ETH), $2{,}000{,}638$
+(SOL). Trades are attributed to book changes by inter-update timestamp
+interval and netted against liquidity changes at the traded price; residual
+decreases are cancellations. Multiple atomic events from one update share
+its timestamp and are ordered deterministically (MO, CO, LO, IS; bid before
+ask; then by level). Order sizes are retained in the dataset but unused by
+the models in this paper.
+% AUTHOR ACTION REQUIRED: add exact collection dates and timezone,
+% train/val/test boundaries and per-split event counts, number of genuine
+% segments per asset, timestamp resolution, and data-quality counters
+% (unmatched trades, ambiguous matches, dropped updates).

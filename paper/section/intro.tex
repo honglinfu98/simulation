@@ -17,9 +17,9 @@ Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview}
 excel at prediction, and the continuous-time state-space model \sppp{}
 \citep{chang2025ctssm} reports state-of-the-art held-out likelihood across
 standard event-sequence benchmarks --- but only teacher-forced: the \sppp{}
-paper never rolls the model out. We evaluate a factorized, uncapped decoder
-built on the same backbone (\spppu{}; see Background), and find it is not a
-usable simulator under our protocol. Two obstacles are
+paper never rolls the model out. We evaluate our benchmark implementation
+of this decoder (a factorized, uncapped variant; see Background) and find
+it is not a usable simulator under our protocol. Two obstacles are
 responsible. \emph{First, instability}: the self-excitation that wins the
 one-step likelihood becomes a liability in closed loop --- each sampled
 event raises the intensity, which produces more events, and with no bound on

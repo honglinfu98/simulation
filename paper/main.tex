@@ -23,7 +23,10 @@
 
 % Macros
 \newcommand{\ssppp}{SS2P2\xspace}
-\newcommand{\sppp}{S2P2\xspace}
+\newcommand{\sppp}{S2P2\xspace}          % the published model of Chang et al.
+\newcommand{\spppu}{S2P2\xspace}         % our factorized, uncapped benchmark variant
+                                          % (same label by author choice; its ablation
+                                          % status is disclosed in Background)
 \newcommand{\nhp}{\textsc{nhp}\xspace}
 
 \pdfinfo{
@@ -57,5 +60,9 @@
 \input{section/conclusion}
 
 \bibliography{orderbook_references,references}
+
+% Technical appendix (submission-time supplement; move to a separate file if
+% the venue requires supplementary material to be uploaded separately).
+\input{section/appendix}
 
 \end{document}
