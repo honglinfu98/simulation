@@ -13,11 +13,15 @@ set -o pipefail
 
 # FAITHFUL PUBLISHED-S2P2 baseline arms (s2p2-pub): protocol is
 # multi_asset_cbse.sh VERBATIM (same data, epochs, eval, calibration, SF
-# stages), one extra model. Decoder: complex DPLR LLH stack, impulse-input,
-# pre-norm full-GLU, per-type ScaledSoftplus head (see
+# stages), one extra model. Decoder: the official PAPER configuration per
+# the repo's example config (Int_Backward_LLH: backward-ZOH input drive,
+# relative-time input-dependent dynamics, post-norm residual, GELU, complex
+# DPLR states) with the per-type ScaledSoftplus head; verified value-level
+# against yuxinc17/EasyTemporalPointProcess@70038ed (see
 # volume_set_mtpp/models/s2p2_pub_decoder.py). Trains with the exact
-# Hillis-Steele parallel scan over events; samples by compensator inversion
-# (no closed-form dominating rate, like the other baselines).
+# Hillis-Steele parallel scan over events (fp64 scan-vs-loop parity ~1e-12);
+# samples by compensator inversion (no closed-form dominating rate, like
+# the other baselines). Sizes benchmark-matched: H=64, L=2, P=64.
 #
 # Task map (9 = 3 coins x 3 seeds):
 #   t 1-3 -> btc s1-3    t 4-6 -> eth s1-3    t 7-9 -> sol s1-3
