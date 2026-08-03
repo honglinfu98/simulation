@@ -50,12 +50,12 @@ contributions:
   untouched, times a soft-max mark head that cannot change the total rate
   at a fixed state. Together they make the simulator globally rate-bounded
   and finite-time non-explosive by construction.
-\item \textbf{Stable training and simulation.} Stateful (TBPTT) training
+\item \textbf{Stable training and simulation}: Stateful (TBPTT) training
   walks contiguous stretches of the stream so the model never trains in a
   cold-start transient, and closed-loop roll-outs carry the packed decoder
   state at constant cost per state update, mathematically equivalent to
   encoding the full history. Training and simulation see the same regime.
-\item \textbf{Verified post-hoc mean-rate calibration.} The rate is exactly
+\item \textbf{Verified post-hoc mean-rate calibration}: The rate is exactly
   linear in a learnable scale, the thinning ceiling scales with it, and
   marks are untouched at a fixed state, so calibration is a one-dimensional
   root-find that preserves the architectural bound; a mark-ratio-preserving
