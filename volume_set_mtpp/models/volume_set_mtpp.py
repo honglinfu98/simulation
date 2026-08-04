@@ -26,6 +26,10 @@ try:
 except Exception:
     SS2P2SetDecoder = None
 try:
+    from .lgm_decoder import LGMSetDecoder  # S2P2 backbone + linear Hawkes ground x rate-neutral marks
+except Exception:
+    LGMSetDecoder = None
+try:
     from .lstm_decoder import LSTMDecoder
 except Exception:
     LSTMDecoder = None
@@ -872,6 +876,22 @@ def create_volume_set_mtpp(
             wnorm_cap=config.get('ss2p2_wnorm_cap', 6.0),
             mark_hidden=config.get('ss2p2_mark_hidden', None),
             use_scan=config.get('s2p2_scan', False),
+        )
+    elif decoder_type == 'lgm':
+        if LGMSetDecoder is None:
+            raise ImportError('LGMSetDecoder is unavailable')
+        decoder = LGMSetDecoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            num_channels=num_channels,
+            num_layers=config.get('s2p2_layers', 2),
+            dropout=config.get('s2p2_dropout', 0.0),
+            input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
+            target_rate=config.get('target_rate', 1.8),
+            mark_hidden=config.get('ss2p2_mark_hidden', None),
+            use_scan=config.get('s2p2_scan', False),
+            num_timescales=config.get('lgm_timescales', 4),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(

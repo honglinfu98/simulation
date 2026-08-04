@@ -118,6 +118,9 @@ def train_epoch(model, train_loader, optimizer, device, epoch, writer=None, loss
         if not torch.isfinite(grad_norm):
             raise RuntimeError(f"Non-finite grad norm at epoch {epoch} batch {batch_idx}: {grad_norm}")
         optimizer.step()
+        _pr = getattr(model, '_lgm_project_rho', 0.0)
+        if _pr > 0 and hasattr(model.decoder, 'project_subcritical'):
+            model.decoder.project_subcritical(_pr)
 
         total_loss += loss.item()
         pbar.set_postfix({'loss': loss.item()})
@@ -151,10 +154,17 @@ def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None
     for batch_idx, batch in enumerate(pbar):
         reset = batch.pop("reset_mask").to(device)
         b = int(reset.shape[0])
-        if carried is None:
-            carried = init.unsqueeze(0).expand(b, -1, -1).clone().to(device)
-        old = carried.clone()
-        old[reset] = init.to(device)
+        if getattr(dec, 'is_lgm', False):
+            init_row = torch.cat([init.reshape(-1), init.new_zeros(dec.M)]).to(device)  # [L*H + M]
+            if carried is None:
+                carried = init_row.unsqueeze(0).expand(b, -1).clone()
+            old = carried.clone()
+            old[reset] = init_row
+        else:
+            if carried is None:
+                carried = init.unsqueeze(0).expand(b, -1, -1).clone().to(device)
+            old = carried.clone()
+            old[reset] = init.to(device)
         loss, _ = model.compute_loss(batch, device, old_states=old)
 
         # STRICT: non-finite values abort with nonzero exit (see train_epoch).
@@ -166,11 +176,18 @@ def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None
         if not torch.isfinite(grad_norm):
             raise RuntimeError(f"Non-finite grad norm at epoch {epoch} batch {batch_idx}: {grad_norm}")
         optimizer.step()
+        _pr = getattr(model, '_lgm_project_rho', 0.0)
+        if _pr > 0 and hasattr(model.decoder, 'project_subcritical'):
+            model.decoder.project_subcritical(_pr)
 
         # hand-off: packed [B, D*] -> layer states [B, L, H] (held anchors are
-        # recomputed by the next window's event pass; see ARCHITECTURE.md)
+        # recomputed by the next window's event pass; see ARCHITECTURE.md).
+        # LGM additionally carries its M ground accumulators: [B, L*H + M].
         packed = model._last_final_state
-        carried = packed[:, :L * H].reshape(b, L, H)
+        if getattr(dec, 'is_lgm', False):
+            carried = torch.cat([packed[:, :L * H], packed[:, -dec.M:]], dim=1)
+        else:
+            carried = packed[:, :L * H].reshape(b, L, H)
 
         total_loss += loss.item()
         n_batches += 1
@@ -298,8 +315,11 @@ def main():
                         help='Target mean event rate (events/s); initializes the SS2P2 rate-head '
                              'scale. -1 = measure it from the TRAIN split only (no val/test '
                              'leakage into the initialization)')
+    parser.add_argument('--lgm-project-rho', type=float, default=0.0,
+                        help='If >0, hard-project the LGM ground branching ratio n to this '
+                             'value after every optimizer step (certificate; Fano dial)')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2', 's2p2-pub'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2', 's2p2-pub'],
                         default='hawkes',
                         help='Decoder/backbone: SS2P2 (ours), or baselines: S2P2 diagonal SSM, '
                              'faithful published S2P2 (s2p2-pub: complex DPLR, per-type '
@@ -489,6 +509,7 @@ def main():
     # Create model
     print("\nCreating model...")
     model = create_model(event_mapping.num_events, config, device)
+    model._lgm_project_rho = float(getattr(args, 'lgm_project_rho', 0.0) or 0.0)
     if args.tbptt and not (hasattr(model.decoder, 'init_state')
                            and hasattr(model.decoder, '_initial_layer_states')):
         raise SystemExit(f"--tbptt requires an S2P2-family decoder (state hand-off via "
