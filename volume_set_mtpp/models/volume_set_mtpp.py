@@ -597,6 +597,44 @@ class VolumeSetMTPP(PPModel):
         else:
             survival_term = input_survival_term + target_survival_term
 
+        # Dispersion-matching auxiliary loss (ss2p2-disp arm): match the model's
+        # IMPLIED count dispersion to the batch-empirical Fano factor across a
+        # lin-log grid of bucket widths, teacher-forced on real history.
+        # Law of total variance for a Cox process given the intensity path:
+        # F_model(D) = 1 + Var(Lam_D)/E[Lam_D], with Lam_D the per-bucket
+        # compensator mass (endpoint rule, same as the survival term).
+        # F_real(D) = Var(N_D)/E[N_D] on the SAME windows (no-grad target).
+        # Matched in log space, complete buckets only, pooled across the batch.
+        _dw = float(getattr(self, '_disp_loss_weight', 0.0) or 0.0)
+        disp_loss = None
+        if _dw > 0:
+            _masses = time_intervals * total_intensity_flat            # [B,N]
+            _Twin = timestamps[:, -1]                                  # [B]
+            _terms = []
+            for _D in getattr(self, '_disp_scales', (0.5, 2.0, 8.0)):
+                _nb = torch.floor(_Twin / _D).long()                   # complete buckets per window
+                _nbmax = int(_nb.max())
+                if _nbmax < 2:
+                    continue
+                _idx = torch.floor(timestamps / _D).long().clamp(min=0)
+                _valid = (_idx < _nb.unsqueeze(1)).float()
+                _idxc = _idx.clamp(max=_nbmax - 1)
+                _lam_b = _masses.new_zeros(_masses.shape[0], _nbmax)
+                _n_b = _masses.new_zeros(_masses.shape[0], _nbmax)
+                _lam_b.scatter_add_(1, _idxc, _masses * _valid)
+                _n_b.scatter_add_(1, _idxc, event_exists * _valid)
+                _bv = (torch.arange(_nbmax, device=_masses.device).unsqueeze(0) < _nb.unsqueeze(1))
+                _lam_v = _lam_b[_bv]
+                _n_v = _n_b[_bv]
+                if _lam_v.numel() < 8:
+                    continue
+                _mF = 1.0 + _lam_v.var(unbiased=False) / _lam_v.mean().clamp_min(1e-6)
+                with torch.no_grad():
+                    _rF = (_n_v.var(unbiased=False) / _n_v.mean().clamp_min(1e-6)).clamp_min(1.0)
+                _terms.append((torch.log(_mF) - torch.log(_rF)) ** 2)
+            if _terms:
+                disp_loss = torch.stack(_terms).mean()
+
         # 4. Mark likelihood.  Bernoulli-set (default) sums log-probs over all
         # labels; categorical (event-driven / single-mark) models one
         # mutually-exclusive mark per event via softmax cross-entropy on the
@@ -672,6 +710,8 @@ class VolumeSetMTPP(PPModel):
         nll = self.time_loss_weight * time_nll + self.set_loss_weight * set_nll \
             + self.volume_loss_weight * volume_nll
         loss = nll.mean()
+        if disp_loss is not None:
+            loss = loss + _dw * disp_loss
 
         # Hawkes-subcriticality penalty: keep the per-event branching mass below
         # rho_max so closed-loop simulation cannot run away.  Two measurements:

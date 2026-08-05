@@ -321,6 +321,13 @@ def main():
     parser.add_argument('--lgm-project-rho', type=float, default=0.0,
                         help='If >0, hard-project the LGM ground branching ratio n to this '
                              'value after every optimizer step (certificate; Fano dial)')
+    parser.add_argument('--disp-loss-weight', type=float, default=0.0,
+                        help='Weight of the dispersion-matching auxiliary loss: match model-implied '
+                             'Fano (1 + Var(Lam)/E[Lam] over lin-log buckets) to the batch-empirical '
+                             'Fano, teacher-forced (ss2p2-disp arm)')
+    parser.add_argument('--ss2p2-freeze-spectrum', action='store_true',
+                        help='Freeze the S2P2 base decay spectrum at its log-spaced init '
+                             '([0.02s, 60s] timescales); only the mixing/readout weights train')
     parser.add_argument('--lgm-timescales', type=int, default=4,
                         help='Number of ground kernel timescales (M != 4 -> log-spaced 100..0.02/s bank)')
     parser.add_argument('--lgm-typed-kicks', action='store_true',
@@ -520,6 +527,13 @@ def main():
     print("\nCreating model...")
     model = create_model(event_mapping.num_events, config, device)
     model._lgm_project_rho = float(getattr(args, 'lgm_project_rho', 0.0) or 0.0)
+    model._disp_loss_weight = float(getattr(args, 'disp_loss_weight', 0.0) or 0.0)
+    if getattr(args, 'ss2p2_freeze_spectrum', False):
+        if hasattr(model.decoder, 'log_decay'):
+            model.decoder.log_decay.requires_grad_(False)
+            print('S2P2 base decay spectrum FROZEN at log-spaced init')
+        else:
+            raise SystemExit('--ss2p2-freeze-spectrum requires an S2P2-family decoder')
     if args.tbptt and not (hasattr(model.decoder, 'init_state')
                            and hasattr(model.decoder, '_initial_layer_states')):
         raise SystemExit(f"--tbptt requires an S2P2-family decoder (state hand-off via "
