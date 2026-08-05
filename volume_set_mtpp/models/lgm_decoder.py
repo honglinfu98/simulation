@@ -55,6 +55,7 @@ class LGMSetDecoder(S2P2SetDecoder):
         num_timescales: int = 4,
         ground_delta_init=(50.0, 5.0, 0.5, 0.1),
         min_decay: float = 0.005,
+        typed_kicks: bool = False,
         **_ignore,
     ):
         super().__init__(
@@ -73,10 +74,27 @@ class LGMSetDecoder(S2P2SetDecoder):
         self.min_decay = float(min_decay)
         self.register_buffer("target_rate", torch.tensor(float(target_rate)))
 
-        # ground: scalar multi-timescale linear Hawkes (positive weights/decays)
-        d0 = torch.tensor([float(ground_delta_init[i]) for i in range(self.M)])
-        self.log_delta_g = nn.Parameter(torch.log(torch.expm1((d0 - self.min_decay).clamp_min(1e-3))))
+        # ground: scalar multi-timescale linear Hawkes (positive weights/decays).
+        # If M != len(ground_delta_init), use a log-spaced bank (power-law mimic):
+        # decays from 100/s (10 ms) down to ~0.02/s (~1 min memory).
+        if self.M == len(ground_delta_init):
+            d0 = torch.tensor([float(x) for x in ground_delta_init])
+        else:
+            d0 = torch.logspace(2.0, -1.7, self.M)                   # 100 .. 0.02
+        # stable inverse-softplus: sp^-1(x) = x + log(1 - e^-x)  (expm1(100) overflows)
+        dd = (d0 - self.min_decay).clamp_min(1e-3)
+        self.log_delta_g = nn.Parameter(dd + torch.log(-torch.expm1(-dd)))
         self.a_raw = nn.Parameter(torch.full((self.M,), -3.0))       # softplus -> small >= 0
+
+        # typed kicks (Konark-style mutual excitation, collapsed to the row that
+        # feeds total activity): event of channel j kicks the ground by
+        # w_j = softplus(kick_raw_j) instead of 1. Expected branching per event
+        # becomes n = (p_bar . w) * sum_m a_m/beta_m with p_bar the running
+        # empirical mark frequencies (EMA buffer, updated in training only).
+        self.typed_kicks = bool(typed_kicks)
+        if self.typed_kicks:
+            self.kick_raw = nn.Parameter(torch.full((self.K,), 0.5413))   # softplus -> ~1.0
+            self.register_buffer("p_bar", torch.full((self.K,), 1.0 / self.K))
 
         # marks: IDENTICAL head to SS2P2 (deep softmax over the backbone u)
         mh = int(mark_hidden) if mark_hidden else H
@@ -89,8 +107,15 @@ class LGMSetDecoder(S2P2SetDecoder):
     def _betas(self) -> torch.Tensor:
         return F.softplus(self.log_delta_g) + self.min_decay          # [M]
 
+    def _mean_kick(self) -> torch.Tensor:
+        """E[w] under the running empirical mark distribution (1.0 if untyped)."""
+        if self.typed_kicks:
+            return (self.p_bar * F.softplus(self.kick_raw)).sum()
+        return torch.ones((), device=self.a_raw.device, dtype=self.a_raw.dtype)
+
     def _n(self) -> torch.Tensor:
-        return (F.softplus(self.a_raw) / self._betas()).sum()         # scalar branching
+        # expected offspring per event: E[w] * sum_m a_m / beta_m
+        return self._mean_kick() * (F.softplus(self.a_raw) / self._betas()).sum()
 
     @torch.no_grad()
     def closed_form_rho(self) -> float:
@@ -107,14 +132,14 @@ class LGMSetDecoder(S2P2SetDecoder):
         solutions MLE is converging to, and best-model selection freezes the
         run at epoch 1. Detached: an initialization, not a gradient path.
         """
-        return (self.target_rate / self._betas()).detach()             # [M]
+        return (self.target_rate * self._mean_kick() / self._betas()).detach()   # [M]
 
     @torch.no_grad()
     def project_subcritical(self, rho_max: float) -> float:
         """Rescale a (n is linear in a) so the ground branching n <= rho_max."""
         beta = self._betas()
         a = F.softplus(self.a_raw)
-        n = float((a / beta).sum())
+        n = float((a / beta).sum() * self._mean_kick())
         if n > rho_max and n > 0:
             a_new = (a * (rho_max / n)).clamp_min(1e-9)
             self.a_raw.copy_(torch.log(torch.expm1(a_new)))
@@ -139,13 +164,15 @@ class LGMSetDecoder(S2P2SetDecoder):
         raise AttributeError("LGM ground is unbounded; use --sampler inversion")
 
     # ------------------------------------------------------------- ground scan
-    def _ground_scan(self, timestamps: torch.Tensor, S0: Optional[torch.Tensor]):
-        """Decayed type-blind event counts at M timescales, vectorized.
+    def _ground_scan(self, timestamps: torch.Tensor, S0: Optional[torch.Tensor],
+                     kicks: Optional[torch.Tensor] = None):
+        """Decayed (optionally kick-weighted) event counts at M timescales.
 
-        S_left(i)  = S0 e^{-beta t_i} + sum_{j<i} e^{-beta (t_i - t_j)}
-                   = S0 e^{-beta t_i} + exp( LCSE_{j<i}(beta t_j) - beta t_i )
+        S_left(i)  = S0 e^{-beta t_i} + sum_{j<i} w_j e^{-beta (t_i - t_j)}
+                   = S0 e^{-beta t_i} + exp( LCSE_{j<i}(beta t_j + log w_j) - beta t_i )
         computed with logcumsumexp (numerically stable for any window length).
-        Returns right [B, N+1, M] (post-event; index 0 = S0) and left [B, N, M].
+        kicks [B, N] defaults to 1 (type-blind). Post-event: right(i+1) = left(i) + w_i.
+        Returns right [B, N+1, M] (index 0 = S0) and left [B, N, M].
         """
         B, N = timestamps.shape
         out_dtype = timestamps.dtype
@@ -161,8 +188,11 @@ class LGMSetDecoder(S2P2SetDecoder):
         t64 = timestamps.to(wide)
         beta = self._betas().to(device=timestamps.device, dtype=wide)              # [M]
         bt = beta[None, None, :] * t64.unsqueeze(-1)                               # [B,N,M]
+        lw = None
+        if kicks is not None:
+            lw = torch.log(kicks.to(wide).clamp_min(1e-8)).unsqueeze(-1)           # [B,N,1]
         # LCSE over PREVIOUS events: shift by one with -inf pad.
-        lcse = torch.logcumsumexp(bt, dim=1)                                       # [B,N,M] includes self
+        lcse = torch.logcumsumexp(bt + lw if lw is not None else bt, dim=1)        # [B,N,M] includes self
         prev_lcse = torch.cat([torch.full_like(lcse[:, :1], float("-inf")), lcse[:, :-1]], dim=1)
         # NOTE: no upper clamp -- the exponent log(sum_j e^{-beta(t_i-t_j)}) is
         # legitimately positive during bursts (S can reach O(N)); capping it at 0
@@ -174,9 +204,9 @@ class LGMSetDecoder(S2P2SetDecoder):
         else:
             s_carry = torch.zeros_like(s_hist)
         left = (s_hist + s_carry).to(out_dtype)                                    # [B,N,M]
-        right0 = S0.unsqueeze(1) if S0 is not None else torch.zeros(B, 1, self.M,
-                    device=timestamps.device, dtype=timestamps.dtype)
-        right = torch.cat([right0, left + 1.0], dim=1)                             # [B,N+1,M]
+        right0 = S0.unsqueeze(1).to(out_dtype)
+        add = kicks.unsqueeze(-1).to(out_dtype) if kicks is not None else 1.0
+        right = torch.cat([right0, left + add], dim=1)                             # [B,N+1,M]
         return right, left
 
     # ------------------------------------------------------------- state plumbing
@@ -202,7 +232,15 @@ class LGMSetDecoder(S2P2SetDecoder):
                 raise ValueError(f"LGM old_states shape {tuple(old_states.shape)} unrecognized")
         right_b, left_b = super().get_states_and_event_left_states(
             marks, timestamps, old_states=base_old)
-        right_g, left_g = self._ground_scan(timestamps.to(right_b.dtype), S0)
+        kicks = None
+        if self.typed_kicks:
+            mf = marks.float()
+            kicks = mf @ F.softplus(self.kick_raw)                    # [B,N] w_{k_i}
+            if self.training:
+                with torch.no_grad():                                 # EMA of mark frequencies
+                    freq = mf.reshape(-1, self.K).mean(dim=0)
+                    self.p_bar.mul_(0.99).add_(0.01 * freq / freq.sum().clamp_min(1e-8))
+        right_g, left_g = self._ground_scan(timestamps.to(right_b.dtype), S0, kicks)
         return (torch.cat([right_b, right_g], dim=-1),
                 torch.cat([left_b, left_g], dim=-1))
 

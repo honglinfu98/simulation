@@ -321,6 +321,11 @@ def main():
     parser.add_argument('--lgm-project-rho', type=float, default=0.0,
                         help='If >0, hard-project the LGM ground branching ratio n to this '
                              'value after every optimizer step (certificate; Fano dial)')
+    parser.add_argument('--lgm-timescales', type=int, default=4,
+                        help='Number of ground kernel timescales (M != 4 -> log-spaced 100..0.02/s bank)')
+    parser.add_argument('--lgm-typed-kicks', action='store_true',
+                        help='Per-channel ground kick weights w_k (Konark-style typed excitation); '
+                             'n = E[w] sum a/beta under the running mark frequencies')
     parser.add_argument('--decoder-type',
                         choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2', 's2p2-pub'],
                         default='hawkes',
@@ -433,6 +438,8 @@ def main():
         'pub_layers': args.pub_layers,
         'pub_use_scan': bool(args.s2p2_scan),
         'target_rate': args.target_rate,
+        'lgm_timescales': args.lgm_timescales,
+        'lgm_typed_kicks': args.lgm_typed_kicks,
         'tbptt': args.tbptt,
         's2p2_readout': args.s2p2_readout,
         's2p2_layers': args.s2p2_layers,

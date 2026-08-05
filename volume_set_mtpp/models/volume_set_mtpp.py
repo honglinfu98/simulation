@@ -892,6 +892,7 @@ def create_volume_set_mtpp(
             mark_hidden=config.get('ss2p2_mark_hidden', None),
             use_scan=config.get('s2p2_scan', False),
             num_timescales=config.get('lgm_timescales', 4),
+            typed_kicks=config.get('lgm_typed_kicks', False),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(
