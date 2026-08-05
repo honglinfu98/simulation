@@ -155,7 +155,10 @@ def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None
         reset = batch.pop("reset_mask").to(device)
         b = int(reset.shape[0])
         if getattr(dec, 'is_lgm', False):
-            init_row = torch.cat([init.reshape(-1), init.new_zeros(dec.M)]).to(device)  # [L*H + M]
+            # ground resets to its STATIONARY MEAN, not zero (recomputed per
+            # batch: the learned decays drift during training)
+            init_row = torch.cat([init.reshape(-1),
+                                  dec.stationary_ground().to(init.dtype)]).to(device)  # [L*H + M]
             if carried is None:
                 carried = init_row.unsqueeze(0).expand(b, -1).clone()
             old = carried.clone()

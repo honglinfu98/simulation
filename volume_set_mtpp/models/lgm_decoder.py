@@ -97,6 +97,19 @@ class LGMSetDecoder(S2P2SetDecoder):
         return float(self._n())
 
     @torch.no_grad()
+    def stationary_ground(self) -> torch.Tensor:
+        """Stationary mean of the ground accumulators: E[S^m] = R/beta_m.
+
+        Used as the COLD-START value wherever no carried state exists (val
+        windows, TBPTT lane resets, eval chunk starts). Cold-starting at zero
+        is catastrophically biased for slow kernels (E[S] = 38/0.06 ~ 600 on
+        Coinbase): windowed validation then punishes exactly the slow-memory
+        solutions MLE is converging to, and best-model selection freezes the
+        run at epoch 1. Detached: an initialization, not a gradient path.
+        """
+        return (self.target_rate / self._betas()).detach()             # [M]
+
+    @torch.no_grad()
     def project_subcritical(self, rho_max: float) -> float:
         """Rescale a (n is linear in a) so the ground branching n <= rho_max."""
         beta = self._betas()
@@ -136,6 +149,10 @@ class LGMSetDecoder(S2P2SetDecoder):
         """
         B, N = timestamps.shape
         out_dtype = timestamps.dtype
+        if S0 is None:
+            # stationary-mean cold start (see stationary_ground docstring)
+            S0 = self.stationary_ground().to(device=timestamps.device,
+                                             dtype=out_dtype).unsqueeze(0).expand(B, -1)
         # float64 log-domain: LCSE operands reach beta*t ~ 5e3, where float32's
         # ~1e-7 relative precision costs ~5e-4 in the exponent; float64 is exact
         # to ~1e-12 and the [B,N,M=4] tensor is cheap. (MPS lacks fp64 -> fp32;
