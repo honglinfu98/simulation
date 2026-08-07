@@ -2,27 +2,26 @@
 \label{sec:conclusion}
 
 We held seven neural MTPPs to both sides of the prediction--simulation
-tension on three Coinbase assets at production rates, with failures
-counted as results. The uncapped \sppp{}
+tension on three Coinbase assets at production rates; failures count as
+results. The uncapped \sppp{}
 decoder is not a reliable simulator: it fails verified calibration on 6
-of 9 checkpoints (all three on SOL), and a faithful port of the published
-configuration fails 3 of 9 with the same signatures. \ssppp{}, differing only in the output heads, achieves the best SOL NLL
+of 9 checkpoints (all three on SOL), and a faithful published-configuration
+port fails 3 of 9 with the same signatures. \ssppp{}, differing only in the output heads, achieves the best SOL NLL
 and accuracy (PCT-LSTM has lower MAE), leads on ETH, ties the best BTC
 marks, verifies calibration on all nine checkpoints, and leads five of
 twelve stylized facts, competitive on the rest.
 
-First, closed-loop reliability tracked the intensity head, not training
-quality: the uncapped head fails reproducibly with near-critical
-rescaling sensitivity; the bounded head's calibration was a smooth
-root-find that always verified.
-Second, the bound was nearly free: it did not reduce predictive
-performance in our experiments, trains at scan speed, and buys exact
-thinning far above real time.
+First, closed-loop reliability tracked the head, not training quality:
+the uncapped head fails reproducibly with near-critical rescaling
+sensitivity; the bounded head's calibration was a smooth root-find that
+always verified.
+Second, the bound was nearly free: predictive performance held, training
+runs at scan speed, and exact thinning runs far above real time.
 
-The evidence has limits: three streams from one crypto venue, seven days
-each; realism is scored on signed order-flow statistics, not price paths.
-The guarantee is a bounded rate, not realism: the LSTM is stable yet
+Limits: three streams from one crypto venue; realism is scored on signed
+order-flow statistics, not price paths.
+The guarantee is boundedness, not realism: the LSTM is stable yet
 near-Poisson, \ssppp{} leaves a Fano gap, \nhp{} keeps the BTC timing
-lead, and head-component attribution awaits ablations. Agent-conditioned marks cannot violate the ceiling (the mark
-head is rate-neutral at a fixed state); this extension and
-\citet{chang2024probabilistic}'s queries are future work.
+lead, and component attribution awaits ablations. Agent-conditioned marks
+cannot violate the ceiling; this and \citet{chang2024probabilistic}'s
+queries are open.

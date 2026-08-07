@@ -15,8 +15,11 @@ the integral being the compensator
 $\Lambda(t)=\int_0^t\lambda(u\mid\mathcal{H}_u)\,du$. Sampling uses Ogata
 thinning \citep{lewis1979thinning,ogata1981lewis}, which requires a
 dominating rate $\bar\lambda\ge\lambda(t)$; models exposing no practical
-dominating rate fall back on heuristic bound estimates, which can bias
-samples when the estimate is exceeded.
+dominating rate fall back on heuristic bound estimates that can bias
+samples. The \sppp{} authors avoid thinning for this very reason: its
+dominating-rate and sampling-boundary hyperparameters ``can exacerbate
+bias'' \citep{chang2025ctssm}. \ssppp's exact closed-form ceiling removes
+the objection.
 
 \paragraph{The \sppp{} backbone.}
 \sppp{} \citep{chang2025ctssm} is a state-space point process: $L$ stacked
@@ -61,9 +64,9 @@ Neural MTPPs learn history-dependent intensities with recurrent
 continuous-time state-space \citep{chang2025ctssm} encoders
 \citep[survey:][]{Shchur2021NeuralReview}. \citet{Shi2022StateSimulation}
 specialize neural Hawkes models to LOB streams and evaluate both prediction
-and simulation. The state-space line, however, is evaluated almost
-exclusively teacher-forced: \citet{chang2025ctssm} report state-of-the-art
-held-out likelihood but never roll the model out.
+and simulation; the state-space line, however, is evaluated
+teacher-forced only, with state-of-the-art held-out likelihood but no
+roll-outs \citep{chang2025ctssm}.
 
 \paragraph{Hawkes modeling of order flow.}
 Parametric Hawkes processes are the classical LOB event model
@@ -72,9 +75,8 @@ with state-dependent extensions
 \citep{Morariu-Patrichi2022State-dependentModelling}: exact stationarity
 certificates, limited expressiveness. \ssppp{} takes the complementary
 route: full neural expressiveness with a closed-form rate bound restoring
-non-explosiveness. In the neural TPP literature such bounds appear mainly
-as computational devices for thinning; here the bound is a modeling
-decision, one-sided so the quiet regime is left undistorted.
+non-explosiveness, the bound a modeling decision rather than a thinning
+device, one-sided so the quiet regime is left undistorted.
 
 \paragraph{Generative LOB simulators.}
 Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
@@ -87,6 +89,5 @@ workhorse. These systems are scored on distributional realism: stylized facts
 of LOB-Bench \citep{nagy2025lobbench}, whose authors report error
 accumulation over long roll-outs. \ssppp{} differs on two counts: one
 likelihood-based model is held to \emph{both} prediction and closed-loop
-realism, and the simulated mean rate is calibrated and checked by a
-full-scale verification roll-out, an empirical closed-loop test the
-simulators above do not report.
+realism, with the simulated mean rate calibrated and checked by full-scale
+verification, a closed-loop test the simulators above do not report.

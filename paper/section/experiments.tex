@@ -103,7 +103,7 @@ Expected-time MAE is within $0.030$--$0.050$\,s of the truth on every
 asset, approximately 1--3\,ms behind the best model per asset (PCT-LSTM has
 the lowest MAE on ETH and SOL); the uncapped \spppu{} is pathological
 ($2.3$, $10.2$, $46.2$\,s), consistent with near-zero-intensity states
-whose expected-time integral runs to the evaluation horizon. The faithful
+whose expected-time integral hits the horizon. The faithful
 \spppub{} port is erratic across seeds under this budget (ETH NLL spans
 $0.28$--$9.1$): a protocol-matched reference, not the published model's
 attainable accuracy.
@@ -139,8 +139,7 @@ calibrated checkpoints for a nine-pair pooled comparison.}
 \subsection{Simulation Quality}
 \label{sec:simulation}
 \ssppp{} is the only model pairing reliable closed-loop simulation with
-top-tier prediction; the strongest baseline predictors are unusable or
-erratic in closed loop. SAHP's free-running rate collapses to
+top-tier prediction. SAHP's free-running rate collapses to
 $5$--$16$\,ev/s against real segments at $20$--$35$\,ev/s (under half on
 every asset); per protocol it was not calibrated (\dag{} in
 Table~\ref{tab:multiasset}). The uncapped \spppu{} drifts hot
@@ -213,7 +212,7 @@ theorem.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.74\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=0.70\columnwidth]{figs/fig_cal_ladder}
 \caption{Failing \spppu{} checkpoints respond near-discontinuously to the
 rescaling constant $\kappa$ on every asset, most extremely on SOL; verified
 \ssppp{} checkpoints cross each target smoothly. Probe ladders, seed-1
@@ -224,18 +223,16 @@ target.}
 
 \subsection{Efficiency Analysis}
 \label{sec:efficiency}
-The backbone is also computationally advantageous once its per-event
-sequential loop is replaced by a Hillis--Steele prefix scan
-\citep{hillis1986scan} over the ZOH recurrence (equivalent up to
-floating-point order; maximum observed state/gradient discrepancy
-$2\!\times\!10^{-4}$). On one GPU (Table~\ref{tab:speed}, appendix; ETH
-checkpoints) the scan collapses the \sppp-family training step from
-$3.5$\,s to ${\sim}0.06$\,s: attention-class speed, $60\times$ over the
-loop, $73\times$ over the CT-LSTM. For sampling, \ssppp's exact ceiling makes Ogata
-thinning available with a \emph{constant} dominating rate (mean acceptance
-$0.54$ on ETH, ${\sim}1.9$ proposals per event): exactness costs
-${\sim}2.5\times$ against the shared inversion sampler, and both run far
-above real time ($353$ vs.\ $48$ events/s on the fastest asset).
+Replacing the \sppp-family's per-event sequential loop with a
+Hillis--Steele prefix scan \citep{hillis1986scan} over the ZOH recurrence
+(equivalent up to floating-point order; maximum observed discrepancy
+$2\!\times\!10^{-4}$) collapses the training step from $3.5$\,s to
+${\sim}0.06$\,s on one GPU: attention-class speed, $60\times$ over the
+loop, $73\times$ over the CT-LSTM (Table~\ref{tab:speed}, appendix; ETH
+checkpoints). For sampling, the exact ceiling gives thinning a
+\emph{constant} dominating rate (acceptance $0.54$ on ETH, ${\sim}1.9$
+proposals per event): exactness costs ${\sim}2.5\times$ vs.\ the shared
+inversion sampler, both far above real time ($353$ vs.\ $48$ events/s).
 % AUTHOR ACTION REQUIRED: archive the speed-bench raw logs (train-step and
 % thinning acceptance) with the release; confirm the PCT-LSTM row was
 % re-measured with the current SD-PNHP backbone.
