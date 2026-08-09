@@ -56,6 +56,7 @@ class LGMSetDecoder(S2P2SetDecoder):
         ground_delta_init=(50.0, 5.0, 0.5, 0.1),
         min_decay: float = 0.005,
         typed_kicks: bool = False,
+        gate_max: float = 0.0,
         **_ignore,
     ):
         super().__init__(
@@ -102,6 +103,31 @@ class LGMSetDecoder(S2P2SetDecoder):
 
         # hidden layout consumed by the heads: [u (base_dim), S^1..S^M]
         self._mark_in_dim = H
+
+        # Two-lane gate (TL-SSM): bounded, approximately mean-one multiplicative
+        # modulation of the ground by the free lane u. g = exp(gamma*(tanh(v'u)
+        # - c_bar)) with gamma = log(gate_max), c_bar an EMA of tanh(v'u) so the
+        # log-gate is centred (geometric mean ~1; the pin survives in
+        # expectation, residual absorbed by the verified kappa calibration).
+        # Bound: g in [gate_max^-2, gate_max^2] worst case => rho_eff <=
+        # gate_max^2 * n (documented bound; stability checked by the
+        # falsifiable calibration protocol). Zero-init v => g = 1 at start.
+        # This is the ONLY path by which the time likelihood reaches the
+        # backbone -- the "underemployment" fix.
+        self.gate_max = float(gate_max)
+        if self.gate_max > 0:
+            self.gate_v = nn.Linear(H, 1)
+            nn.init.zeros_(self.gate_v.weight)
+            nn.init.zeros_(self.gate_v.bias)
+            self.register_buffer("gate_c", torch.zeros(()))
+
+    def _gate(self, u: torch.Tensor) -> torch.Tensor:
+        gamma = float(torch.log(torch.tensor(self.gate_max)))
+        t = torch.tanh(self.gate_v(u)).squeeze(-1)
+        if self.training:
+            with torch.no_grad():
+                self.gate_c.mul_(0.99).add_(0.01 * t.mean())
+        return torch.exp(gamma * (t - self.gate_c))
 
     # ------------------------------------------------------------- ground math
     def _betas(self) -> torch.Tensor:
@@ -152,6 +178,8 @@ class LGMSetDecoder(S2P2SetDecoder):
         n = self._n().clamp(max=0.999)
         mu0 = self.target_rate * (1.0 - n)
         lam = mu0 + (F.softplus(self.a_raw) * S).sum(dim=-1)
+        if self.gate_max > 0:
+            lam = lam * self._gate(h[..., : self._mark_in_dim])
         return lam.clamp_min(1e-6)
 
     def mark_score(self, h: torch.Tensor, state_features=None) -> torch.Tensor:

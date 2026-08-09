@@ -325,11 +325,20 @@ def main():
                         help='Weight of the dispersion-matching auxiliary loss: match model-implied '
                              'Fano (1 + Var(Lam)/E[Lam] over lin-log buckets) to the batch-empirical '
                              'Fano, teacher-forced (ss2p2-disp arm)')
+    parser.add_argument('--disp-scales', type=str, default='0.5,2,8',
+                        help='Comma-separated bucket widths (s) for the dispersion-matching loss')
     parser.add_argument('--ss2p2-freeze-spectrum', action='store_true',
                         help='Freeze the S2P2 base decay spectrum at its log-spaced init '
                              '([0.02s, 60s] timescales); only the mixing/readout weights train')
     parser.add_argument('--lgm-timescales', type=int, default=4,
                         help='Number of ground kernel timescales (M != 4 -> log-spaced 100..0.02/s bank)')
+    parser.add_argument('--lgm-gate-max', type=float, default=0.0,
+                        help='TL-SSM: bounded mean-one gate g(u) on the ground (0 = off); '
+                             'the time likelihood then trains the backbone through g')
+    parser.add_argument('--lgm-ground-file', type=str, default='',
+                        help='JSON from kirchner_fit_lgm.py: initialize the ground (a, betas) from it')
+    parser.add_argument('--lgm-freeze-ground', action='store_true',
+                        help='Freeze the ground kernel parameters (a_raw, log_delta_g)')
     parser.add_argument('--lgm-typed-kicks', action='store_true',
                         help='Per-channel ground kick weights w_k (Konark-style typed excitation); '
                              'n = E[w] sum a/beta under the running mark frequencies')
@@ -447,6 +456,7 @@ def main():
         'target_rate': args.target_rate,
         'lgm_timescales': args.lgm_timescales,
         'lgm_typed_kicks': args.lgm_typed_kicks,
+        'lgm_gate_max': args.lgm_gate_max,
         'tbptt': args.tbptt,
         's2p2_readout': args.s2p2_readout,
         's2p2_layers': args.s2p2_layers,
@@ -528,6 +538,23 @@ def main():
     model = create_model(event_mapping.num_events, config, device)
     model._lgm_project_rho = float(getattr(args, 'lgm_project_rho', 0.0) or 0.0)
     model._disp_loss_weight = float(getattr(args, 'disp_loss_weight', 0.0) or 0.0)
+    model._disp_scales = tuple(float(x) for x in str(getattr(args, 'disp_scales', '0.5,2,8')).split(','))
+    if getattr(args, 'lgm_ground_file', ''):
+        import json as _json
+        _fit = _json.load(open(args.lgm_ground_file))
+        _a = torch.tensor(_fit['a']).clamp_min(1e-9)
+        _b = torch.tensor(_fit['betas'])
+        d = model.decoder
+        assert d.M == len(_b), f'--lgm-timescales must equal ground file bank size {len(_b)}'
+        with torch.no_grad():
+            _dd = (_b - d.min_decay).clamp_min(1e-3)
+            d.log_delta_g.copy_((_dd + torch.log(-torch.expm1(-_dd))).to(d.log_delta_g.dtype))
+            d.a_raw.copy_(torch.log(torch.expm1(_a)).to(d.a_raw.dtype))
+        print(f'LGM ground initialized from {args.lgm_ground_file}: n={d.closed_form_rho():.4f}')
+    if getattr(args, 'lgm_freeze_ground', False):
+        model.decoder.a_raw.requires_grad_(False)
+        model.decoder.log_delta_g.requires_grad_(False)
+        print('LGM ground FROZEN')
     if getattr(args, 'ss2p2_freeze_spectrum', False):
         if hasattr(model.decoder, 'log_decay'):
             model.decoder.log_decay.requires_grad_(False)

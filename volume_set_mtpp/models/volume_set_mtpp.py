@@ -933,6 +933,7 @@ def create_volume_set_mtpp(
             use_scan=config.get('s2p2_scan', False),
             num_timescales=config.get('lgm_timescales', 4),
             typed_kicks=config.get('lgm_typed_kicks', False),
+            gate_max=config.get('lgm_gate_max', 0.0),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(
