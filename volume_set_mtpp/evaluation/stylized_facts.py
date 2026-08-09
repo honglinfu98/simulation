@@ -393,13 +393,27 @@ def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
     STRICT: raises RuntimeError if the target cannot be bracketed within
     k in [1e-4, 256] or if the accepted k's probe rate misses the tolerance --
     a calibration constant is never silently accepted.
+
+    Near-critical models can defeat bisection without being miscalibrated:
+    the probe-rate standard error scales like sqrt(Fano * R / T_total), which
+    at n ~ 0.99 (probe Fano in the hundreds) exceeds `tol`, so successive
+    probes straddle the target non-monotonically and the bracket collapses on
+    noise. Fallback: pool ALL probes and fit the kappa-scaled Hawkes rate law
+    E[rate](k) = k*mu / (1 - k*nu), i.e. 1/rate LINEAR in 1/k, solve for k,
+    then confirm with a high-precision probe (4x sequences, 3 averaged
+    seeds). The converged bisection path is unchanged, and acceptance is
+    still gated on the same `tol` -- just against a pooled low-noise
+    estimate instead of one noisy probe.
     """
-    def probe(k: float) -> float:
+    probes: list = []                     # (k, rate) pool for the fallback fit
+
+    def probe(k: float, n_seq: int = probe_seq, seed: int = 777) -> float:
         model._sim_rate_k = k
-        m, d, c = simulate_stream(model, batch, device, steps=0, n_seq=probe_seq,
-                                  duration=probe_duration, seed=777, **sampler_kwargs)
+        m, d, c = simulate_stream(model, batch, device, steps=0, n_seq=n_seq,
+                                  duration=probe_duration, seed=seed, **sampler_kwargs)
         r = _measured_rate(m, d, c, probe_duration)
         print(f"  CAL probe k={k:.4f} -> rate {r:.3f} (target {target:.3f})", flush=True)
+        probes.append((k, r))
         return r
 
     lo, hi = 1.0, 1.0
@@ -426,20 +440,72 @@ def calibrate_rate(model, batch, device, target: float, sampler_kwargs: dict,
             r_hi = probe(hi)
         lo = hi / 4.0
     k, ok = math.sqrt(lo * hi), False
-    for _ in range(max_iter):
+    for it in range(max_iter):
         k = math.sqrt(lo * hi)            # geometric bisection (k is a scale)
         r = probe(k)
         if abs(r - target) / target <= tol:
-            ok = True
-            break
+            if it < 4:
+                ok = True
+                break
+            # A within-tol probe deep in the bisection is as likely noise as
+            # signal (the bracket only gets this tight when probes disagree).
+            # Confirm with 2 replicate seeds at 2x sequences; pool by
+            # sequence count. On pooled miss, keep bisecting on the pooled
+            # rate -- the replicates also feed the regression fallback.
+            r_reps = [probe(k, n_seq=probe_seq * 2, seed=1777 + 1000 * j)
+                      for j in range(2)]
+            r = (r + 2.0 * sum(r_reps)) / 5.0
+            print(f"  CAL deep-accept pooled rate {r:.3f} (1x+2x+2x seq)", flush=True)
+            if abs(r - target) / target <= tol:
+                ok = True
+                break
         if r > target:
             hi = k
         else:
             lo = k
     if not ok:
-        raise RuntimeError(f"calibration did not converge to {tol:.0%} of target "
-                           f"{target:.3f} within {max_iter} bisection steps "
-                           f"(bracket [{lo:.4f}, {hi:.4f}])")
+        # ------- regression fallback: pooled fit of 1/rate = a*(1/k) + c -------
+        print(f"CAL bisection exhausted (bracket [{lo:.4f}, {hi:.4f}]); "
+              f"regression fallback over {len(probes)} pooled probes", flush=True)
+        ks = np.array([p[0] for p in probes], dtype=float)
+        rs = np.array([p[1] for p in probes], dtype=float)
+        live = rs > 1e-6
+        # The inverse-linear law is exact only for an unmodified linear Hawkes;
+        # gates/warm-starts bend it far from the operating point. Fit LOCALLY:
+        # probes within 3x of the target, topped up to >=4 with the nearest
+        # (by |log(r/target)|) if the bracket walk left too few nearby.
+        near = live & (rs > target / 3.0) & (rs < target * 3.0)
+        if near.sum() < 4:
+            order = np.argsort(np.abs(np.log(np.maximum(rs, 1e-6) / target)))
+            for idx in order:
+                if live[idx]:
+                    near[idx] = True
+                if near.sum() >= 4:
+                    break
+        if near.sum() < 3:
+            raise RuntimeError(f"calibration did not converge to {tol:.0%} of target "
+                               f"{target:.3f} within {max_iter} bisection steps "
+                               f"(bracket [{lo:.4f}, {hi:.4f}]) and too few live probes "
+                               f"({int(near.sum())}) for the regression fallback")
+        X = np.stack([1.0 / ks[near], np.ones(int(near.sum()))], axis=1)
+        (a_fit, c_fit), *_ = np.linalg.lstsq(X, 1.0 / rs[near], rcond=None)
+        denom = 1.0 / target - float(c_fit)
+        if a_fit <= 0 or denom <= 0:
+            raise RuntimeError(f"calibration regression fallback non-physical "
+                               f"(slope {a_fit:.4g}, denom {denom:.4g}); bisection bracket "
+                               f"was [{lo:.4f}, {hi:.4f}], target {target:.3f}")
+        k = float(np.clip(float(a_fit) / denom, ks.min(), ks.max()))
+        print(f"  CAL fallback fit 1/r = {a_fit:.5f}/k + {c_fit:.5f} -> k={k:.4f}; "
+              f"confirming at 4x{probe_seq} seq x 3 seeds", flush=True)
+        r_conf = float(np.mean([probe(k, n_seq=probe_seq * 4, seed=777 + 1000 * j)
+                                for j in range(3)]))
+        rel = abs(r_conf - target) / target
+        if rel > tol:
+            raise RuntimeError(f"calibration regression fallback k={k:.4f} confirmed rate "
+                               f"{r_conf:.3f} misses target {target:.3f} by {rel:.1%} "
+                               f"(> {tol:.0%}); bisection bracket [{lo:.4f}, {hi:.4f}]")
+        print(f"CAL_FALLBACK_OK pooled-regression k={k:.4f}, high-precision rate "
+              f"{r_conf:.3f} within {rel:.1%} of target", flush=True)
     model._sim_rate_k = k
     print(f"CALIBRATED sim-time rate scale k={k:.4f} (probe within {tol:.0%} of target; "
           f"mark distribution unchanged; SS2P2 thinning ceiling scales identically)", flush=True)
