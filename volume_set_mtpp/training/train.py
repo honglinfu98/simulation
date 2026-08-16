@@ -121,6 +121,11 @@ def train_epoch(model, train_loader, optimizer, device, epoch, writer=None, loss
         _pr = getattr(model, '_lgm_project_rho', 0.0)
         if _pr > 0 and hasattr(model.decoder, 'project_subcritical'):
             model.decoder.project_subcritical(_pr)
+        # matrix analogue: hard-project the K x K routing so rho(T) <= rho_max.
+        # Applied AFTER the optimizer step, exactly like project_subcritical.
+        _rm = getattr(model, '_pct_rho_max', 0.0)
+        if _rm > 0 and hasattr(model.decoder, 'project_spectral'):
+            model.decoder.project_spectral(_rm)
 
         total_loss += loss.item()
         pbar.set_postfix({'loss': loss.item()})
@@ -182,6 +187,11 @@ def train_epoch_tbptt(model, train_loader, optimizer, device, epoch, writer=None
         _pr = getattr(model, '_lgm_project_rho', 0.0)
         if _pr > 0 and hasattr(model.decoder, 'project_subcritical'):
             model.decoder.project_subcritical(_pr)
+        # matrix analogue: hard-project the K x K routing so rho(T) <= rho_max.
+        # Applied AFTER the optimizer step, exactly like project_subcritical.
+        _rm = getattr(model, '_pct_rho_max', 0.0)
+        if _rm > 0 and hasattr(model.decoder, 'project_spectral'):
+            model.decoder.project_spectral(_rm)
 
         # hand-off: packed [B, D*] -> layer states [B, L, H] (held anchors are
         # recomputed by the next window's event pass; see ARCHITECTURE.md).
@@ -312,6 +322,31 @@ def main():
                         help='Stateful (TBPTT) training: batches walk the stream in order and the '
                              'decoder state is carried across windows (detached at boundaries). '
                              'Forces stride = seq-length; S2P2-family decoders only.')
+    parser.add_argument('--pct-tower-dim', type=int, default=8,
+                        help='PCT-S2P2 per-tower residual stream dim H')
+    parser.add_argument('--pct-state-dim', type=int, default=8,
+                        help='PCT-S2P2 complex state per (layer, tower) P')
+    parser.add_argument('--pct-layers', type=int, default=2,
+                        help='PCT-S2P2 layers L (>=2; mixing is BETWEEN layers)')
+    parser.add_argument('--pct-impulse-mode', choices=['all', 'own', 'matrix'], default='all',
+                        help="'all': every event jumps every tower (mutual excitation); "
+                             "'own': tower k sees only type-k impulses (mixer-only cross-talk)")
+    parser.add_argument('--pct-per-tower-head', action='store_true',
+                        help='each tower gets its OWN SS2P2 decoupled head (mex-s2p2)')
+    parser.add_argument('--pct-rho-max', type=float, default=0.0,
+                        help='hard-project the K x K routing to rho(T) <= this (0 = off)')
+    parser.add_argument('--pct-spectral-weight', type=float, default=0.0,
+                        help='weight on the differentiable relu(sigma_max(T) - rho_max)^2 penalty')
+    parser.add_argument('--pct-c-max', type=float, default=2.0,
+                        help='ceiling on the per-source impulse budget c_j')
+    parser.add_argument('--pct-c-init', type=float, default=1.0,
+                        help='initial c_j (set from measured net offspring)')
+    parser.add_argument('--pct-no-trans-normalize', action='store_true',
+                        help='disable column-L1 normalisation of T')
+    parser.add_argument('--pct-rate-cap', type=float, default=6.0,
+                        help='PCT-S2P2 z-ceiling c; lambda_k <= s_k*softplus(c)')
+    parser.add_argument('--pct-block-diag-mixers', action='store_true',
+                        help='mask mixers to their K diagonal HxH blocks (independent-tower baseline)')
     parser.add_argument('--ptp-dim', type=int, default=8,
                         help='Per-type latent dim d for the per-type s2p2 baseline (pct-lstm)')
     parser.add_argument('--target-rate', type=float, default=1.8, dest='target_rate',
@@ -343,7 +378,7 @@ def main():
                         help='Per-channel ground kick weights w_k (Konark-style typed excitation); '
                              'n = E[w] sum a/beta under the running mark frequencies')
     parser.add_argument('--decoder-type',
-                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'ptp-s2p2', 's2p2-pub'],
+                        choices=['hawkes', 'rmtpp', 's2p2', 'ss2p2', 'lgm', 'lstm', 'sahp', 'ct-lstm', 'pct-lstm', 'pct-s2p2', 'dec-s2p2', 'mex-s2p2', 'ptp-s2p2', 's2p2-pub'],
                         default='hawkes',
                         help='Decoder/backbone: SS2P2 (ours), or baselines: S2P2 diagonal SSM, '
                              'faithful published S2P2 (s2p2-pub: complex DPLR, per-type '
@@ -449,6 +484,18 @@ def main():
         'set_loss_weight': args.set_loss_weight,
         'set_loss_reduction': args.set_loss_reduction,
         'decoder_type': args.decoder_type,
+        'pct_tower_dim': args.pct_tower_dim,
+        'pct_state_dim': args.pct_state_dim,
+        'pct_layers': args.pct_layers,
+        'pct_impulse_mode': args.pct_impulse_mode,
+        'pct_rate_cap': args.pct_rate_cap,
+        'pct_per_tower_head': args.pct_per_tower_head,
+        'pct_rho_max': args.pct_rho_max,
+        'pct_spectral_weight': args.pct_spectral_weight,
+        'pct_c_max': args.pct_c_max,
+        'pct_c_init': args.pct_c_init,
+        'pct_trans_normalize': (not args.pct_no_trans_normalize),
+        'pct_block_diag_mixers': args.pct_block_diag_mixers,
         'ptp_dim': args.ptp_dim,
         'pub_state_dim': args.pub_state_dim,
         'pub_layers': args.pub_layers,
@@ -537,6 +584,12 @@ def main():
     print("\nCreating model...")
     model = create_model(event_mapping.num_events, config, device)
     model._lgm_project_rho = float(getattr(args, 'lgm_project_rho', 0.0) or 0.0)
+    model._pct_rho_max = float(getattr(args, 'pct_rho_max', 0.0) or 0.0)
+    model._pct_spectral_weight = float(getattr(args, 'pct_spectral_weight', 0.0) or 0.0)
+    if model._pct_rho_max > 0 and hasattr(model.decoder, 'spectral_radius'):
+        print(f'PCT spectral control: rho_max={model._pct_rho_max} '
+              f'penalty_w={model._pct_spectral_weight} '
+              f'rho(T)@init={model.decoder.spectral_radius():.4f}')
     model._disp_loss_weight = float(getattr(args, 'disp_loss_weight', 0.0) or 0.0)
     model._disp_scales = tuple(float(x) for x in str(getattr(args, 'disp_scales', '0.5,2,8')).split(','))
     if getattr(args, 'lgm_ground_file', ''):

@@ -27,6 +27,7 @@ thinning path refuses loudly instead of using a wrong bound.
 """
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 import torch
@@ -57,6 +58,9 @@ class LGMSetDecoder(S2P2SetDecoder):
         min_decay: float = 0.005,
         typed_kicks: bool = False,
         gate_max: float = 0.0,
+        gen_rank: int = 0,
+        gen_tau_min: float = 0.05,
+        gen_tau_max: float = 120.0,
         **_ignore,
     ):
         super().__init__(
@@ -101,8 +105,55 @@ class LGMSetDecoder(S2P2SetDecoder):
         mh = int(mark_hidden) if mark_hidden else H
         self.mark = nn.Sequential(nn.Linear(H, mh), nn.ReLU(), nn.Linear(mh, self.K))
 
-        # hidden layout consumed by the heads: [u (base_dim), S^1..S^M]
+        # ------------------------------------------------- mode-space generator
+        # Explicit mutual excitation between marks, carried by R latent modes
+        # with a DENSE generator G.  Parameterized in G's eigenbasis (S5 trick):
+        # G = P diag(lam) P^-1 with lam_r = -delta_r + i omega_r, and P folded
+        # into the emission/readout maps.  Only lam is identifiable; P is a
+        # gauge.  So the module is a complex-diagonal SSM, but the object it
+        # encodes is a dense generator, and the induced lag-integrated
+        # mark-to-mark transition matrix has the closed form
+        #     M = Re( U (-Lam)^-1 V^T )        (gen_transition_matrix)
+        # directly comparable to the binned-count regression estimate.
+        #
+        # Every parameter here enters ONLY the mark logits, which are softmax-
+        # normalized, so the total intensity Lambda never sees them:
+        #   - the count process keeps the type-blind law  -> n, mu_0 pin, Fano
+        #     are invariant by construction (Stage A's failure mode is
+        #     structurally unreachable from here);
+        #   - the likelihood stays additively separable   -> transplant exact.
+        # delta_r > 0 by construction => |exp(lam dt)| < 1 => unconditionally
+        # stable; no spectral-radius certificate needed.
+        self.gen_R = int(gen_rank)
+        if self.gen_R > 0:
+            R = self.gen_R
+            # log-spaced decay timescales over [gen_tau_min, gen_tau_max]
+            taus = torch.logspace(math.log10(gen_tau_min), math.log10(gen_tau_max), R)
+            dd = (1.0 / taus - self.min_decay).clamp_min(1e-3)
+            self.gen_log_delta = nn.Parameter(dd + torch.log(-torch.expm1(-dd)))
+            # half the modes start purely real (omega=0, pure decay), half start
+            # oscillatory with periods log-spaced over [0.5s, 60s], so damped
+            # ringing is reachable from init rather than only via gradient on a
+            # zero frequency.
+            omega = torch.zeros(R)
+            n_osc = R // 2
+            if n_osc > 0:
+                periods = torch.logspace(math.log10(0.5), math.log10(60.0), n_osc)
+                omega[R - n_osc:] = 2.0 * math.pi / periods
+            self.gen_omega = nn.Parameter(omega)
+            # emission V [K,R]: SUM-pooled over the active channel set, so a
+            # k-channel simultaneous event emits k rows (the backbone's mean
+            # pooling discards set cardinality; here it is kept).
+            self.gen_V = nn.Parameter(torch.randn(self.K, R) / math.sqrt(R))
+            # readout U = U_re + i U_im, ZERO-init => the residual is exactly 0
+            # at load, so an assembled checkpoint reproduces its donor bit-for-bit.
+            self.gen_U_re = nn.Parameter(torch.zeros(self.K, R))
+            self.gen_U_im = nn.Parameter(torch.zeros(self.K, R))
+
+        # hidden layout consumed by the heads:
+        #   [u (base_dim) | S^1..S^M | Z_re^1..R | Z_im^1..R]
         self._mark_in_dim = H
+        self._extra_dim = self.M + 2 * self.gen_R
 
         # Two-lane gate (TL-SSM): bounded, approximately mean-one multiplicative
         # modulation of the ground by the free lane u. g = exp(gamma*(tanh(v'u)
@@ -173,8 +224,13 @@ class LGMSetDecoder(S2P2SetDecoder):
 
     # ------------------------------------------------------------- heads
     def ground_intensity(self, h: torch.Tensor) -> torch.Tensor:
-        """h [..., base+M] -> Lambda [...]. mu_0 pinned: E[Lambda] = target_rate."""
-        S = h[..., -self.M:]
+        """h [..., base+M(+2R)] -> Lambda [...]. mu_0 pinned: E[Lambda] = target_rate.
+
+        Slices S positionally (NOT h[..., -M:]) so the generator block, which
+        sits after S, cannot leak into the ground.  That separation is the
+        transplant theorem's premise, so it is asserted by shape here.
+        """
+        S = h[..., self._mark_in_dim: self._mark_in_dim + self.M]
         n = self._n().clamp(max=0.999)
         mu0 = self.target_rate * (1.0 - n)
         lam = mu0 + (F.softplus(self.a_raw) * S).sum(dim=-1)
@@ -183,7 +239,24 @@ class LGMSetDecoder(S2P2SetDecoder):
         return lam.clamp_min(1e-6)
 
     def mark_score(self, h: torch.Tensor, state_features=None) -> torch.Tensor:
-        return self.mark(h[..., : self._mark_in_dim])
+        z = self.mark(h[..., : self._mark_in_dim])
+        if self.gen_R > 0:
+            o = self._mark_in_dim + self.M
+            R = self.gen_R
+            zr, zi = h[..., o: o + R], h[..., o + R: o + 2 * R]
+            # per-mode conditioning: E|Z_r| ~ target_rate / delta_r at the
+            # operating point, so scale by delta_r / target_rate to make every
+            # mode O(1) regardless of its timescale (4 decades of them).
+            s = self._gen_scale().to(device=zr.device, dtype=zr.dtype)
+            z = z + (zr * s) @ self.gen_U_re.t() - (zi * s) @ self.gen_U_im.t()
+        return z
+
+    def _gen_deltas(self) -> torch.Tensor:
+        """Mode decay rates, strictly positive => unconditional stability."""
+        return F.softplus(self.gen_log_delta) + self.min_decay          # [R]
+
+    def _gen_scale(self) -> torch.Tensor:
+        return self._gen_deltas() / self.target_rate                    # [R]
 
     @property
     def rate_bounds(self):
@@ -237,24 +310,120 @@ class LGMSetDecoder(S2P2SetDecoder):
         right = torch.cat([right0, left + add], dim=1)                             # [B,N+1,M]
         return right, left
 
+    # --------------------------------------------------------- generator scan
+    @staticmethod
+    def _cscan(x0: torch.Tensor, abar: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+        """Inclusive scan x_i = abar_i * x_{i-1} + c_i for COMPLEX tensors.
+
+        Same Hillis-Steele associative doubling as the backbone's _scan_doubling
+        (log2(N) elementwise steps), but built with torch.cat rather than F.pad
+        because complex padding is not supported on every torch build.
+        |abar| = exp(-delta*dt) <= 1, so unlike the ground's log-domain LCSE this
+        needs no stabilization: products only shrink.
+        x0 [B,R]; abar, c [B,N,R] -> x [B,N,R].
+        """
+        A, Bv = abar, c
+        n, shift = abar.shape[1], 1
+        while shift < n:
+            A_prev = torch.cat([torch.ones_like(A[:, :shift]), A[:, :-shift]], dim=1)
+            B_prev = torch.cat([torch.zeros_like(Bv[:, :shift]), Bv[:, :-shift]], dim=1)
+            Bv = A * B_prev + Bv
+            A = A * A_prev
+            shift *= 2
+        return A * x0.unsqueeze(1) + Bv
+
+    def _gen_scan(self, timestamps: torch.Tensor, marks: torch.Tensor,
+                  Z0: Optional[torch.Tensor]):
+        """Complex mode state Z_r(t) = sum_{t_j<t} e_r(x_j) exp(lam_r (t - t_j)).
+
+        Recurrence with dt_i = t_i - t_{i-1} (t_{-1} = 0, matching the ground's
+        decay-from-window-start convention):
+            Z_left(i)  = abar_i * Z_right(i-1),   abar_i = exp(lam dt_i)
+            Z_right(i) = Z_left(i) + e_i
+        so x_i := Z_left(i) obeys x_i = abar_i x_{i-1} + abar_i e_{i-1}.
+        Returns right [B,N+1,2R] (index 0 = Z0) and left [B,N,2R], real-packed
+        as [Z_re | Z_im].
+        """
+        B, N = timestamps.shape
+        out_dtype = timestamps.dtype
+        R = self.gen_R
+        delta = self._gen_deltas().to(timestamps.device)                     # [R]
+        omega = self.gen_omega.to(timestamps.device)                         # [R]
+        lam = torch.complex(-delta, omega)                                   # [R]
+
+        prev_t = torch.cat([torch.zeros_like(timestamps[:, :1]), timestamps[:, :-1]], dim=1)
+        dt = (timestamps - prev_t).clamp(min=0.0, max=self.max_dt)           # [B,N]
+        abar = torch.exp(lam[None, None, :] * dt.unsqueeze(-1).to(lam.real.dtype))
+
+        e = (marks.float() @ self.gen_V).to(lam.real.dtype)                  # [B,N,R] sum-pooled
+        e_c = torch.complex(e, torch.zeros_like(e))
+        e_prev = torch.cat([torch.zeros_like(e_c[:, :1]), e_c[:, :-1]], dim=1)
+        if Z0 is None:
+            Z0c = torch.zeros(B, R, dtype=abar.dtype, device=timestamps.device)
+        else:
+            Z0c = torch.complex(Z0[:, :R], Z0[:, R:]).to(abar.dtype)
+
+        left_c = self._cscan(Z0c, abar, abar * e_prev)                       # [B,N,R]
+        right_c = torch.cat([Z0c.unsqueeze(1), left_c + e_c], dim=1)         # [B,N+1,R]
+        pack = lambda z: torch.cat([z.real, z.imag], dim=-1).to(out_dtype)
+        return pack(right_c), pack(left_c)
+
+    @torch.no_grad()
+    def gen_transition_matrix(self) -> torch.Tensor:
+        """Lag-integrated mark-to-mark transition matrix induced by the generator.
+
+            M[k,j] = Re( sum_r U_{k,r} s_r V_{j,r} / (delta_r - i omega_r) )
+
+        i.e. U (-Lam)^-1 V^T with the readout conditioning s_r folded in -- the
+        closed form of int_0^inf exp(tau G) dtau in the eigenbasis.  This is the
+        object to compare against the binned-count regression estimate; it is a
+        LOGIT-space transition (composition), not a branching matrix, so its
+        spectral radius carries no stability meaning.
+        """
+        if self.gen_R == 0:
+            return torch.zeros(self.K, self.K)
+        delta, omega = self._gen_deltas(), self.gen_omega
+        inv = 1.0 / torch.complex(delta, -omega)                             # [R]
+        U = torch.complex(self.gen_U_re, self.gen_U_im) * self._gen_scale()  # [K,R]
+        V = torch.complex(self.gen_V, torch.zeros_like(self.gen_V))          # [K,R]
+        return ((U * inv) @ V.t()).real
+
+    @torch.no_grad()
+    def gen_summary(self) -> str:
+        if self.gen_R == 0:
+            return "gen: disabled"
+        d, w = self._gen_deltas(), self.gen_omega
+        tau = 1.0 / d
+        is_osc = w.abs() > 1e-3
+        M = self.gen_transition_matrix()
+        parts = [f"gen R={self.gen_R}",
+                 f"tau=[{tau.min():.3f},{tau.max():.1f}]s",
+                 f"oscillatory={int(is_osc.sum())}/{self.gen_R}"]
+        if bool(is_osc.any()):
+            per = 2.0 * math.pi / w.abs()[is_osc]
+            parts.append(f"period=[{per.min():.2f},{per.max():.1f}]s")
+        parts.append(f"|M|_max={M.abs().max():.4f} |M|_mean={M.abs().mean():.5f}")
+        return " ".join(parts)
+
     # ------------------------------------------------------------- state plumbing
     def get_states_and_event_left_states(self, marks, timestamps, old_states=None):
         if timestamps.dim() == 3:
             timestamps = timestamps.squeeze(-1)
-        # old_states forms accepted:
+        # old_states forms accepted (E = M + 2R, the ground + generator block):
         #   [B, L, H]              layer states only (ground cold-starts, S0=0)
-        #   [B, L*H + M]           TBPTT carry: layers + ground accumulators
-        #   [B, (2L-1)*H + M]      full packed right state (eval/rollout carry)
-        base_old, S0 = None, None
+        #   [B, L*H + E]           TBPTT carry: layers + accumulators
+        #   [B, (2L-1)*H + E]      full packed right state (eval/rollout carry)
+        base_old, S0, Z0 = None, None, None
         if old_states is not None:
             L, H = self.num_layers, self.recurrent_hidden_size
+            E, R = self._extra_dim, self.gen_R
             if old_states.dim() == 3:
                 base_old = old_states
-            elif old_states.shape[-1] == L * H + self.M:
-                S0 = old_states[:, -self.M:]
-                base_old = old_states[:, : L * H].reshape(-1, L, H)
-            elif old_states.shape[-1] == (2 * L - 1) * H + self.M:
-                S0 = old_states[:, -self.M:]
+            elif old_states.shape[-1] in (L * H + E, (2 * L - 1) * H + E):
+                tail = old_states[:, -E:]
+                S0 = tail[:, : self.M]
+                if R > 0:
+                    Z0 = tail[:, self.M:]
                 base_old = old_states[:, : L * H].reshape(-1, L, H)
             else:
                 raise ValueError(f"LGM old_states shape {tuple(old_states.shape)} unrecognized")
@@ -269,8 +438,12 @@ class LGMSetDecoder(S2P2SetDecoder):
                     freq = mf.reshape(-1, self.K).mean(dim=0)
                     self.p_bar.mul_(0.99).add_(0.01 * freq / freq.sum().clamp_min(1e-8))
         right_g, left_g = self._ground_scan(timestamps.to(right_b.dtype), S0, kicks)
-        return (torch.cat([right_b, right_g], dim=-1),
-                torch.cat([left_b, left_g], dim=-1))
+        rights, lefts = [right_b, right_g], [left_b, left_g]
+        if self.gen_R > 0:
+            right_z, left_z = self._gen_scan(timestamps.to(right_b.dtype), marks, Z0)
+            rights.append(right_z)
+            lefts.append(left_z)
+        return torch.cat(rights, dim=-1), torch.cat(lefts, dim=-1)
 
     def get_states(self, marks, timestamps, old_states=None):
         return self.get_states_and_event_left_states(marks, timestamps, old_states=old_states)[0]
@@ -283,8 +456,11 @@ class LGMSetDecoder(S2P2SetDecoder):
             state_times = state_times.squeeze(-1)
         if timestamps.dim() == 3:
             timestamps = timestamps.squeeze(-1)
-        base = state_values[..., : -self.M]
-        sg = state_values[..., -self.M:]
+        E, R = self._extra_dim, self.gen_R
+        W = state_values.shape[-1]
+        base = state_values[..., : -E]
+        # absolute indices: -E + M == 0 when R == 0, which slices to empty
+        sg = state_values[..., W - E: W - 2 * R]
         u = super().get_hidden_h(base, state_times, timestamps)                    # [B,Mq,H]
         # ground at query time: decay the right-limit S of the last event <= t.
         idx = torch.searchsorted(state_times.contiguous(), timestamps.contiguous(), right=True)
@@ -295,4 +471,19 @@ class LGMSetDecoder(S2P2SetDecoder):
         dt = (timestamps - prev_t).clamp(min=0.0)
         beta = self._betas().to(device=dt.device, dtype=dt.dtype)
         hg = g_right * torch.exp((-dt.unsqueeze(-1) * beta[None, None]).clamp(min=-40.0, max=0.0))
-        return torch.cat([u, hg], dim=-1)
+        if R == 0:
+            return torch.cat([u, hg], dim=-1)
+        # generator at query time: same right-limit gather, complex decay
+        # exp(lam dt) = e^{-delta dt} (cos(omega dt) + i sin(omega dt)).
+        sz = state_values[..., -2 * R:]
+        z_right = sz.gather(dim=1, index=idx.unsqueeze(-1).expand(-1, -1, 2 * R))
+        zr, zi = z_right[..., :R], z_right[..., R:]
+        delta = self._gen_deltas().to(device=dt.device, dtype=dt.dtype)
+        omega = self.gen_omega.to(device=dt.device, dtype=dt.dtype)
+        dtc = dt.unsqueeze(-1).clamp(max=self.max_dt)
+        amp = torch.exp((-dtc * delta[None, None]).clamp(min=-40.0, max=0.0))
+        ph = dtc * omega[None, None]
+        cos, sin = torch.cos(ph), torch.sin(ph)
+        hz = torch.cat([amp * (zr * cos - zi * sin),
+                        amp * (zr * sin + zi * cos)], dim=-1)
+        return torch.cat([u, hg, hz], dim=-1)

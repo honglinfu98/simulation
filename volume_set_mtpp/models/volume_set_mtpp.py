@@ -755,6 +755,15 @@ class VolumeSetMTPP(PPModel):
                     loss = loss + self.subcritical_weight * F.relu(rho - self.subcritical_rho_max) ** 2
                     rho_val = rho.item()
 
+        # Differentiable spectral hinge on the K x K routing: sigma_max(T) is a
+        # smooth upper bound on rho(T) obtained by power iteration, so bounding
+        # it bounds the routing gain without back-propagating through an
+        # eigendecomposition (ill-conditioned at near-degenerate eigenvalues).
+        _sw = float(getattr(self, '_pct_spectral_weight', 0.0) or 0.0)
+        _rm = float(getattr(self, '_pct_rho_max', 0.0) or 0.0)
+        if _sw > 0 and _rm > 0 and hasattr(self.decoder, 'spectral_penalty'):
+            loss = loss + _sw * self.decoder.spectral_penalty(_rm)
+
         # Compute metrics
         metrics = {
             'loss': loss.item(),
@@ -934,6 +943,9 @@ def create_volume_set_mtpp(
             num_timescales=config.get('lgm_timescales', 4),
             typed_kicks=config.get('lgm_typed_kicks', False),
             gate_max=config.get('lgm_gate_max', 0.0),
+            gen_rank=config.get('lgm_gen_rank', 0),
+            gen_tau_min=config.get('lgm_gen_tau_min', 0.05),
+            gen_tau_max=config.get('lgm_gen_tau_max', 120.0),
         )
     elif decoder_type == 'hawkes':
         decoder = HawkesDecoder(
@@ -997,6 +1009,77 @@ def create_volume_set_mtpp(
             n_layers=config.get('pub_layers', 2),
             dropout=config.get('pub_dropout', 0.0),
             use_scan=config.get('pub_use_scan', True),
+        )
+    elif decoder_type == 'mex-s2p2':
+        # MEX-S2P2: one SS2P2 per event type (each tower carries its OWN
+        # decoupled bounded head) coupled by a SHARED, EXPLICIT K x K transition
+        # matrix on the impulses, so lambda_k is driven by events of every type.
+        # Mutual excitation is back in the RATE, and the routing is a readable
+        # parameter T[k,j] rather than an emergent property of the mixer.
+        # NOTE: Lambda = sum_k lambda_k and p = lambda_k/Lambda, so this inherits
+        # pct-s2p2's non-separability (E[u] drifted to 2.76 there).  That is the
+        # deliberate trade for rate-level mutual excitation; dec-s2p2 is the
+        # variant that gives it up for calibration (E[u] 1.83).
+        from .pct_s2p2_decoder import PCTS2P2Decoder
+        decoder = PCTS2P2Decoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            tower_dim=config.get('pct_tower_dim', 8),
+            state_dim=config.get('pct_state_dim', 8),
+            n_layers=config.get('pct_layers', 2),
+            impulse_mode=config.get('pct_impulse_mode', 'matrix'),
+            per_tower_head=config.get('pct_per_tower_head', True),
+            trans_normalize=config.get('pct_trans_normalize', True),
+            c_max=config.get('pct_c_max', 2.0),
+            c_init=config.get('pct_c_init', 1.0),
+            block_diag_mixers=config.get('pct_block_diag_mixers', False),
+            rate_cap=config.get('pct_rate_cap', 6.0),
+            target_rate=config.get('target_rate', 20.0),
+            dropout=config.get('pct_dropout', 0.0),
+        )
+    elif decoder_type == 'dec-s2p2':
+        # Decomposed: SS2P2 bounded scalar rate x per-type-tower composition,
+        # with DISJOINT parameter blocks (separate backbones AND separate
+        # channel embeddings).  Restores d(Lambda)/d(theta_mark) == 0, which
+        # pct-s2p2 gave up and paid for with E[u] drifting 1.43 -> 2.76.
+        from .dec_s2p2_decoder import DecS2P2Decoder
+        decoder = DecS2P2Decoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            recurrent_hidden_size=config['recurrent_hidden_size'],
+            num_layers=config.get('s2p2_layers', 2),
+            dropout=config.get('s2p2_dropout', 0.0),
+            input_dependent_dynamics=config.get('s2p2_input_dependent_dynamics', True),
+            target_rate=config.get('target_rate', 20.0),
+            wnorm_cap=config.get('ss2p2_wnorm_cap', 6.0),
+            use_scan=config.get('s2p2_scan', False),
+            tower_dim=config.get('pct_tower_dim', 8),
+            state_dim=config.get('pct_state_dim', 8),
+            pct_layers=config.get('pct_layers', 2),
+            impulse_mode=config.get('pct_impulse_mode', 'all'),
+            block_diag_mixers=config.get('pct_block_diag_mixers', False),
+        )
+    elif decoder_type == 'pct-s2p2':
+        # Parallel per-type S2P2: K towers of diagonalized LLH layers with a
+        # shared cross-tower mixer BETWEEN layers (keeps the scan O(log N)),
+        # and SS2P2's softmin-capped per-type rate head so sum_k lambda_k has
+        # an exact dominating rate for thinning.
+        from .pct_s2p2_decoder import PCTS2P2Decoder
+        decoder = PCTS2P2Decoder(
+            channel_embedding=channel_embedding,
+            time_embedding=time_embedding,
+            num_channels=num_channels,
+            tower_dim=config.get('pct_tower_dim', 8),
+            state_dim=config.get('pct_state_dim', 8),
+            n_layers=config.get('pct_layers', 2),
+            impulse_mode=config.get('pct_impulse_mode', 'all'),
+            per_tower_head=config.get('pct_per_tower_head', False),
+            block_diag_mixers=config.get('pct_block_diag_mixers', False),
+            rate_cap=config.get('pct_rate_cap', 6.0),
+            target_rate=config.get('target_rate', 20.0),
+            dropout=config.get('pct_dropout', 0.0),
         )
     elif decoder_type == 'ptp-s2p2':
         # Legacy per-type s2p2 (the pre-2026-07-22 pct-lstm backbone), kept
