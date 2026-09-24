@@ -78,16 +78,38 @@ route: full neural expressiveness with a closed-form rate bound restoring
 non-explosiveness, the bound a modeling decision rather than a thinning
 device, one-sided so the quiet regime is left undistorted.
 
-\paragraph{Generative LOB simulators.}
-Learned order-flow generators span GANs \citep{li2020stockgan,coletta2021lobgan,
-coletta2022worldagent}, token-level autoregressive state-space models
-\citep{nagy2023lobs5}, diffusion-guided agents \citep{huang2026diga}, and
-foundation-model-scale transformers \citep{mars2025,sood2026tradefm}.
-Agent-based simulators \citep{byrd2020abides,frey2023jaxlob} remain the RL
-workhorse. These systems are scored on distributional realism: stylized facts
+\paragraph{Generative market simulators.}
+Return-level generators synthesize daily or hourly return series, one shot
+from noise or segment by segment \citep{huang2024ftsdiffusion}, and the
+crypto benchmark CTBench scores them by downstream trading utility rather
+than marginal similarity, with order-book data excluded by design
+\citep{ang2026ctbench}. Returns are bounded and stationary, so these models
+never meet the intensity feedback that governs event-level simulation,
+though stylized-fact audits still find that off-the-shelf diffusion and
+GAN generators underestimate kurtosis \citep{soun2026stable}.
+Event-level order-flow generators span GANs
+\citep{li2020stockgan,coletta2021lobgan,coletta2022worldagent}, token-level
+autoregressive state-space models \citep{nagy2023lobs5}, diffusion-guided
+agents \citep{huang2026diga}, and foundation-model-scale transformers
+\citep{mars2025,sood2026tradefm}; agent-based simulators
+\citep{byrd2020abides,frey2023jaxlob} remain the RL workhorse. MarS, the
+closest in ambition, tokenizes inter-order intervals into 16 bins, so it
+has no conditional intensity and no notion of a rate bound. It validates
+roll-outs only over anchored horizons of 5--25 minutes re-seeded from real
+orders and reports no event-rate diagnostic, and its authors note that
+stylized facts alone do not certify simulation quality \citep{mars2025}.
+
+\paragraph{Evaluating simulators.}
+Order-flow generators are scored on distributional realism: stylized facts
 \citep{cont2001empirical,vyetrenko2020getreal} and the KS/Wasserstein suites
 of LOB-Bench \citep{nagy2025lobbench}, whose authors report error
-accumulation over long roll-outs. \ssppp{} differs on two counts: one
-likelihood-based model is held to \emph{both} prediction and closed-loop
-realism, with the simulated mean rate calibrated and checked by full-scale
-verification, a closed-loop test the simulators above do not report.
+accumulation over long roll-outs. \citet{kumar2025f2sp} make the general
+point for stochastic systems: any metric scored on a single observed path,
+likelihood included, tests fidelity to a realization rather than to the
+process, and because a proper score rewards sharpness, calibration should
+be checked first as a separate gate. Our verified mean-rate calibration and
+stylized-fact battery play that role for closed-loop event streams. \ssppp{}
+thus differs from the simulators above on two counts: one likelihood-based
+model is held to \emph{both} prediction and closed-loop realism, and the
+simulated mean rate is calibrated and checked by a full-scale verification
+roll-out, a closed-loop test none of them reports.

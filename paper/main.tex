@@ -1,20 +1,17 @@
-%File: main.tex  (AAAI-2026 anonymous submission)
-\documentclass[letterpaper]{article} % DO NOT CHANGE THIS
-\usepackage[submission]{aaai2026}  % DO NOT CHANGE THIS
-\usepackage{times}  % DO NOT CHANGE THIS
-\usepackage{helvet}  % DO NOT CHANGE THIS
-\usepackage{courier}  % DO NOT CHANGE THIS
-\usepackage[hyphens]{url}  % DO NOT CHANGE THIS
-\usepackage{graphicx} % DO NOT CHANGE THIS
-\urlstyle{rm} % DO NOT CHANGE THIS
-\def\UrlFont{\rm}  % DO NOT CHANGE THIS
-\usepackage{natbib}  % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
-\usepackage{caption} % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
-\frenchspacing  % DO NOT CHANGE THIS
-\setlength{\pdfpagewidth}{8.5in} % DO NOT CHANGE THIS
-\setlength{\pdfpageheight}{11in} % DO NOT CHANGE THIS
+%File: main.tex  (ICLR 2027 anonymous submission)
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2027_conference,times}
 
-% Project packages (AAAI-safe; no hyperref/float/geometry).
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+% Disabled: the paper carries its own notation (see NOTATION.md); loading the
+% dlbook macros risks silent clashes.
+%\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+
+% Project packages
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{booktabs}
@@ -30,24 +27,21 @@
 \newcommand{\spppub}{S2P2\textsubscript{pub}\xspace} % faithful published configuration
 \newcommand{\nhp}{\textsc{nhp}\xspace}
 
-\pdfinfo{
-/TemplateVersion (2026.1)
-}
-
-\setcounter{secnumdepth}{0} % no section numbers (AAAI default)
-% Float placement: the experiments section carries six double-column floats;
-% defaults strand them on trailing float pages.
-\renewcommand{\dbltopfraction}{0.95}
+% Float placement: the experiments section carries six large floats; defaults
+% strand them on trailing float pages.
 \renewcommand{\topfraction}{0.95}
 \renewcommand{\textfraction}{0.05}
 \renewcommand{\floatpagefraction}{0.8}
-\setcounter{dbltopnumber}{3}
 
-% Title in Title Case.
-\title{SS2P2: A Stable State-Space Point Process for Limit-Order-Book Simulation}
-\author{Anonymous Submission}
-\affiliations{}
+\title{SS2P2: A Stable State-Space Point Process \\ for Limit-Order-Book Simulation}
 
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+\author{Anonymous authors\\
+Paper under double-blind review}
+
+%\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
 \begin{document}
 
 \maketitle
@@ -60,10 +54,33 @@
 \input{section/experiments}
 \input{section/conclusion}
 
-\bibliography{orderbook_references,references}
+\subsection*{AI use statement}
+% Required by ICLR 2027; does not count toward the page limit.
+% TODO(author): replace the bracketed placeholders per the ICLR 2027 AI Policy.
+In this work, we used generative AI tools for [tasks with required disclosure].
+We have not used generative AI tools for [other tasks with required
+disclosure], and [the rest of the required disclosure tasks] are not
+applicable to this work. We have reviewed all AI-assisted work and take
+responsibility for the final content of this work, including text, claims,
+and artifacts produced with the aid of generative AI.
 
-% Technical appendix (submission-time supplement; move to a separate file if
-% the venue requires supplementary material to be uploaded separately).
+\subsection*{Reproducibility statement}
+% Recommended by ICLR 2027; does not count toward the page limit.
+% TODO(author): add the code URL once the anonymized repository exists.
+Appendix~\ref{sec:appendix} states the rate-bound propositions with proofs,
+the full calibration protocol with the per-checkpoint multipliers $\kappa$,
+the metric definitions (NLL quadrature, conditional type accuracy,
+expected-time MAE), the order-flow proxy behind the stylized-fact battery,
+the complete model and training configuration (optimizer, schedule, seeds,
+$z_{\max}$, $\varsigma$ initialization), and the dataset facts (assets,
+splits, event vocabulary, test-event counts). Every roll-out is seeded and
+deterministic, and scripts that regenerate every table and figure from the
+raw results accompany the submission.
+
+\bibliography{orderbook_references,references}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
 \input{section/appendix}
 
 \end{document}

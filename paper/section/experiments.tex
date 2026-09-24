@@ -1,4 +1,4 @@
-\section{Experiments and Evaluations}
+\section{Experiments}
 \label{sec:experiments}
 
 We evaluate \ssppp{} against six baselines on three questions: (1)~does
@@ -79,7 +79,9 @@ strict end-to-end:
 \begin{table*}[t]
 \centering\footnotesize
 \setlength{\tabcolsep}{2.3pt}
-\input{tables/tab_multiasset_prediction}
+% ICLR text block (5.5in) is narrower than the AAAI double-column span this
+% table was generated for; scale to fit.
+\resizebox{\textwidth}{!}{\input{tables/tab_multiasset_prediction}}
 \caption{Prediction per genuine test event (mean $\pm$ 95\% CI over three
 training seeds; streaming lossless evaluator). NLL = overall negative
 log-likelihood (time $+$ mark); ACC = next-type accuracy at the observed
@@ -105,8 +107,26 @@ the lowest MAE on ETH and SOL); the uncapped \spppu{} is pathological
 ($2.3$, $10.2$, $46.2$\,s), consistent with near-zero-intensity states
 whose expected-time integral hits the horizon. The faithful
 \spppub{} port is erratic across seeds under this budget (ETH NLL spans
-$0.28$--$9.1$): a protocol-matched reference, not the published model's
+$0.28$--$9.1$): a protocol-matched reference rather than the published model's
 attainable accuracy.
+
+\paragraph{Per-asset pattern.}
+The assets where \ssppp{} leads (ETH, SOL) and the one where it trails
+(BTC) differ in market character, and one reading is that SOL and ETH
+order flow on Coinbase carries more repeated manipulation footprints, of
+the kind the companion detector of \citet{fu2026tfow} targets, while BTC
+flow is closer to natural trading; a decoder that fits recurring structure
+would then gain on ETH and SOL and lose on BTC. Two facts bound this
+reading. The BTC deficit is confined to timing, since \ssppp{} ties \nhp{}
+on next-type accuracy ($0.448$ vs.\ $0.449$) and concedes only the
+likelihood, and expected-time MAE does not follow the split, since PCT-LSTM
+is lowest on ETH and SOL. We report the asset split as an observation;
+testing the manipulation reading requires scoring each stream's anomaly
+fraction with the detector, which we leave open.
+% AUTHOR ACTION REQUIRED: the manipulation-footprint reading is a
+% hypothesis with no supporting measurement in this repo (the TFOW draft
+% reports no per-asset anomaly rates). Either run the TFOW detector on the
+% three streams and report anomaly fractions, or keep the hedged wording.
 % The remaining gap to \nhp{} is in timing on BTC, and a per-gap decomposition
 % of timeNLL $= -\log\lambda(t_i) + \Delta u_i$ (event term $+$ compensator
 % mass) shows it is not about bursts: the state-space family's event terms beat
@@ -126,7 +146,7 @@ attainable accuracy.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.75\textwidth]{figs/fig_forest}
+\includegraphics[width=0.66\textwidth]{figs/fig_forest}
 \caption{The stylized-fact battery on the order-flow proxy (identical
 construction for real and simulated streams), pooled across assets:
 relative error vs.\ real for facts F0--F11 (whiskers = 95\% $t$-CI over
@@ -157,7 +177,7 @@ twelve-fact battery (order-flow proxy), pooled across assets. \ssppp{} has
 the lowest mean relative error on five of twelve (F3 tails, F4 Hill, F8
 decay, F9 leverage, F11 asymmetry), ties PCT-LSTM on F2 ($0.73$ both), and
 is mid-pack elsewhere; intervals overlap heavily, so we read the figure as
-broad competitiveness, not dominance. The F2 panel separates the
+broad competitiveness rather than dominance. The F2 panel separates the
 families most sharply: the LSTM pins at ${\approx}0.99$ (a near-Poisson
 stream, the trivially-stable end of the trade-off) while real Fano rises
 from ${\sim}40$--$70$ at 1\,s to ${\sim}340$--$1400$ at 50\,s. \nhp{}
@@ -173,9 +193,8 @@ Post-hoc rate calibration applies to \emph{every} decoder: a constant
 $\kappa$ rescales sim-time intensity while preserving conditional type
 ratios at a fixed history, so we calibrate all models but SAHP (excluded
 above) and treat the \emph{outcome} as a result. The protocol is
-falsifiable: probes must bracket and converge to the validation target, a
-full-scale roll-out must reproduce it within 15\%, and failures are
-reproducible (deterministic seeds, bit-identical retry brackets).
+falsifiable (Section~\ref{sec:setup}; appendix), and failures are
+reproducible under deterministic seeds with bit-identical retry brackets.
 
 \begin{table}[t]
 \centering\small
@@ -207,12 +226,12 @@ satisfied verification, while the \ssppp{} response crossed the same
 target smoothly on every asset. The same uncapped head behind \spppu's
 pathological expected-time tail (Table~\ref{tab:multiasset}) also produced
 the erratic closed-loop response; both problems were absent under the
-softmin bound in every reported run --- an empirical regularity, not a
+softmin bound in every reported run, an empirical regularity rather than a
 theorem.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.70\columnwidth]{figs/fig_cal_ladder}
+\includegraphics[width=0.58\columnwidth]{figs/fig_cal_ladder}
 \caption{Failing \spppu{} checkpoints respond near-discontinuously to the
 rescaling constant $\kappa$ on every asset, most extremely on SOL; verified
 \ssppp{} checkpoints cross each target smoothly. Probe ladders, seed-1

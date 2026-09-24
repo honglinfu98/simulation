@@ -28,7 +28,7 @@ every observed book change through this alignment.
 \label{subsec:event-construction}
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.9\columnwidth]{figs/pipeline}
+\includegraphics[width=0.55\columnwidth]{figs/pipeline}
 \caption{Pipeline. (1)~\emph{Data collector}: aligned trade records and
 Level-2 book updates. (2)~\emph{Event constructor}: consecutive snapshots
 are differenced and aligned with trades to emit atomic typed events.
@@ -47,8 +47,8 @@ $K=10$ levels on each side.
 
 \paragraph{Atomic Events.}
 We define a finite set $\mathcal{E}$ of \emph{atomic event types}
-$e=(c,s,\delta)$: a class $c\in\{\text{LO},\text{MO},\text{CO},\text{IS}\}$
---- limit order (liquidity provision at a top-$K$ level), market order
+$e=(c,s,\delta)$: a class $c\in\{\text{LO},\text{MO},\text{CO},\text{IS}\}$,
+namely limit order (liquidity provision at a top-$K$ level), market order
 (consumption at the best quote), cancel order (withdrawal at a top-$K$
 level), or inside-spread order (a new order improving the prevailing best
 quote); a side $s\in\{b,a\}$; and a level index $\delta$. For LO/CO,
@@ -76,8 +76,8 @@ models use only event times and types.
 
 \subsection{Stable State-Space Point Process (SS2P2)}
 \ssppp{} factors the per-type intensity into a bounded total rate and a
-mark distribution --- the ground-intensity--mark factorization of set-valued
-MTPPs \citep{chang2024probabilistic} --- both decoded from the \emph{same}
+mark distribution (the ground-intensity--mark factorization of set-valued
+MTPPs, \citealp{chang2024probabilistic}), both decoded from the \emph{same}
 continuous-time hidden representation $h_t$:
 $\lambda_e(t)=\lambda(t)\,p(e\mid t)$, with
 $\sum_{e}\lambda_e(t)=\lambda(t)$ since $\sum_{e} p(e\mid t)=1$. The design
@@ -112,6 +112,9 @@ $\lambda\approx\varsigma\ln 2$ when $z_{\max}\!\gg\!0$; appendix).
   $[0,T]$ is stochastically dominated by a homogeneous Poisson count with
   mean $\bar\lambda T$ (finite-time non-explosion), and $\bar\lambda$ is an
   \emph{exact} dominating rate for Ogata thinning (Proposition~1, appendix).
+  The constraint holds by construction rather than as a soft penalty of the
+  kind used for no-arbitrage in volatility smoothing
+  \citep{wiedemann2025opds}.
   The bound guarantees no more: stationarity, ergodicity, and realism are
   assessed empirically.
 \item \textbf{Bounded input.} The readout sees $g\in(-1,1)^H$: however far
@@ -155,7 +158,7 @@ architectural ceiling. Two qualifications: in closed loop, a changed mark
 distribution changes sampled marks, hence future states and rates (the
 ceiling holds, but the realized mean rate can shift and may require
 recalibration); and both heads read the shared backbone, so mark gradients
-still shape $h_t$ --- only the head-specific parameters separate. The
+still shape $h_t$; only the head-specific parameters separate. The
 simplex guarantees rate neutrality state by state, not trajectory by
 trajectory.
 
@@ -188,7 +191,7 @@ probability $\lambda(t)/\bar\lambda$.
 \subsection{Carried-state simulation}
 The standard roll-out protocol re-encodes a sliding window of the last $W$
 events from a zero state at every step: $O(W)$ work per simulated event and
-a hard memory ceiling --- nothing older than $W$ events can influence the
+a hard memory ceiling, since nothing older than $W$ events can influence the
 future, so long-memory stylized facts are \emph{architecturally} unreachable
 regardless of the model. Because the backbone is a state-space recursion,
 both costs vanish: we carry the packed decoder state and advance it with
@@ -202,8 +205,8 @@ and retain the sliding window.
 \subsection{Stateful (TBPTT) training}
 Windowed maximum likelihood encodes every training window from a cold
 initial state, so the model only ever trains in a ``history just began''
-transient and MLE explains the observed rate with an inflated baseline ---
-the free roll-out, whose state is warm, then double-counts. We train instead
+transient and MLE explains the observed rate with an inflated baseline.
+The free roll-out, whose state is warm, then double-counts. We train instead
 with truncated backpropagation through time \citep{williams1990tbptt}: batch
 lanes walk contiguous stretches of the stream in order, and the decoder
 state at the end of window $t$ is passed, \emph{detached}, as the initial
@@ -235,7 +238,7 @@ bisection applies to every baseline; what is lost off-family is only the
 exactness of the thinning bound. The procedure is falsifiable (targets,
 tolerances, and verification in Calibratability and the appendix);
 unresolved failures exclude the checkpoint and are reported as results, and
-transfer to the test split is reported, never gated. We use calibration as
+transfer to the test split is reported and never used as a gate. We use calibration as
 a \emph{post-hoc} correction for the realized-rate inflation caused by the
-biased endpoint-rule training compensator --- and, in the experiments, as a
+biased endpoint-rule training compensator and, in the experiments, as a
 measurement instrument in its own right.

@@ -7,21 +7,23 @@ fine structure drives price discovery and liquidity. A generative model of
 this stream is asked two things. \emph{Prediction}: given the event history,
 score the time and type of the next event. \emph{Simulation}: roll the model
 forward freely, feeding its own samples back as history, and reproduce the
-stylized facts of real order flow --- calibrated event rates, burst--lull
-clustering, heavy tails \citep{cont2001empirical}. Simulation is the harder
-task and, for downstream use (market-making world models, agent training,
-counterfactual analysis), the more valuable one
+stylized facts of real order flow: calibrated event rates, burst--lull
+clustering, heavy tails \citep{cont2001empirical}. The two are different questions: a score on the observed stream
+tests fidelity to one realization, whereas simulation tests whether the
+model has learned the process \citep{kumar2025f2sp}. Simulation is the
+harder task and, for downstream use (market-making world models, agent
+training, counterfactual analysis), the more valuable one
 \citep{mars2025,nagy2025lobbench}.
 
 Neural MTPPs \citep{du2016recurrent,Mei2017TheProcess,Shchur2021NeuralReview}
 excel at prediction, and the continuous-time state-space model \sppp{}
 \citep{chang2025ctssm} reports state-of-the-art held-out likelihood across
-standard event-sequence benchmarks --- but only teacher-forced: the \sppp{}
+standard event-sequence benchmarks, but only teacher-forced: the \sppp{}
 paper never rolls the model out. We evaluate our benchmark implementation
 of this decoder (a factorized, uncapped variant; see Background) and find
 it is not a usable simulator under our protocol. Two obstacles are
 responsible. \emph{First, instability}: the self-excitation that wins the
-one-step likelihood becomes a liability in closed loop --- each sampled
+one-step likelihood becomes a liability in closed loop. Each sampled
 event raises the intensity, which produces more events, and with no bound on
 the rate the roll-out drifts hot. \emph{Second, failed calibration}: the
 standard patch, rescaling the intensity until the simulated rate matches
@@ -60,7 +62,5 @@ contributions:
   marks are untouched at a fixed state, so calibration is a one-dimensional
   root-find that preserves the architectural bound; a mark-ratio-preserving
   variant applies to every baseline, and every calibration must pass a
-  full-scale verification roll-out within a stated tolerance. Under this
-  empirical test the uncapped baseline frequently fails with high rescaling
-  sensitivity, while the bounded head verified on all nine checkpoints.
+  full-scale verification roll-out within a stated tolerance.
 \end{enumerate}

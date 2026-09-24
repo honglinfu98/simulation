@@ -11,7 +11,10 @@ and accuracy (PCT-LSTM has lower MAE), leads on ETH, ties the best BTC
 marks, verifies calibration on all nine checkpoints, and leads five of
 twelve stylized facts, competitive on the rest.
 
-First, closed-loop reliability tracked the head, not training quality:
+The pattern is the one \citet{kumar2025f2sp} describe for stochastic
+systems: the uncapped decoder is state of the art on realization fidelity
+(NLL) and fails process fidelity (verified rate) outright. First,
+closed-loop reliability tracked the head rather than training quality:
 the uncapped head fails reproducibly with near-critical rescaling
 sensitivity; the bounded head's calibration was a smooth root-find that
 always verified.
@@ -19,7 +22,8 @@ Second, the bound was nearly free: predictive performance held, training
 runs at scan speed, and exact thinning runs far above real time.
 
 Limits: three streams from one crypto venue; realism is scored on signed
-order-flow statistics, not price paths.
+order-flow statistics rather than price paths, and downstream utility in
+the train-on-synthetic sense of \citet{ang2026ctbench} is untested.
 The guarantee is boundedness, not realism: the LSTM is stable yet
 near-Poisson, \ssppp{} leaves a Fano gap, \nhp{} keeps the BTC timing
 lead, and component attribution awaits ablations. Agent-conditioned marks

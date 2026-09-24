@@ -1,7 +1,7 @@
 \section{Technical Appendix}
 \label{sec:appendix}
 
-\subsection{A. The architectural rate bound}
+\subsection{The architectural rate bound}
 \paragraph{Proposition 1 (global ceiling).}
 For the head $g=o\odot\tanh(h_t)$, $z_{\mathrm{raw}}=w^{\!\top}g+b$,
 $z=z_{\max}-\mathrm{softplus}(z_{\max}-z_{\mathrm{raw}})$,
@@ -41,7 +41,7 @@ for any fixed trained model. The cap's contribution over the pre-cap bound
 is that $\bar\lambda$ is user-chosen, independent of the trained magnitudes
 of $w$ and $b$, and invariant under training.
 
-\subsection{B. Calibration protocol}
+\subsection{Calibration protocol}
 Targets are validation-split rates ($38.27$, $47.92$, $23.98$ ev/s for BTC,
 ETH, SOL). For each checkpoint: (1)~probe roll-outs of $600$\,s at
 multiplier $\kappa$ starting from a geometric grid until the target is
@@ -58,7 +58,7 @@ $0.545/0.569/0.648$, ETH $0.723/0.707/0.582$, SOL $0.557/0.595/0.621$;
 $1.102$ (s3); \spppub{} (passing) BTC $0.608$ (s1), $0.439$ (s2), ETH
 $0.322/0.310/0.439$, SOL $0.534$ (s2).
 
-\subsection{C. Metric definitions}
+\subsection{Metric definitions}
 \textbf{NLL} is per-event negative log-likelihood with the compensator
 integrated by a 32-point log-spaced quadrature per inter-event gap
 (horizon $60$\,s; beyond the grid the intensity is extended at its terminal
@@ -72,7 +72,7 @@ absolute error against the true gap. All prediction metrics are computed by
 a streaming evaluator with carried state, one cold start per genuine stream
 segment, which hard-fails if any test event goes unscored.
 
-\subsection{D. Stylized-fact construction (order-flow proxy)}
+\subsection{Stylized-fact construction (order-flow proxy)}
 The models emit event times and types only, so the battery operates on an
 order-flow proxy applied identically to real and simulated streams. Events
 are bucketed at $1$\,s. Per bucket, \emph{activity} $a_t$ is the total
@@ -87,7 +87,7 @@ decay of $|r|$ autocorrelation, leverage, timescale asymmetry); F10
 correlates $a_t$ with $|r_t|$ (activity--volatility). None of these are
 statistics of asset price returns; we label them accordingly.
 
-\subsection{E. Model and training configuration}
+\subsection{Model and training configuration}
 All models share the input embedding (channel embedding 64, time embedding
 64) and differ only in the decoder. Backbone/decoder hidden size 64, two
 layers. Training: AdamW, learning rate $2\times10^{-3}$, weight decay
@@ -107,7 +107,7 @@ per layer); its architecture follows the official example configuration
 (\texttt{Int\_Backward\_LLH}, \texttt{relative\_time}, post-norm, GELU) and
 was verified value-level against the official classes.
 
-\subsection{F. Efficiency table}
+\subsection{Efficiency table}
 \begin{table}[t]
 \centering
 \small
@@ -131,7 +131,7 @@ $^{\dag}$inversion~/ exact-ceiling Ogata thinning.}
 \label{tab:speed}
 \end{table}
 
-\subsection{G. Dataset}
+\subsection{Dataset}
 Coinbase BTC-USD, ETH-USD, and SOL-USD trades and Level-2 book updates,
 seven days per asset, encoded into $|\mathcal{E}|=62$ atomic types
 ($20+20+2+20$ over LO/CO/MO/IS $\times$ side $\times$ level). Genuine test

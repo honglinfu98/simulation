@@ -81,3 +81,14 @@ LaTeX source where noted.
 - **Question.** Venue-required access date for the Kaiko data-provider
   reference (entry currently year-only).
 - **Blocking?** No.
+
+## 9. Per-asset manipulation hypothesis (new measurement)
+- **Question.** Prediction Quality now offers the reading that SS2P2's ETH/SOL
+  lead reflects learned manipulation footprints while BTC flow is more natural.
+  No measurement supports it: the TFOW companion draft reports no per-asset
+  anomaly rates, and Cong et al.'s wash-trading evidence concerns unregulated
+  exchanges, not Coinbase.
+- **Minimum needed.** Run the TFOW detector on the three test streams and report
+  the flagged-sequence fraction per asset; if BTC is not lowest, drop the reading.
+- **Blocking?** No while the wording stays hedged; yes before any causal claim.
+
